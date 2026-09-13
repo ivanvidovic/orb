@@ -1,4 +1,4 @@
-import {renderPlacementDiagram} from './placement-diagrams.js?v=19';
+import {renderPlacementDiagram} from './placement-diagrams.js?v=23';
 import {installColorPicker} from './color-picker.js?v=19';
 import {installSliderControls} from './controls.js?v=19';
 
@@ -52,7 +52,7 @@ const GARMENTS = [
    wearer's left), y up from the hem. On the supplied GLB these dimensions are
    converted into its native UV atlas. */
 // Each placement is registered against the garment's authored UV atlas.
-const ART_META={"chest": {"label": "Left chest", "side": "Front", "view": "front", "w": 0.095, "scale": 70, "code": "A"}, "rightchest": {"label": "Right chest", "side": "Front", "view": "front", "w": 0.095, "scale": 70, "code": "B"}, "front": {"label": "Full front", "side": "Front", "view": "front", "w": 0.3, "scale": 100, "code": "C"}, "back": {"label": "Full back", "side": "Back", "view": "back", "w": 0.3, "scale": 100, "code": "D"}, "lowerback": {"label": "Lower back", "side": "Back", "view": "back", "w": 0.22, "scale": 85, "code": "E"}, "leftshoulder": {"label": "Left shoulder", "side": "Sleeve", "view": "left", "w": 0.08, "scale": 85, "code": "F"}, "rightshoulder": {"label": "Right shoulder", "side": "Sleeve", "view": "right", "w": 0.08, "scale": 85, "code": "G"}};
+const ART_META={"chest": {"label": "Left chest", "side": "Front", "view": "front", "w": 0.095, "scale": 70, "code": "A"}, "rightchest": {"label": "Right chest", "side": "Front", "view": "front", "w": 0.095, "scale": 70, "code": "B"}, "front": {"label": "Full front", "side": "Front", "view": "front", "w": 0.3, "scale": 100, "code": "C"}, "back": {"label": "Full back", "side": "Back", "view": "back", "w": 0.3, "scale": 100, "code": "D"}, "lowerback": {"label": "Lower back", "side": "Back", "view": "back", "w": 0.22, "scale": 85, "code": "E"}, "leftshoulder": {"label": "Left sleeve", "side": "Sleeve", "view": "left", "w": 0.08, "scale": 85, "code": "F"}, "rightshoulder": {"label": "Right sleeve", "side": "Sleeve", "view": "right", "w": 0.08, "scale": 85, "code": "G"}};
 Object.assign(ART_META,{
   pocket:{label:'Hoodie pocket',side:'Front',view:'front',w:.14,scale:100,code:'H',hoodie:true},
   hoodleft:{label:'Left hood · outside',side:'Hood',view:'left',w:.09,scale:100,code:'I',hoodie:true},
@@ -735,7 +735,7 @@ function trimCatalogCache(){
 }
 let placementCalibrationPromise=null;
 function getPlacementCalibration(){
-  if(!placementCalibrationPromise)placementCalibrationPromise=fetch(new URL('../calibration/placements-15.json',import.meta.url)).then(response=>{
+  if(!placementCalibrationPromise)placementCalibrationPromise=fetch(new URL('../calibration/placements-23.json',import.meta.url)).then(response=>{
     if(!response.ok)throw new Error('Placement calibration could not load.');return response.json();
   }).catch(error=>{placementCalibrationPromise=null;throw error;});
   return placementCalibrationPromise;
@@ -1110,7 +1110,10 @@ const ART_INPUT_META={
   scale:{min:25,max:200,step:1},
   rot:{min:-180,max:180,step:1},
 };
-function artDefault(slot, prop){ return ART_DEFAULTS[slot][prop]; }
+function artDefault(slot,prop){
+  const entry=artEntry();
+  return prop==='scale'&&entry?.slot===slot&&hasFullSleeve(entry)&&entry.sleevePreset==='full'?100:ART_DEFAULTS[slot][prop];
+}
 
 let activeArtSlot='back';
 const artControlElements=Object.fromEntries(['x','y','scale','rot'].map(prop=>[prop,{
@@ -1928,7 +1931,11 @@ function updateArtworkQuad(map,layer,index,total){
   mesh.visible=layer.visible;mesh.renderOrder=total-index;
   if(!layer.visible)return;
   const image=artworkSource(layer),A=layer.placement,meta=ART_META[layer.slot],aspect=image.height/image.width;
-  const width=meta.w*A.scale*(q.printScale||1)/(!isCustom&&meta.side==='Sleeve'?Math.max(1,aspect):1),height=width*aspect;
+  // Fit the source proportionally within the calibrated outer sleeve, above the cuff.
+  const full=hasFullSleeve(layer)&&layer.sleevePreset==='full',limits=UV_PROFILES[layer.slot]?.full;
+  const width=full?Math.min(limits.printWidth,limits.printLength/aspect)*A.scale:
+    meta.w*A.scale*(q.printScale||1)/(!isCustom&&meta.side==='Sleeve'?Math.max(1,aspect):1);
+  const height=width*aspect;
   const [a,b,d,e]=q.basis,c=Math.cos(A.rot*Math.PI/180),s=Math.sin(A.rot*Math.PI/180),k=tile.density;
   mesh.matrix.set(
     k*(a*c+b*s)*width,k*(-a*s+b*c)*height,0,tile.x+(q.origin[0]-tile.minU+a*A.x-b*A.y)*k,
@@ -2072,7 +2079,14 @@ let pendingSlot='back',pendingLayerId=null,pendingUploadAction='add',artLoading=
 let artLayers=[],nextArtId=1,activeArtId=null,renamingArtId=null;
 const artHistory=[],layerRows=new Map();
 const artEntry=(id=activeArtId)=>artLayers.find(layer=>layer.id===id)||null;
-const layerProfile=layer=>layer.anchor||UV_PROFILES[layer.slot];
+const hasFullSleeve=layer=>!isCustom&&!!UV_PROFILES[layer?.slot]?.full;
+const layerProfile=layer=>layer.anchor||(hasFullSleeve(layer)&&layer.sleevePreset==='full'?UV_PROFILES[layer.slot].full:UV_PROFILES[layer.slot]);
+function setSleevePreset(preset){
+  const entry=artEntry();if(artLoading||!hasFullSleeve(entry)||!['patch','full'].includes(preset)||entry.sleevePreset===preset)return;
+  recordArtUndo();cancelAnchorPick();entry.sleevePreset=preset;entry.anchor=null;
+  entry.placement={x:0,y:0,scale:preset==='full'?1:ART_META[entry.slot].scale/100,rot:0};
+  requestArtworkRender(entry);syncArtworkUi();
+}
 function suggestArtworkName(filename){
   let name=String(filename||'Artwork').replace(/\.(png|jpe?g|webp|gif|avif|svg)$/i,'')
     .replace(/[_]+/g,' ').replace(/\s+/g,' ').trim();
@@ -2091,7 +2105,7 @@ function uniqueArtworkName(name,names){
 }
 function initializeLayer(entry,slot,anchor=null,names=new Set(artLayers.map(e=>e.name.toLocaleLowerCase()))){
   const name=uniqueArtworkName(entry.name,names);
-  return {...entry,name,autoName:name,nameEdited:false,id:'art-'+nextArtId++,slot,visible:true,glow:false,uvReactive:false,emission:100,anchor:anchor?structuredClone(anchor):null,
+  return {...entry,name,autoName:name,nameEdited:false,id:'art-'+nextArtId++,slot,sleevePreset:'patch',visible:true,glow:false,uvReactive:false,emission:100,anchor:anchor?structuredClone(anchor):null,
     placement:{x:0,y:0,scale:ART_META[slot].scale/100,rot:0}};
 }
 function beginArtworkRename(id){
@@ -2142,6 +2156,11 @@ function selectArtwork(id){
 }
 function syncArtControls(){
   const entry=artEntry();if(!entry)return;
+  document.getElementById('sleevePresetControl').hidden=!hasFullSleeve(entry);
+  for(const button of document.querySelectorAll('[data-sleeve-preset]')){
+    button.setAttribute('aria-pressed',String(button.dataset.sleevePreset===(entry.sleevePreset||'patch')));
+    button.disabled=artLoading;
+  }
   document.getElementById('artGlow').checked=!!entry.glow;
   document.getElementById('artUV').checked=!!entry.uvReactive;
   document.getElementById('artEmissionControl').hidden=!(entry.glow||entry.uvReactive);
@@ -2210,7 +2229,7 @@ function syncArtworkUi(){
     const row=wrap.firstElementChild,selected=layer.id===activeArtId;
     wrap.classList.toggle('active',selected);
     row.classList.toggle('selected',selected);row.classList.toggle('art-hidden',!layer.visible);
-    const label=ART_META[layer.slot].label;
+    const label=ART_META[layer.slot].label+(hasFullSleeve(layer)&&layer.sleevePreset==='full'?' · Full sleeve':'');
     row.querySelector('.art-layer-name').textContent=layer.name;
     const sourceName=layer.sourceName||layer.name;
     row.querySelector('.art-layer-name').title=`${layer.name}\nSource: ${sourceName}`;
@@ -2307,7 +2326,11 @@ async function loadArtFiles(slot,files,action='add',targetId=null){
     // Reuse a placement's last native anchor, but copy it into every new layer.
     const anchor=target?.anchor||artLayers.find(e=>e.slot===slot&&e.anchor)?.anchor||null;
     const names=new Set(artLayers.filter(e=>action!=='replace'||e!==target).map(e=>e.name.toLocaleLowerCase()));
-    added=entries.map(e=>initializeLayer(e,slot,anchor,names));
+    added=entries.map(e=>{
+      const layer=initializeLayer(e,slot,anchor,names);layer.sleevePreset=target?.sleevePreset||'patch';
+      if(hasFullSleeve(layer)&&layer.sleevePreset==='full')layer.placement.scale=1;
+      return layer;
+    });
     if(action==='replace'&&target){
       added[0].id=target.id;added[0].placement={...target.placement};added[0].visible=target.visible;
       if(target.nameEdited){added[0].name=target.name;added[0].nameEdited=true;}
@@ -2411,6 +2434,7 @@ fileInput.addEventListener('change',async()=>{
     if(isCustom&&added[0]&&!added[0].anchor)beginAnchorPick(added[0].id);
   }
 });
+for(const button of document.querySelectorAll('[data-sleeve-preset]'))button.onclick=()=>setSleevePreset(button.dataset.sleevePreset);
 document.getElementById('artAdd').onclick=()=>openArtUpload(activeArtId,'add');
 document.getElementById('artReplace').onclick=()=>openArtUpload(activeArtId,'replace');
 document.getElementById('artUndo').onclick=undoArtwork;

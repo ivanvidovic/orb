@@ -14,7 +14,7 @@ function figure(kind,view,inside){
 export function renderPlacementDiagram(container,{kind,side,available,meta,counts,suggested}){
   const inside=side==='inside',hoodie=kind==='hoodie';
   const groups=inside?[{title:'Inside',view:'Front',pins:[['necktag',150,hoodie?116:90],...(hoodie?[['hoodrightinside',119,49],['hoodleftinside',181,49]]:[])]}]
-    :[{title:'Front',view:'Front',pins:[...outsideFront,...(hoodie?[['pocket',150,242],['hoodright',119,49],['hoodleft',181,49]]:[])]},{title:'Back',view:'Back',pins:outsideBack}];
+    :[{title:'Front',view:'Front',pins:[...outsideFront.map(pin=>pin[0]==='leftshoulder'?['leftshoulder',hoodie?226:251,hoodie?154:126]:pin[0]==='rightshoulder'?['rightshoulder',hoodie?74:49,hoodie?154:126]:pin),...(hoodie?[['pocket',150,242],['hoodright',119,49],['hoodleft',181,49]]:[])]},{title:'Back',view:'Back',pins:outsideBack}];
   container.classList.toggle('placement-inside',inside);
   let index=0;
   const descriptions=new Map();

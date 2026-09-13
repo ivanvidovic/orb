@@ -689,3 +689,10 @@ select,select option,select optgroup{color:var(--ink);background-color:var(--pap
 #artWorkspace .art-editor-head button{font-size:11px;padding:5px 6px;min-width:0;flex:0 0 auto;min-height:32px}
 #artWorkspace .art-editor-head #artPosition{width:28px;padding:5px}
 #artPosition svg{display:block;width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.5}
+
+/* Sleeve presets share one compact row; absent on short sleeves. */
+.sleeve-preset-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 0;font-size:12px}
+.sleeve-preset-row[hidden]{display:none}
+.sleeve-preset-row>div{display:flex;gap:3px}
+#artWorkspace .sleeve-preset-row button{min-height:30px;padding:4px 10px;border:1px solid var(--rule-mid);border-radius:4px;background:transparent;color:inherit;font:inherit;white-space:nowrap;cursor:pointer}
+#artWorkspace .sleeve-preset-row button[aria-pressed="true"],#artWorkspace .sleeve-preset-row button[aria-pressed="true"]:hover{background:var(--ink);color:var(--paper)}

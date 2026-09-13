@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
-<!-- Release 13: calibrated print panels and attached garment motion. Deploy index.html with the assets folder. Source: orb-tee-11.html. -->
+<!-- Release 23: calibrated sleeve patches and full sleeve artwork. Deploy index.html with the assets folder. Source: orb-tee-11.html. -->
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>ORB Garment Studio</title>
 <script src="./assets/js/brand.js"></script>
-<link rel="stylesheet" href="./assets/css/studio.css?v=22">
+<link rel="stylesheet" href="./assets/css/studio.css?v=23">
 </head>
 <body data-theme="light">
 <script>(()=>{const theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.body.dataset.theme=theme;document.documentElement.dataset.theme=theme;document.documentElement.style.colorScheme=theme;})();</script>
@@ -106,6 +106,7 @@
 <div id="artEditorParking" hidden>
 <section id="artEditor" hidden aria-label="Selected artwork controls">
   <div class="art-editor-head"><strong id="artEditorName" class="sr-only">Artwork placement</strong><button id="artAdd" type="button" title="Add separate layers at this placement">+ Add here</button><button id="artReplace" type="button" title="Replace image" aria-label="Replace image">Replace</button><button id="artPosition" type="button" title="Set position" aria-label="Set position" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="5"/><path d="M10 1v5m0 8v5M1 10h5m8 0h5"/></svg></button><button id="artView" type="button" title="View on garment" aria-label="View on garment">View</button><button id="artClose" type="button" aria-label="Close artwork controls">Done</button></div>
+  <div id="sleevePresetControl" class="sleeve-preset-row" hidden><span>Sleeve print</span><div role="group" aria-label="Sleeve print preset"><button type="button" data-sleeve-preset="patch" aria-pressed="true">Patch</button><button type="button" data-sleeve-preset="full" aria-pressed="false" title="Fit artwork along the sleeve, above the cuff">Full sleeve</button></div></div>
   <div class="art-mode-row">
     <label for="artMode">Render as</label>
     <div class="art-mode-choice">
@@ -312,6 +313,6 @@
 })();
 </script>
 
-<script type="module" src="./assets/js/studio.js?v=22"></script>
+<script type="module" src="./assets/js/studio.js?v=23"></script>
 </body>
 </html>
