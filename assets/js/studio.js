@@ -1,0 +1,2548 @@
+
+const BRAND=window.BRAND;
+document.title=BRAND.title;
+document.getElementById('helpTitle').textContent=BRAND.title;
+// Inline SVG strokes inherit the theme; there is no logo background or image filter.
+const mark=document.getElementById('mark');
+mark.setAttribute('aria-label',BRAND.name);
+if(BRAND.wordmark.startsWith('data:image/svg+xml')){
+  const comma=BRAND.wordmark.indexOf(',');
+  const svgText=BRAND.wordmark.slice(0,comma).includes(';base64')
+    ?atob(BRAND.wordmark.slice(comma+1)):decodeURIComponent(BRAND.wordmark.slice(comma+1));
+  const source=new DOMParser().parseFromString(svgText,'image/svg+xml').documentElement;
+  mark.setAttribute('viewBox',source.getAttribute('viewBox'));
+  mark.append(...Array.from(source.children));
+  mark.querySelectorAll('[stroke]').forEach(path=>path.setAttribute('stroke','currentColor'));
+}else{
+  // Client reskins can still supply a raster or external SVG URL.
+  const image=document.createElementNS('http://www.w3.org/2000/svg','image');
+  mark.setAttribute('viewBox','0 0 2070 1000');
+  image.setAttribute('href',BRAND.wordmark);image.setAttribute('width','2070');image.setAttribute('height','1000');
+  mark.append(image);
+}
+const bootMsg = document.getElementById('bootMsg');
+
+let THREE, GLTFLoader;
+try {
+  THREE = await import('three');
+  ({ GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js'));
+} catch (e) {
+  bootMsg.textContent = 'The 3D library did not load. Check your connection and reload.';
+  throw e;
+}
+
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const clamp = (v,a,b)=>v<a?a:v>b?b:v;
+const lerp  = (a,b,t)=>a+(b-a)*t;
+const smooth= t=>t*t*(3-2*t);
+
+const Y_SH=0.672;
+const GARMENTS = [
+  { name:'Chalk',        hex:'#F3F1EC', dark:false },
+  { name:'Ecru',         hex:'#E1DCD2', dark:false },
+  { name:'Greige',       hex:'#ADA79D', dark:false },
+  { name:'Graphite',     hex:'#60615E', dark:true  },
+  { name:'Washed Black', hex:'#252628', dark:true  },
+];
+
+/* Print placement in metres on the garment: x across the chest (+x is the
+   wearer's left), y up from the hem. On the supplied GLB these dimensions are
+   converted into its native UV atlas. */
+// Each placement is registered against the garment's authored UV atlas.
+const ART_META={"chest": {"label": "Left chest", "side": "Front", "view": "front", "w": 0.095, "scale": 70, "code": "A"}, "rightchest": {"label": "Right chest", "side": "Front", "view": "front", "w": 0.095, "scale": 70, "code": "B"}, "front": {"label": "Full front", "side": "Front", "view": "front", "w": 0.3, "scale": 100, "code": "C"}, "back": {"label": "Full back", "side": "Back", "view": "back", "w": 0.3, "scale": 100, "code": "D"}, "lowerback": {"label": "Lower back", "side": "Back", "view": "back", "w": 0.22, "scale": 85, "code": "E"}, "leftshoulder": {"label": "Left shoulder", "side": "Sleeve", "view": "left", "w": 0.08, "scale": 85, "code": "F"}, "rightshoulder": {"label": "Right shoulder", "side": "Sleeve", "view": "right", "w": 0.08, "scale": 85, "code": "G"}};
+const ART_KEYS=Object.keys(ART_META);
+let UV_PROFILES={}, modelKind='catalog';
+const ART_DEFAULTS=Object.fromEntries(ART_KEYS.map(k=>[k,{x:0,y:0,scale:ART_META[k].scale,rot:0}]));
+
+/* =============================== renderer =============================== */
+
+const MOBILE = Math.min(innerWidth,innerHeight)<760 || navigator.maxTouchPoints>1;
+const canvas=document.getElementById('gl'), stage=document.getElementById('stage');
+const patternCanvas=document.getElementById('bgPattern');
+const patternCtx=patternCanvas.getContext('2d');
+let renderer;
+try{renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true,preserveDrawingBuffer:true});}
+catch(error){
+  bootMsg.textContent='3D preview needs WebGL. Enable hardware acceleration or open this file in a WebGL-enabled browser.';
+  document.body.classList.add('ready');
+  document.querySelectorAll('header button,header input,#panel button,#panel input,#panel select').forEach(el=>el.disabled=true);
+  throw error;
+}
+renderer.setPixelRatio(Math.min(2, devicePixelRatio||1));
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.0;
+
+const scene=new THREE.Scene();
+scene.background=null;
+const camera=new THREE.PerspectiveCamera(34,1,0.05,40);
+
+scene.environment=(()=>{
+  const W=128,H=64,data=new Uint8Array(W*H*4);
+  for(let j=0;j<H;j++){
+    const el=1-j/(H-1);
+    for(let i=0;i<W;i++){
+      const az=i/(W-1)*Math.PI*2;
+      let l=lerp(0.34,1.0,Math.pow(el,0.75));
+      l+=Math.pow(Math.max(0,Math.cos(az-2.1))*Math.max(0,Math.sin(el*Math.PI*0.9)),6)*0.75;
+      const k=(j*W+i)*4;
+      data[k]=clamp(l*255,0,255); data[k+1]=clamp(l*247,0,255);
+      data[k+2]=clamp(l*235,0,255); data[k+3]=255;
+    }
+  }
+  const t=new THREE.DataTexture(data,W,H,THREE.RGBAFormat);
+  t.mapping=THREE.EquirectangularReflectionMapping;
+  t.colorSpace=THREE.SRGBColorSpace; t.needsUpdate=true;
+  const pm=new THREE.PMREMGenerator(renderer); pm.compileEquirectangularShader();
+  const env=pm.fromEquirectangular(t).texture; pm.dispose(); t.dispose();
+  return env;
+})();
+
+const hemi=new THREE.HemisphereLight(0xffffff,0xd9d0c5,0.85); scene.add(hemi);
+const key=new THREE.DirectionalLight(0xfff4e8,2.0); key.position.set(1.3,1.7,1.5); scene.add(key);
+const fil=new THREE.DirectionalLight(0xe4ecf6,0.55); fil.position.set(-1.7,0.5,0.9); scene.add(fil);
+const rim=new THREE.DirectionalLight(0xffffff,0.85); rim.position.set(-0.5,1.0,-1.8); scene.add(rim);
+const LIGHT_PRESETS={
+  soft:{
+    exposure:1.06,hemi:1.05,hemiSky:'#ffffff',hemiGround:'#d9d2c9',
+    key:1.35,keyColor:'#fff8f1',keyPos:[1.15,1.55,1.45],
+    fill:0.90,fillColor:'#eef3f8',fillPos:[-1.25,0.75,1.10],
+    rim:0.30,rimColor:'#ffffff',rimPos:[-0.35,0.95,-1.45]
+  },
+  key:{
+    exposure:1.00,hemi:0.52,hemiSky:'#ffffff',hemiGround:'#c9c1b8',
+    key:2.75,keyColor:'#fff5e9',keyPos:[-1.65,1.85,1.35],
+    fill:0.24,fillColor:'#e9f0f7',fillPos:[1.55,0.45,1.00],
+    rim:0.62,rimColor:'#ffffff',rimPos:[0.45,1.10,-1.80]
+  },
+  rim:{
+    exposure:0.99,hemi:0.68,hemiSky:'#ffffff',hemiGround:'#cec7be',
+    key:1.70,keyColor:'#fff7ef',keyPos:[1.20,1.45,1.35],
+    fill:0.36,fillColor:'#e7edf5',fillPos:[-1.30,0.45,0.95],
+    rim:1.55,rimColor:'#ffffff',rimPos:[-1.05,1.25,-1.85]
+  }
+};
+function applyLightingPreset(){
+  const p=LIGHT_PRESETS[state.light]||LIGHT_PRESETS.soft;
+  renderer.toneMappingExposure=p.exposure;
+  hemi.color.set(p.hemiSky); hemi.groundColor.set(p.hemiGround); hemi.intensity=p.hemi;
+  key.color.set(p.keyColor); key.intensity=p.key; key.position.set(...p.keyPos);
+  fil.color.set(p.fillColor); fil.intensity=p.fill; fil.position.set(...p.fillPos);
+  rim.color.set(p.rimColor); rim.intensity=p.rim; rim.position.set(...p.rimPos);
+}
+
+// soft studio pools
+let shirtShadow=null;
+let presentShadow=null;
+{
+  const S=256,c=document.createElement('canvas'); c.width=c.height=S;
+  const x=c.getContext('2d'), g=x.createRadialGradient(S/2,S/2,0,S/2,S/2,S/2);
+  g.addColorStop(0,'rgba(60,50,42,.42)'); g.addColorStop(.55,'rgba(60,50,42,.13)');
+  g.addColorStop(1,'rgba(60,50,42,0)');
+  x.fillStyle=g; x.fillRect(0,0,S,S);
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace;
+  const geom=new THREE.PlaneGeometry(0.86,0.40);
+
+  shirtShadow=new THREE.Mesh(
+    geom,
+    new THREE.MeshBasicMaterial({map:t,transparent:true,depthWrite:false,opacity:1})
+  );
+  shirtShadow.rotation.x=-Math.PI/2;
+  shirtShadow.position.y=-0.455;
+  scene.add(shirtShadow);
+
+  presentShadow=new THREE.Mesh(
+    geom,
+    new THREE.MeshBasicMaterial({map:t,transparent:true,depthWrite:false,opacity:0})
+  );
+  presentShadow.rotation.x=-Math.PI/2;
+  presentShadow.position.y=-0.455;
+  presentShadow.visible=false;
+  scene.add(presentShadow);
+}
+
+/* ============================ fabric material ============================ */
+
+const uni = {
+  uTime:{value:0}, uWind:{value:0.011}, uTwist:{value:0},
+  uTwistFlowPower:{value:1.0}, uSleeveBoost:{value:0.20}, uSleeveArc:{value:0.65},
+  uDir:{value:new THREE.Vector3(0.85,0,0.53).normalize()},
+
+  uArtRough:{value:0.97},
+  uDotGrid:{value:0},
+};
+
+const VERT_HEAD=`
+  uniform float uTime; uniform float uWind; uniform float uTwist;
+  uniform float uTwistFlowPower; uniform float uSleeveBoost; uniform float uSleeveArc; uniform vec3 uDir;
+  attribute float aFlow; attribute vec2 aArtworkUv; varying vec2 vArtworkUv;
+  vec3 gDisp;
+
+  vec3 kBreeze(vec3 p, float flow){
+    if (flow < 0.001) return vec3(0.0);
+    float t = uTime;
+    float w1 = sin(p.y*6.4  - t*2.05 + p.x*3.1);
+    float w2 = sin(p.y*12.7 + t*3.25 + p.z*5.3 + 1.7);
+    float w3 = sin(p.x*8.6  + p.z*6.9 - t*1.35);
+    float a = uWind*flow;
+    vec3 o = uDir*((w1*0.62 + w2*0.24)*a);
+    o.y += w3*0.13*a;
+    o += normalize(vec3(p.x,0.0,p.z)+vec3(1e-4))*((w2*0.30 + w3*0.22)*a);
+    return o;
+  }
+
+  // Rotational lag around the garment's vertical axis.
+  // The torso uses a broad twist; sleeve vertices can instead arc around a
+  // local shoulder pivot so the cuff follows a curved path and preserves volume.
+  vec3 kInertia(vec3 p, float flow){
+    if (flow < 0.001 || abs(uTwist) < 0.00001) return vec3(0.0);
+
+    float f = flow * flow * (3.0 - 2.0 * flow);
+    f = pow(max(f, 0.0001), uTwistFlowPower);
+
+    // Restrict the sleeve treatment to wide, upper vertices.
+    float sleeveX = smoothstep(0.16, 0.31, abs(p.x));
+    float sleeveY = smoothstep(0.20, 0.42, p.y);
+    float sleeve = sleeveX * sleeveY;
+
+    float torsoA = uTwist * f;
+    float globalA = torsoA * (1.0 + sleeve * uSleeveBoost);
+
+    // Standard garment-wide twist around center.
+    float cg = cos(globalA), sg = sin(globalA);
+    vec3 qGlobal = p;
+    qGlobal.x = cg*p.x + sg*p.z;
+    qGlobal.z = -sg*p.x + cg*p.z;
+
+    // Sleeve-specific rigid arc around an approximate shoulder root.
+    // The local rotation preserves the sleeve's radius/volume instead of
+    // pushing all cuff vertices straight ahead on the global axis.
+    float side = p.x < 0.0 ? -1.0 : 1.0;
+    vec3 pivot = vec3(side*0.145, 0.48, 0.0);
+    vec3 local = p - pivot;
+
+    // Arc increases the sleeve's local swing as well as how strongly we blend
+    // from global twist to shoulder-pivot motion.
+    float localA = torsoA * (1.0 + sleeve*(uSleeveBoost + uSleeveArc*0.90));
+    float cl = cos(localA), sl = sin(localA);
+    vec3 localRot = local;
+    localRot.x = cl*local.x + sl*local.z;
+    localRot.z = -sl*local.x + cl*local.z;
+    vec3 qSleeve = pivot + localRot;
+
+    float arcBlend = sleeve * uSleeveArc;
+    vec3 q = mix(qGlobal, qSleeve, arcBlend);
+    return q-p;
+  }
+
+  vec3 kFabricDisp(vec3 p, float flow){
+    return kBreeze(p, flow) + kInertia(p, flow);
+  }
+`;
+
+const FRAG_HEAD=`
+uniform float uArtRough,uHasArtwork;
+uniform sampler2D uArtwork;
+varying vec2 vArtworkUv;
+float kArtworkMask=0.0;`;
+const FRAG_PRINT=`{
+kArtworkMask=0.0;
+if(gl_FrontFacing&&uHasArtwork>0.5&&vArtworkUv.x>=0.0&&vArtworkUv.y>=0.0){
+  vec4 art=texture2D(uArtwork,vArtworkUv);
+  diffuseColor.rgb=diffuseColor.rgb*(1.0-art.a)+art.rgb;
+  kArtworkMask=art.a;
+}
+if(!gl_FrontFacing)diffuseColor.rgb*=0.60;
+}`;
+
+function patchFabricMaterial(mat){
+  mat.userData.orbFabric=true;
+  mat.onBeforeCompile=sh=>{
+    Object.assign(sh.uniforms, uni);
+    const artwork=getArtworkMap(mat.userData.orbMeshId||1);
+    sh.uniforms.uArtwork=artwork.map;sh.uniforms.uHasArtwork=artwork.has;
+    sh.vertexShader = VERT_HEAD + sh.vertexShader;
+    sh.vertexShader = sh.vertexShader.replace('#include <beginnormal_vertex>',
+      `#include <beginnormal_vertex>
+       vArtworkUv = aArtworkUv;
+       gDisp = kFabricDisp(position, aFlow);
+       if (aFlow > 0.001) {
+         vec3 T1 = normalize(cross(objectNormal, vec3(0.0,1.0,0.0)) + vec3(1e-5));
+         vec3 T2 = normalize(cross(objectNormal, T1));
+         float e = 0.022;
+         vec3 p0 = position + gDisp;
+         vec3 pa = position + T1*e + kFabricDisp(position + T1*e, aFlow);
+         vec3 pb = position + T2*e + kFabricDisp(position + T2*e, aFlow);
+         vec3 nn = normalize(cross(pa-p0, pb-p0));
+         objectNormal = dot(nn, objectNormal) < 0.0 ? -nn : nn;
+         #ifdef USE_TANGENT
+           vec3 pt = position + objectTangent*e;
+           objectTangent = normalize(pt + kFabricDisp(pt, aFlow) - p0);
+           objectTangent = normalize(objectTangent - objectNormal*dot(objectTangent,objectNormal));
+         #endif
+       }`);
+    sh.vertexShader = sh.vertexShader.replace('#include <begin_vertex>',
+      '#include <begin_vertex>\n transformed += gDisp;');
+    sh.fragmentShader = FRAG_HEAD + '\n' + sh.fragmentShader;
+    sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>',
+      '#include <map_fragment>\n' + FRAG_PRINT);
+    sh.fragmentShader = sh.fragmentShader.replace('#include <roughnessmap_fragment>',
+      '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, clamp(uArtRough, 0.02, 1.0), clamp(kArtworkMask, 0.0, 1.0));');
+  };
+  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v07-gpu';
+  mat.needsUpdate=true;
+  return mat;
+}
+
+/* ============================== garment root ============================== */
+
+const garment=new THREE.Group();
+garment.position.y=-0.350;
+scene.add(garment);
+
+// Presentation uses a lightweight clone of the CURRENT garment.
+// Geometry is shared; only lightweight material copies are used so the clone
+// can fade independently as it crosses the real viewport edge.
+const presentGarment=new THREE.Group();
+presentGarment.position.y=-0.350;
+presentGarment.visible=false;
+scene.add(presentGarment);
+
+let presentMix=0;
+let presentSpin=0;
+let presentCloneActive=false;
+let presentCloneMaterials=[];
+const PRESENT_OFFSET=0.40;
+
+function clonePresentMaterial(src){
+  const m=src.clone();
+
+  // Material.clone() does not reliably preserve custom shader callbacks across
+  // Three.js revisions, so explicitly carry them over.
+  m.onBeforeCompile=src.onBeforeCompile;
+  m.customProgramCacheKey=src.customProgramCacheKey;
+  m.userData={...src.userData};
+
+  // Only the presentation copy fades. Geometry remains shared with the
+  // original shirt, so this is still a lightweight clone.
+  m.transparent=true;
+  m.opacity=0;
+  m.needsUpdate=true;
+  return m;
+}
+function setPresentCloneOpacity(v){
+  const a=clamp(v,0,1);
+  presentCloneMaterials.forEach(m=>{ m.opacity=a; });
+}
+function rebuildPresentClone(show=false){
+  presentGarment.clear();
+  presentCloneMaterials=[];
+  presentCloneActive=false;
+  if(!current) return;
+
+  // Share the current geometry, but use lightweight material copies so the
+  // incoming shirt can fade at the viewport edge without affecting the
+  // original shirt.
+  const clone=current.clone(true);
+  clone.traverse(o=>{
+    if(!o.isMesh) return;
+    o.frustumCulled=false;
+
+    if(Array.isArray(o.material)){
+      o.material=o.material.map(src=>{
+        const m=clonePresentMaterial(src);
+        presentCloneMaterials.push(m);
+        return m;
+      });
+    }else if(o.material){
+      const m=clonePresentMaterial(o.material);
+      presentCloneMaterials.push(m);
+      o.material=m;
+    }
+  });
+
+  presentGarment.add(clone);
+  presentGarment.visible=show;
+  setPresentCloneOpacity(show?1:0);
+  presentCloneActive=true;
+}
+
+// Connected native UV panels, including duplicate vertices at normal splits.
+// This labels the existing mesh; it does not change positions, UVs, or normals.
+function ensurePrintIslands(geometry){
+  if(geometry.getAttribute('aPrintIsland'))return;
+  const position=geometry.getAttribute('position'),uv=geometry.getAttribute('uv');
+  if(!position||!uv)return;
+  const count=position.count,parent=new Uint32Array(count),rank=new Uint8Array(count);
+  for(let i=0;i<count;i++)parent[i]=i;
+  const find=i=>{while(parent[i]!==i){parent[i]=parent[parent[i]];i=parent[i];}return i;};
+  const join=(a,b)=>{
+    a=find(a);b=find(b);if(a===b)return;
+    if(rank[a]<rank[b]){const t=a;a=b;b=t;}
+    parent[b]=a;if(rank[a]===rank[b])rank[a]++;
+  };
+  const vertices=new Map(),q=n=>Math.round(n*1e6);
+  for(let i=0;i<count;i++){
+    const key=[q(position.getX(i)),q(position.getY(i)),q(position.getZ(i)),q(uv.getX(i)),q(uv.getY(i))].join(',');
+    const other=vertices.get(key);
+    if(other===undefined)vertices.set(key,i);else join(i,other);
+  }
+  const index=geometry.index,triCount=index?index.count:count;
+  for(let i=0;i<triCount;i+=3){
+    const a=index?index.getX(i):i,b=index?index.getX(i+1):i+1,c=index?index.getX(i+2):i+2;
+    join(a,b);join(b,c);
+  }
+  const ids=new Map(),panels=new Float32Array(count);
+  for(let i=0;i<count;i++){
+    const root=find(i);
+    if(!ids.has(root))ids.set(root,ids.size+1);
+    panels[i]=ids.get(root);
+  }
+  geometry.setAttribute('aPrintIsland',new THREE.BufferAttribute(panels,1));
+}
+let current=null, isCustom=false;
+function setGarment(obj, custom){
+  resetArtworkMaps();
+  artLayers.forEach(layer=>layer.anchor=null);artHistory.length=0;
+  // Remove the old presentation clone before disposing any geometry it shares.
+  presentCloneMaterials.forEach(m=>m.dispose?.());
+  presentCloneMaterials=[];
+  presentGarment.clear();
+  presentGarment.visible=false;
+  presentCloneActive=false;
+
+  if (current){
+    const usedTextures=new Set();
+    current.traverse(o=>{
+      if(!o.isMesh)return;
+      o.geometry.dispose();
+      for(const m of Array.isArray(o.material)?o.material:[o.material]){
+        for(const value of Object.values(m))if(value?.isTexture)usedTextures.add(value);
+        m.dispose();
+      }
+    });
+    usedTextures.forEach(t=>t.dispose());
+    garment.remove(current);
+  }
+
+  current=obj;
+  isCustom=!!custom;
+  garment.add(obj);
+
+  // Prepare the opposite-side shirt now, while the user is not transitioning.
+  rebuildPresentClone(false);
+}
+
+/* --------------------------- importing a model --------------------------- */
+
+const TARGET_H=0.74, HEM_Y=-0.024;
+
+function makeFlow(geo){
+  const p=geo.attributes.position, n=p.count;
+  const fl=new Float32Array(n);
+  const yMin=HEM_Y, yMax=Y_SH;
+  let halfW=0;
+  for(let i=0;i<n;i++) halfW=Math.max(halfW, Math.abs(p.getX(i)));
+  halfW=Math.max(halfW,1e-4);
+  for(let i=0;i<n;i++){
+    const hn=clamp((p.getY(i)-yMin)/(yMax-yMin),0,1);
+    let f=Math.pow(clamp(1-hn/0.86,0,1),1.35);
+    const rad=Math.abs(p.getX(i))/halfW;               // sleeve cuffs flutter too
+    if (hn>0.42 && rad>0.70) f=Math.max(f, 0.8*Math.pow((rad-0.70)/0.30,1.2));
+    fl[i]=clamp(f,0,1);
+  }
+  geo.setAttribute('aFlow', new THREE.BufferAttribute(fl,1));
+}
+
+function adopt(root){
+  root.traverse(o=>{if(o.isMesh&&o.geometry&&!o.geometry.attributes.uv)throw new Error('This model has no native UV map. Export it with UV coordinates before importing.');});
+  root.updateMatrixWorld(true);
+  const box=new THREE.Box3().setFromObject(root);
+  const size=box.getSize(new THREE.Vector3());
+  if (size.z > size.y*1.35){                        // Z-up export
+    root.rotation.x=-Math.PI/2;
+    root.updateMatrixWorld(true);
+    box.setFromObject(root); box.getSize(size);
+  }
+  const s=TARGET_H/Math.max(1e-6,size.y);
+  root.scale.multiplyScalar(s);
+  root.updateMatrixWorld(true);
+  box.setFromObject(root);
+  const c=box.getCenter(new THREE.Vector3());
+  root.position.x-=c.x; root.position.z-=c.z; root.position.y-=(box.min.y-HEM_Y);
+  root.updateMatrixWorld(true);
+
+  const out=new THREE.Group();
+  let tris=0;
+  root.traverse(o=>{
+    if(!o.isMesh || !o.geometry) return;
+    const g=o.geometry.clone();
+    for(const a of ['skinIndex','skinWeight'])
+      if (g.attributes[a]) g.deleteAttribute(a);
+    g.morphAttributes={};
+    g.applyMatrix4(o.matrixWorld);
+    if(!g.attributes.normal) g.computeVertexNormals();
+    makeFlow(g);
+    ensurePrintIslands(g);
+    tris += (g.index ? g.index.count : g.attributes.position.count)/3;
+
+    // Keep the GLB material, including its original normal map and UV mapping.
+    // Only add our colour/ink shader on top of it.
+    const meshId=out.children.length+1;
+    const sources=Array.isArray(o.material)?o.material:[o.material];
+    const materials=sources.map(source=>{
+      const material=source&&(source.isMeshStandardMaterial||source.isMeshPhysicalMaterial)
+        ?source.clone():new THREE.MeshStandardMaterial({color:currentGarment().hex,roughness:0.96});
+      material.side=THREE.DoubleSide;
+      material.userData.orbMeshId=meshId;
+      // Keep every authored map and material group. Garment tint remains user-controlled.
+      material.userData.orbBaseColor=material.color.toArray();
+      material.userData.orbTintable=material.metalness<0.5;
+      if(material.userData.orbTintable)material.color.multiply(new THREE.Color(currentGarment().hex));
+      for(const value of Object.values(material))if(value?.isTexture)value.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+      return patchFabricMaterial(material);
+    });
+    const mesh=new THREE.Mesh(g,Array.isArray(o.material)?materials:materials[0]);
+    mesh.name=o.name;
+    mesh.userData.orbMeshId=meshId;
+    out.add(mesh);
+  });
+  if (out.children.length===0) throw new Error('no meshes');
+
+  const b2=new THREE.Box3().setFromObject(out), sz=b2.getSize(new THREE.Vector3());
+  return { group:out, tris:Math.round(tris), size:sz };
+}
+
+// Stable asset IDs and authored filenames are separate from the names shown in the Studio.
+const GARMENT_CATALOG=[
+  {id:'mens-tee',label:"Men's T-Shirt",file:'orb-tee-men-03.glb',type:'tee'},
+  {id:'womens-tee',label:"Women's T-Shirt",file:'orb-tee-women-03.glb',type:'tee'},
+  {id:'mens-hoodie',label:"Men's Hoodie",file:'orb-hoodie-men-basic-01.glb',type:'hoodie'},
+  {id:'womens-hoodie',label:"Women's Hoodie",file:'orb-hoodie-women-02.glb',type:'hoodie'},
+];
+const gltfLoader=new GLTFLoader();
+// Draco remains available for user uploads. The four supplied GLBs are uncompressed.
+try{
+  const {DRACOLoader}=await import('three/addons/loaders/DRACOLoader.js');
+  const decoder=new DRACOLoader();
+  decoder.setDecoderPath(new URL('../vendor/draco/',import.meta.url).href);
+  gltfLoader.setDRACOLoader(decoder);
+}catch(error){console.warn('Optional Draco decoder unavailable',error);}
+let modelLoading=false,selectedCatalogId='mens-tee',activeGarmentId=null;
+const garmentSelect=document.getElementById('garmentSelect');
+const modelStatus=document.getElementById('modelStatus');
+const modelRetry=document.getElementById('modelRetry');
+let retryModel=null;
+function modelBusy(value){
+  modelLoading=value;
+  garmentSelect.disabled=value;
+  for(const id of ['btnModel','btnShipped','btnFlip'])document.getElementById(id).disabled=value;
+  stage.setAttribute('aria-busy',String(value));
+}
+function disposeImported(root){
+  // adopt() cloned geometry and material objects; its textures remain shared.
+  root.traverse(o=>{if(o.isMesh){o.geometry.dispose();for(const m of Array.isArray(o.material)?o.material:[o.material])m.dispose();}});
+}
+function disposeModel(root){
+  const textures=new Set();
+  root.traverse(o=>{if(!o.isMesh)return;o.geometry.dispose();for(const m of Array.isArray(o.material)?o.material:[o.material]){for(const v of Object.values(m))if(v?.isTexture)textures.add(v);m.dispose();}});
+  for(const t of textures)t.dispose();
+}
+function calibratePlacements(group,kind){
+  // Pick the main cloth surface, excluding thread, cords, hardware and neck rib.
+  const meshes=[];
+  group.traverse(m=>{if(m.isMesh)meshes.push(m);});
+  const candidates=meshes.filter(m=>(Array.isArray(m.material)?m.material:[m.material]).some(mat=>mat.map&&mat.normalMap));
+  const body=(candidates.length?candidates:meshes).sort((a,b)=>(b.geometry.index?.count||b.geometry.attributes.position.count)-(a.geometry.index?.count||a.geometry.attributes.position.count))[0];
+  group.updateMatrixWorld(true);
+  const hoodie=kind==='hoodie',ray=new THREE.Raycaster(),profiles={};
+  const targets={
+    chest:[.10,hoodie?.455:.565,1],rightchest:[-.10,hoodie?.455:.565,1],
+    front:[0,hoodie?.395:.44,1],back:[0,hoodie?.385:.445,-1],
+    lowerback:[0,hoodie?.13:.15,-1]
+  };
+  function anchorFromRay(origin,direction){
+    ray.set(new THREE.Vector3(...origin),new THREE.Vector3(...direction).normalize());
+    const hits=ray.intersectObject(body,false);
+    for(const hit of hits){
+      // Only register outward-facing cloth with a non-collapsed native UV basis.
+      if(hit.face.normal.dot(ray.ray.direction)>-.12)continue;
+      try{return nativeAnchor(hit);}catch(error){/* try the next usable surface */}
+    }
+    return null;
+  }
+  for(const [slot,[x,y,side]] of Object.entries(targets)){
+    // Small fallback offsets keep the anchor on cloth if the center falls on a seam.
+    for(const dx of [0,.015,-.015,.03,-.03]){
+      const anchor=anchorFromRay([x+dx,y,side*2],[0,0,-side]);
+      if(anchor){profiles[slot]=anchor;break;}
+    }
+  }
+  for(const [slot,sign] of [['leftshoulder',1],['rightshoulder',-1]]){
+    const levels=hoodie?[.47,.45,.49,.43]:[.55,.53,.57,.51];
+    for(const y of levels){
+      const anchor=anchorFromRay([sign*2,y,.025],[-sign,0,0]);
+      if(anchor){profiles[slot]=anchor;break;}
+    }
+  }
+  if(hoodie)for(const slot of ['front','back','lowerback'])if(profiles[slot])profiles[slot].printScale=.78;
+  const missing=ART_KEYS.filter(k=>!profiles[k]);
+  if(missing.length)throw new Error('Could not calibrate garment placements: '+missing.join(', '));
+  return profiles;
+}
+async function loadCatalog(id){
+  if(modelLoading)return false;
+  const item=GARMENT_CATALOG.find(g=>g.id===id);if(!item)return false;
+  cancelAnchorPick();
+  modelBusy(true);modelRetry.hidden=true;retryModel=()=>loadCatalog(id);
+  modelStatus.textContent='Loading '+item.label+'…';
+  bootMsg.textContent='Loading '+item.label+'…';
+  document.getElementById('boot').classList.remove('gone');
+  let imported=null,res=null,committed=false;
+  try{
+    const url=new URL('../garments/'+item.file,import.meta.url).href;
+    const gltf=await gltfLoader.loadAsync(url,progress=>{
+      const amount=progress.total?` ${Math.round(progress.loaded/progress.total*100)}%`:'';
+      modelStatus.textContent='Loading '+item.label+amount+'…';
+    });
+    imported=gltf.scene;res=adopt(imported);
+    const profiles=calibratePlacements(res.group,item.type);
+    disposeImported(imported);imported=null;
+    UV_PROFILES=profiles;modelKind='catalog';
+    setGarment(res.group,false);committed=true;
+    selectedCatalogId=id;activeGarmentId=id;
+    garmentSelect.querySelector('option[value="custom"]')?.remove();
+    garmentSelect.value=id;
+    document.getElementById('modelName').textContent=item.label;
+    document.getElementById('rowFit').hidden=true;
+    document.getElementById('modelName').dataset.garmentId=id;
+    document.getElementById('modelName').dataset.triangles=res.tris;
+    garment.rotation.y=0;
+    requestArtworkRender();syncArtworkUi();applyLook();setView('angle');
+    modelStatus.textContent='';artStatus('');
+    return true;
+  }catch(error){
+    console.error('Garment load failed',error);
+    if(imported){if(res)disposeImported(imported);else disposeModel(imported);}
+    if(res&&!committed)disposeModel(res.group);
+    garmentSelect.value=activeGarmentId||selectedCatalogId;
+    modelStatus.textContent='Could not load '+item.label+'. Check your connection and retry.';
+    bootMsg.textContent=current?'':modelStatus.textContent;
+    modelRetry.hidden=false;
+    return false;
+  }finally{
+    modelBusy(false);
+    if(current)document.getElementById('boot').classList.add('gone');
+  }
+}
+garmentSelect.addEventListener('change',()=>loadCatalog(garmentSelect.value));
+modelRetry.addEventListener('click',()=>retryModel?.());
+async function loadModel(file){
+  if(modelLoading){artStatus('A model is already loading.');return;}
+  if(!/\.glb$/i.test(file.name)){artStatus('Choose a GLB with embedded textures.');return;}
+  modelBusy(true);modelRetry.hidden=true;
+  const url=URL.createObjectURL(file);
+  bootMsg.textContent='Reading custom garment…';
+  document.getElementById('boot').classList.remove('gone');
+  let imported=null,res=null,committed=false;
+  try{
+    const gltf=await gltfLoader.loadAsync(url);imported=gltf.scene;
+    res=adopt(imported);disposeImported(imported);imported=null;
+    cancelAnchorPick();UV_PROFILES={};modelKind='custom';
+    setGarment(res.group,true);committed=true;activeGarmentId='custom';
+    if(!garmentSelect.querySelector('option[value="custom"]'))garmentSelect.add(new Option('Custom garment','custom'));
+    garmentSelect.value='custom';
+    requestArtworkRender();syncArtworkUi();applyLook();artStatus('');
+    garment.rotation.y=0;
+    document.getElementById('modelName').textContent='Custom garment';
+    document.getElementById('modelName').dataset.garmentId='custom';
+    document.getElementById('fitNote').textContent=`H 74cm · W ${Math.round(res.size.x*100)}cm`;
+    document.getElementById('rowFit').hidden=false;
+    modelStatus.textContent='';setView('front');return true;
+  }catch(error){
+    console.error(error);
+    if(imported){if(res)disposeImported(imported);else disposeModel(imported);}
+    if(res&&!committed)disposeModel(res.group);
+    modelStatus.textContent='That file could not open. Choose a GLB with embedded textures and UVs.';
+    bootMsg.textContent=modelStatus.textContent;return false;
+  }finally{
+    URL.revokeObjectURL(url);modelBusy(false);
+    if(current)document.getElementById('boot').classList.add('gone');
+  }
+}
+
+/* ================================= state ================================= */
+
+const THEMES={
+  light:{bg:BRAND.light.paper},
+  dark:{bg:BRAND.dark.paper},
+};
+const systemColorScheme=matchMedia('(prefers-color-scheme: dark)');
+const state={ themeMode:'system', theme:'light', blank:0, garmentCustom:'#D8D8D8', artRoughness:97, shirtColorsCustomized:false, bg:THEMES.light.bg, dotGrid:true, gridType:'square', gridColor:BRAND.light.grid, gridColorCustom:false, gridStroke:0.5, gridScale:35, gridCharSize:45, light:'key', wind:1, view:'angle',
+  inertia:{enabled:true,strength:15,ramp:100,settle:0.5,elasticity:60,overshoot:70,release:70,sensitivity:50,bias:25,sleeve:100,arc:100},
+  az:0.62, el:1.30, r:1.55, taz:0.62, tel:1.30, tr:1.55, present:false };
+const WIND_LEVELS=[0,0.011,0.024];
+
+function currentGarment(){
+  return state.blank==='custom'
+    ? { name:'Custom', hex:state.garmentCustom, dark:(new THREE.Color(state.garmentCustom).r*0.299 + new THREE.Color(state.garmentCustom).g*0.587 + new THREE.Color(state.garmentCustom).b*0.114) < 0.48 }
+    : GARMENTS[state.blank];
+}
+function inkHex(entry){
+  if(entry?.inkCustom)return entry.inkCustom;
+  const color=new THREE.Color(currentGarment().hex);
+  const luminance=color.r*.2126+color.g*.7152+color.b*.0722;
+  // Pick the more legible ink on the actual garment, including custom colors.
+  return luminance<.2?'#FFFFFF':'#181818';
+}
+function applyTheme(resetStage=true){
+  state.theme=state.themeMode==='system'?(systemColorScheme.matches?'dark':'light'):state.themeMode;
+  document.body.dataset.theme=state.theme;
+  document.documentElement.dataset.theme=state.theme;
+  document.documentElement.style.colorScheme=state.theme;
+  const palette=BRAND[state.theme];
+  for(const [property,value] of Object.entries({paper:palette.paper,wash:palette.paper,ink:palette.ink,accent:palette.accent}))document.body.style.setProperty('--'+property,value);
+  if(!state.gridColorCustom){state.gridColor=palette.grid;document.getElementById('gridColor').value=state.gridColor;}
+  document.querySelectorAll('[data-theme-mode]').forEach(button=>{
+    button.setAttribute('aria-pressed',String(button.dataset.themeMode===state.themeMode));
+  });
+  if(resetStage){
+    state.bg=THEMES[state.theme].bg;
+    document.getElementById('bgCustom').value=state.bg;
+  }
+  applyBackground();
+}
+function mod(n,m){ return ((n % m) + m) % m; }
+function patternNumberLabel(rel){
+  if(rel===0) return '';
+  if(rel<0) return String(mod((-rel-1),5)+1);
+  return String(5 - mod(rel-1,5));
+}
+function patternLetterLabel(index){
+  const letters=['A','B','C','D'];
+  return letters[mod(index,4)];
+}
+function drawPatternMark(x,y,kind,val,size){
+  const accent=state.gridColor;
+  patternCtx.save();
+  patternCtx.translate(x,y);
+  patternCtx.strokeStyle=accent;
+  patternCtx.fillStyle=accent;
+  patternCtx.lineWidth=Math.max(1, size*0.08);
+  if(kind==='plus'){
+    const arm=size*0.52;
+    patternCtx.beginPath();
+    patternCtx.moveTo(-arm,0); patternCtx.lineTo(arm,0);
+    patternCtx.moveTo(0,-arm); patternCtx.lineTo(0,arm);
+    patternCtx.stroke();
+  }else if(kind==='target'){
+    const arm=size*0.52, rad=size*0.42;
+    patternCtx.beginPath();
+    patternCtx.moveTo(-arm,0); patternCtx.lineTo(arm,0);
+    patternCtx.moveTo(0,-arm); patternCtx.lineTo(0,arm);
+    patternCtx.stroke();
+    patternCtx.beginPath();
+    patternCtx.arc(0,0,rad,0,Math.PI*2);
+    patternCtx.stroke();
+  }else if(kind==='dot'){
+    patternCtx.beginPath();
+    patternCtx.arc(0,0,Math.max(1,size*0.08),0,Math.PI*2);
+    patternCtx.fill();
+  }else if(kind==='text'){
+    patternCtx.font=`500 ${Math.max(3,size)}px Rubik, sans-serif`;
+    patternCtx.textAlign='center';
+    patternCtx.textBaseline='middle';
+    patternCtx.fillText(val,0,0);
+  }
+  patternCtx.restore();
+}
+function drawPatternBackground(){
+  const w=window.innerWidth||1, h=window.innerHeight||1;
+  const dpr=Math.min(2, window.devicePixelRatio||1);
+  if(patternCanvas.width!==Math.round(w*dpr) || patternCanvas.height!==Math.round(h*dpr)){
+    patternCanvas.width=Math.round(w*dpr);
+    patternCanvas.height=Math.round(h*dpr);
+  }
+  patternCtx.setTransform(dpr,0,0,dpr,0,0);
+  patternCtx.clearRect(0,0,w,h);
+  patternCtx.fillStyle=state.bg;
+  patternCtx.fillRect(0,0,w,h);
+  if(!state.dotGrid) return;
+
+  const mobileGridFactor = w <= 820 ? 0.72 : 1;
+  const spacing=128*(state.gridScale/100)*mobileGridFactor;
+  const charSize=13*(state.gridCharSize/100);
+  const markSize=Math.max(3, charSize*0.95);
+  const cx=w*0.5, cy=h*0.5;
+  if(state.gridType==='square'){
+    patternCtx.strokeStyle=state.gridColor;patternCtx.lineWidth=state.gridStroke;
+    const offset=(Math.round(state.gridStroke*dpr)%2)*0.5;
+    const snap=v=>(Math.round(v*dpr)+offset)/dpr;
+    patternCtx.beginPath();
+    for(let x=mod(cx,spacing);x<w;x+=spacing){patternCtx.moveTo(snap(x),0);patternCtx.lineTo(snap(x),h);}
+    for(let y=mod(cy,spacing);y<h;y+=spacing){patternCtx.moveTo(0,snap(y));patternCtx.lineTo(w,snap(y));}
+    patternCtx.stroke();return;
+  }
+  const colCount=Math.ceil(w/spacing)+3;
+  const rowCount=Math.ceil(h/spacing)+3;
+
+  for(let row=-rowCount; row<=rowCount; row++){
+    const y=cy + row*spacing;
+    for(let col=-colCount; col<=colCount; col++){
+      const x=cx + col*spacing;
+      const evenCol = mod(col,2)===0;
+      const evenRow = mod(row,2)===0;
+      const isMajor = col!==0 && row!==0 && mod(col,5)===0 && mod(row,5)===0;
+
+      let kind='dot', value='';
+      if(row===0 && evenCol){
+        kind='text';
+        value=patternLetterLabel(Math.floor(col/2));
+      }else if(col===0 && evenRow && row!==0){
+        kind='text';
+        value=patternLetterLabel(Math.floor(-row/2));
+      }else if(evenCol && row!==0){
+        kind='text';
+        value=patternNumberLabel(row);
+      }else if(isMajor){
+        kind='target';
+      }else if(!evenCol){
+        kind='plus';
+      }
+
+      drawPatternMark(x,y,kind,value, kind==='text' ? charSize : markSize);
+    }
+  }
+}
+function applyBackground(){
+  document.body.style.background=getComputedStyle(document.body).getPropertyValue('--paper').trim() || state.bg;
+  stage.style.background='transparent';
+  renderer.setClearColor(0x000000,0);
+  drawPatternBackground();
+}
+function applyLook(){
+  const g=currentGarment();
+  const syncGarmentColor=root=>{
+    if(!root) return;
+    root.traverse(o=>{
+      if(!o.isMesh) return;
+      const mats=Array.isArray(o.material)?o.material:[o.material];
+      mats.forEach(m=>{ if(m?.userData.orbTintable && m.color) m.color.fromArray(m.userData.orbBaseColor).multiply(new THREE.Color(g.hex)); });
+    });
+  };
+  syncGarmentColor(current);
+  if(presentCloneActive) syncGarmentColor(presentGarment);
+  // Only unfixed Single ink layers follow the garment. Repaint their panels
+  // when the contrasting ink changes, not on every garment-color input event.
+  for(const layer of artLayers){
+    if(layer.mode!=='ink'||layer.inkCustom)continue;
+    const q=layerProfile(layer);if(!q)continue;
+    const color=artworkMaps.get(q.mesh||1)?.quads.get(layer.id)?.material.uniforms.uInkColor.value;
+    if(!color||color.getHexString().toUpperCase()!==inkHex(layer).slice(1).toUpperCase())requestArtworkRender(layer);
+  }
+  syncInkUi();
+  document.getElementById('blankName').textContent=g.name;
+}
+applyTheme(true);
+applyLightingPreset();
+
+
+// Placement controls retain their calibrated garment-unit scale.
+const ART_INPUT_META={
+  x:{min:-100,max:100,step:1},
+  y:{min:-100,max:100,step:1},
+  scale:{min:25,max:200,step:1},
+  rot:{min:-180,max:180,step:1},
+};
+function artDefault(slot, prop){ return ART_DEFAULTS[slot][prop]; }
+
+let activeArtSlot='back';
+const artControlElements=Object.fromEntries(['x','y','scale','rot'].map(prop=>[prop,{
+  range:document.querySelector(`[data-art-range][data-prop="${prop}"]`),
+  num:document.querySelector(`[data-art-num][data-prop="${prop}"]`)
+}]));
+function artControlPair(slot,prop){return artControlElements[prop];}
+
+function normalizeArtValue(slotForNormalize, prop, raw){
+  const meta=ART_INPUT_META[prop];
+  let v=Number(raw);
+  if(!Number.isFinite(v)) v=artDefault(slotForNormalize, prop);
+  v=Math.round(v/meta.step)*meta.step;
+  v=clamp(v, meta.min, meta.max);
+  if(prop!=='scale' && Math.abs(v)<meta.step) v=0;
+  return v;
+}
+
+function applyArtValue(id,prop,raw){
+  const entry=artEntry(id);if(!entry)return;
+  const v=normalizeArtValue(entry.slot,prop,raw),A=entry.placement;
+  if(prop==='x'||prop==='y')A[prop]=v*.0018;
+  else if(prop==='scale')A.scale=v/100;
+  else A.rot=v;
+  if(id===activeArtId){const pair=artControlPair(entry.slot,prop);pair.range.value=String(v);pair.num.value=String(v);}
+  requestArtworkRender(entry);
+}
+
+/* =============================== controls =============================== */
+
+// Capture an artwork anchor from the selected triangle's native UVs.
+// Local right/down distances remain in garment units; the texture is never projected.
+let anchorPickId=null;
+const printRay=new THREE.Raycaster();
+function nativeAnchor(hit){
+  const mesh=hit.object,g=mesh.geometry,p=g.attributes.position,uv=g.attributes.uv;
+  if(!uv||!hit.face||!hit.uv)throw new Error('This surface needs native UV coordinates.');
+  const {a,b,c}=hit.face;
+  const pa=new THREE.Vector3().fromBufferAttribute(p,a);
+  const e1=new THREE.Vector3().fromBufferAttribute(p,b).sub(pa);
+  const e2=new THREE.Vector3().fromBufferAttribute(p,c).sub(pa);
+  const n=new THREE.Vector3().crossVectors(e1,e2).normalize();
+  const up=new THREE.Vector3(0,1,0).addScaledVector(n,-n.y).normalize();
+  if(up.lengthSq()<0.01)up.set(0,0,-1);
+  const right=new THREE.Vector3().crossVectors(up,n).normalize(),down=up.negate();
+  const x1=e1.dot(right),y1=e1.dot(down),x2=e2.dot(right),y2=e2.dot(down);
+  const det=x1*y2-x2*y1;
+  if(Math.abs(det)<1e-12)throw new Error('Choose a flatter point on the garment.');
+  const u1=uv.getX(b)-uv.getX(a),u2=uv.getX(c)-uv.getX(a);
+  const v1=uv.getY(b)-uv.getY(a),v2=uv.getY(c)-uv.getY(a);
+  const basis=[(u1*y2-u2*y1)/det,(u2*x1-u1*x2)/det,(v1*y2-v2*y1)/det,(v2*x1-v1*x2)/det];
+  if(Math.abs(basis[0]*basis[3]-basis[1]*basis[2])<1e-8)throw new Error('This surface has collapsed UVs. Choose another point.');
+  return {origin:hit.uv.toArray(),basis,point:mesh.worldToLocal(hit.point.clone()).toArray(),normal:n.toArray(),mesh:mesh.userData.orbMeshId,island:g.getAttribute('aPrintIsland').getX(a)};
+}
+function cancelAnchorPick(){
+  anchorPickId=null;canvas.style.cursor='';document.getElementById('positionHint').hidden=true;
+}
+function beginAnchorPick(id){
+  const entry=artEntry(id);if(!current||!entry)return;
+  if(state.present)exitPresent();
+  selectArtwork(id);anchorPickId=id;canvas.style.cursor='crosshair';
+  document.getElementById('positionHintText').textContent=`Tap the garment to position ${entry.name}`;
+  document.getElementById('positionHint').hidden=false;
+}
+
+function pickNativePosition(e){
+  const bounds=stage.getBoundingClientRect();
+  printRay.setFromCamera(new THREE.Vector2((e.clientX-bounds.left)/bounds.width*2-1,1-(e.clientY-bounds.top)/bounds.height*2),camera);
+  current.updateMatrixWorld(true);
+  const hits=printRay.intersectObject(current,true),hit=hits.find(h=>h.object.geometry.attributes.uv);
+  if(!hit){artStatus('Tap the garment surface to choose a position.');return;}
+  try{
+    const entry=artEntry(anchorPickId);if(!entry){cancelAnchorPick();return;}
+    const anchor=nativeAnchor(hit);anchor.printScale=layerProfile(entry)?.printScale||1;recordArtUndo();entry.anchor=anchor;
+    entry.placement.x=0;entry.placement.y=0;
+    requestArtworkRender();cancelAnchorPick();syncArtworkUi();
+    artStatus('');
+  }catch(error){artStatus(error.message);}
+}
+
+let dragging=false,lastX=0,lastY=0,pinch=0;
+let orbitInputVelocity=0;
+let lastOrbitInputTime=performance.now();
+
+canvas.addEventListener('pointerdown',e=>{
+  if(anchorPickId){e.preventDefault();pickNativePosition(e);return;}
+  dragging=true; lastX=e.clientX; lastY=e.clientY;
+  orbitInputVelocity=0;
+  inertiaInput=0;
+  inertiaVelocity=0;
+  inertiaReleaseKick=0;
+  inertiaLoadTarget=inertiaTwist;
+  inertiaLastMotionVelocity=0;
+  lastOrbitInputTime=performance.now();
+  canvas.setPointerCapture(e.pointerId); canvas.classList.add('drag');
+  if(state.present) exitPresent();
+});
+canvas.addEventListener('pointermove',e=>{
+  if(!dragging) return;
+  const now=performance.now();
+  const dx=e.clientX-lastX;
+  const sampleDt=Math.max(0.008,Math.min(0.08,(now-lastOrbitInputTime)/1000));
+  const dAz=-dx*0.008;
+  state.taz+=dAz;
+  state.tel=clamp(state.tel-(e.clientY-lastY)*0.006,0.55,2.05);
+
+  // Raw manual orbit speed in radians/second. A short low-pass happens
+  // in the animation loop before this becomes fabric motion.
+  orbitInputVelocity=clamp(dAz/sampleDt,-6.0,6.0);
+  if(Math.abs(orbitInputVelocity)>0.03) inertiaLastMotionVelocity=orbitInputVelocity;
+  lastOrbitInputTime=now;
+  lastX=e.clientX; lastY=e.clientY; setView(null);
+});
+function endOrbitDrag(){
+  if(dragging){
+    // The shirt has been "loaded" in the lag direction while held.
+    // On release, inject momentum toward neutral so it catches up, crosses
+    // through, then oscillates with the Overshoot / Settle controls.
+    const releaseAmt=state.inertia.release/100;
+    const loadKick=-inertiaTwist * (4.0 + 4.0*releaseAmt) * releaseAmt;
+    const speedKick=-inertiaLastMotionVelocity * 0.010 * releaseAmt;
+    inertiaReleaseKick=loadKick + speedKick;
+    inertiaLoadTarget=0;
+  }
+  dragging=false;
+  orbitInputVelocity=0;
+  canvas.classList.remove('drag');
+}
+addEventListener('pointerup',endOrbitDrag);
+addEventListener('pointercancel',endOrbitDrag);
+canvas.addEventListener('wheel',e=>{
+  e.preventDefault();
+  if(state.present && isMobilePresent()) return;
+  state.tr=clamp(state.tr+e.deltaY*0.0012,0.72,2.6);
+},{passive:false});
+canvas.addEventListener('touchmove',e=>{
+  if(e.touches.length!==2) return;
+  e.preventDefault();
+
+  // Mobile Present is a fixed presentation view. No pinch zoom is allowed;
+  // touching the shield exits back to the normal interactive view instead.
+  if(state.present && isMobilePresent()){
+    pinch=0;
+    return;
+  }
+
+  const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,
+                     e.touches[0].clientY-e.touches[1].clientY);
+  if(pinch) state.tr=clamp(state.tr+(pinch-d)*0.004,0.72,2.6);
+  pinch=d;
+},{passive:false});
+canvas.addEventListener('touchend',()=>{pinch=0;});
+
+canvas.tabIndex=0;
+canvas.setAttribute('aria-label','Garment preview. Arrow keys rotate.');
+canvas.addEventListener('keydown',e=>{
+  const k={ArrowLeft:[-0.14,0],ArrowRight:[0.14,0],ArrowUp:[0,0.10],ArrowDown:[0,-0.10]}[e.key];
+  if(!k) return; e.preventDefault();
+  state.taz+=k[0]; state.tel=clamp(state.tel-k[1],0.55,2.05); setView(null);
+});
+
+const VIEWS={front:[0,1.45],angle:[0.62,1.30],back:[Math.PI,1.45]};
+function viewArtwork(slot){setView(ART_META[slot].view);}
+function setView(v){
+  state.view=v;
+  document.querySelectorAll('#segView button')
+    .forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===v)));
+  if(!v) return;
+  const [az,el]=v==='left'?[Math.PI/2,1.3]:v==='right'?[-Math.PI/2,1.3]:VIEWS[v];
+  state.taz=az+Math.round((state.taz-az)/(Math.PI*2))*Math.PI*2;
+  state.tel=el;
+}
+
+/* ================================== UI ================================== */
+
+const sw=document.getElementById('swatches');
+function syncGarmentSwatches(){
+  for(const button of sw.querySelectorAll('button[data-blank]'))button.setAttribute('aria-checked',String(state.blank===Number(button.dataset.blank)));
+  const custom=sw.querySelector('.custom');if(custom)custom.setAttribute('aria-checked',String(state.blank==='custom'));
+}
+function renderGarmentSwatches(){
+  sw.innerHTML='';
+  GARMENTS.forEach((g,i)=>{
+    const b=document.createElement('button');
+    b.className='sw'; b.type='button'; b.role='radio';b.dataset.blank=String(i);
+    b.setAttribute('aria-checked',String(state.blank===i));
+    b.setAttribute('aria-label',g.name);
+    b.dataset.tip=`Set the shirt color to ${g.name}.`;
+    b.innerHTML=`<i style="background:${g.hex}"></i>`;
+    b.onclick=()=>{
+      state.shirtColorsCustomized=true;
+      state.blank=i;
+      syncGarmentSwatches();
+      applyLook();
+    };
+    sw.appendChild(b);
+  });
+
+  const custom=document.createElement('label');
+  custom.className='sw custom';
+  custom.role='radio';
+  custom.setAttribute('aria-checked',String(state.blank==='custom'));
+  custom.setAttribute('aria-label','Custom garment colour');
+  custom.dataset.tip='Choose a custom shirt color with the system color picker.';
+  custom.innerHTML=`<i style="background:${state.garmentCustom}"></i><span class="pickerGlyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m19 3 2 2-8.5 8.5-3-3z"></path><path d="m8.8 11.2-4.3 4.3v4h4l4.3-4.3"></path></svg></span><input type="color" value="${state.garmentCustom}" aria-label="Custom garment colour">`;
+  const picker=custom.querySelector('input');
+  const activateCustom=()=>{
+    state.shirtColorsCustomized=true;
+    state.blank='custom';
+    state.garmentCustom=picker.value;
+    syncGarmentSwatches();
+    applyLook();
+  };
+  picker.addEventListener('input',()=>{
+    state.shirtColorsCustomized=true;
+    state.blank='custom';
+    state.garmentCustom=picker.value;
+    syncGarmentSwatches();
+    custom.querySelector('i').style.background=picker.value;
+    applyLook();
+  });
+  picker.addEventListener('change',activateCustom);
+  custom.addEventListener('pointerdown',()=>{ state.shirtColorsCustomized=true; state.blank='custom'; });
+  custom.addEventListener('click',()=>{ state.shirtColorsCustomized=true; state.blank='custom'; });
+  sw.appendChild(custom);
+}
+renderGarmentSwatches();
+
+/* ============================ utilitarian tooltips ============================ */
+const uiTooltip=document.getElementById('uiTooltip');
+let tooltipTimer=0;
+let tooltipTarget=null;
+
+function setTip(selector,text){
+  document.querySelectorAll(selector).forEach(el=>{
+    el.dataset.tip=text;
+    // Prevent a second native tooltip from appearing on top of the custom one.
+    if(el.hasAttribute('title')) el.removeAttribute('title');
+  });
+}
+function setControlTip(id,text,alsoNumberId=null){
+  setTip(`#${id}`,text);
+  setTip(`label[for="${id}"]`,text);
+  if(alsoNumberId) setTip(`#${alsoNumberId}`,text);
+}
+
+const staticTips=[
+  ['#segView button[data-v="front"]','Camera 1: move to a straight front view.'],
+  ['#segView button[data-v="angle"]','Camera 2: move to the default three-quarter view.'],
+  ['#segView button[data-v="back"]','Camera 3: move to a straight back view.'],
+
+  ['#segLight button[data-v="soft"]','Lighting 1: broad soft studio light with the flattest, most even result.'],
+  ['#segLight button[data-v="key"]','Lighting 2: stronger directional key light for more form and contrast.'],
+  ['#segLight button[data-v="rim"]','Lighting 3: studio setup with stronger edge separation and directional contrast.'],
+
+  ['#segWind button[data-v="0"]','Wind 1: no continuous breeze deformation. Rotation inertia can still move the shirt.'],
+  ['#segWind button[data-v="1"]','Wind 2: gentle continuous fabric movement.'],
+  ['#segWind button[data-v="2"]','Wind 3: stronger continuous fabric movement.'],
+
+  ['#btnPresent','Enter presentation mode. Desktop shows synchronized front and back shirts; mobile keeps one centered shirt. Click the preview or press Escape to return.'],
+  ['#btnSave','Export the current garment preview as an image.'],
+  ['#btnHelp','Open a quick guide to the garment preview controls.'],
+  ['[data-theme-mode="light"]','Use light mode.'],
+  ['[data-theme-mode="system"]','Follow your device’s light or dark appearance, including automatic changes.'],
+  ['[data-theme-mode="dark"]','Use dark mode.'],
+
+
+  ['#customInkChoice','Choose an ink color for this design only.'],
+  ['#bgCustom','Choose the preview background color.'],
+  ['#bgCustom + *','Choose the preview background color.'],
+  ['.colorSingle','Choose the preview background color.'],
+
+  ['#dotGrid','Show or hide the pattern-paper grid behind the shirt.'],
+  ['#btnModel','Replace the current shirt geometry with a .glb or .gltf model.'],
+  ['#btnFlip','Rotate the imported 3D model 180° if it loads facing the wrong direction.'],
+
+  ['#inertiaEnabled','Enable or disable rotation-driven fabric inertia. The Wind control remains separate.'],
+  ['#resetInertia','Restore all Fabric Motion controls to their default values.']
+];
+staticTips.forEach(([selector,tip])=>setTip(selector,tip));
+
+setControlTip('art-x','Move the selected artwork left or right.');
+setControlTip('art-y','Move the selected artwork up or down.');
+setControlTip('art-scale','Resize the selected artwork while preserving its proportions.');
+setControlTip('art-rot','Rotate the selected artwork in degrees.');
+
+setControlTip('artRoughness','Change only the artwork surface finish. Left is glossier; right is rougher. The shirt material is not changed.');
+setControlTip('gridScale','Change the spacing between pattern-paper grid intersections. Smaller values make a tighter grid.','gridScaleNum');
+setControlTip('gridCharSize','Change the size of grid letters, numbers, and symbols without changing grid spacing.','gridCharSizeNum');
+
+setControlTip('inertiaStrength','Maximum amount of lag that can load into the loosest fabric while you rotate. Higher values allow a larger stored twist before release.','inertiaStrengthNum');
+setControlTip('inertiaRamp','How slowly the lag loads while you are actively rotating. Higher values keep the lower shirt and sleeves behind for longer before they build toward the maximum lag.','inertiaRampNum');
+setControlTip('inertiaSettle','How long the release motion takes to fade after you let go. Higher values make the catch-up and pendulum settling last longer.','inertiaSettleNum');
+setControlTip('inertiaElasticity','Spring stiffness after release. Higher values make the shirt catch up and reverse direction more quickly, creating tighter oscillations.','inertiaElasticityNum');
+setControlTip('inertiaOvershoot','Controls damping only after release. Higher values let the shirt cross its rest position more times before the pendulum motion fades.','inertiaOvershootNum');
+setControlTip('inertiaRelease','How strongly the loaded fabric is kicked toward neutral when you let go. Higher values create a stronger first catch-up and swing-through.','inertiaReleaseNum');
+setControlTip('inertiaSensitivity','How easily manual rotation loads the lag effect. Higher values respond to slower and smaller cursor rotations.','inertiaSensitivityNum');
+setControlTip('inertiaBias','Concentrates the loaded lag toward the lower torso and hem. Higher values keep the upper shirt more anchored while the bottom trails behind.','inertiaBiasNum');
+setControlTip('inertiaSleeve','Adds extra trailing lag to the sleeves and cuffs relative to the torso. Sleeves now drag behind the apparent shirt rotation rather than leading it.','inertiaSleeveNum');
+setControlTip('inertiaArc','Blends sleeve motion from the garment-wide twist to a local shoulder-pivot arc. Higher values make cuffs swing inward on a curved path and preserve more sleeve volume at the peak.','inertiaArcNum');
+
+// Section headers and artwork transform disclosures.
+document.querySelectorAll('.sectionFold>summary').forEach(summary=>{
+  const name=summary.textContent.trim();
+  summary.dataset.tip=`Show or hide the ${name} controls.`;
+});
+document.querySelectorAll('.adjustFold>summary').forEach(summary=>{
+  summary.dataset.tip='Show or hide placement, scale, and rotation controls for this artwork.';
+});
+
+// Preview itself.
+
+function tooltipSource(node){
+  return node instanceof Element ? node.closest('[data-tip]') : null;
+}
+function positionTooltip(target){
+  const r=target.getBoundingClientRect();
+  const gap=8;
+  const pad=8;
+  const tw=uiTooltip.offsetWidth;
+  const th=uiTooltip.offsetHeight;
+
+  let left=r.left + r.width/2 - tw/2;
+  left=Math.max(pad,Math.min(innerWidth-tw-pad,left));
+
+  let top=r.bottom+gap;
+  if(top+th+pad>innerHeight) top=r.top-th-gap;
+  top=Math.max(pad,top);
+
+  uiTooltip.style.left=`${Math.round(left)}px`;
+  uiTooltip.style.top=`${Math.round(top)}px`;
+}
+function showTooltip(target,immediate=false){
+  clearTimeout(tooltipTimer);
+  tooltipTarget=target;
+  const show=()=>{
+    if(!tooltipTarget || !document.contains(tooltipTarget)) return;
+    uiTooltip.textContent=tooltipTarget.dataset.tip || '';
+    if(!uiTooltip.textContent) return;
+    uiTooltip.setAttribute('aria-hidden','false');
+    uiTooltip.classList.add('show');
+    positionTooltip(tooltipTarget);
+  };
+  if(immediate) show();
+  else tooltipTimer=setTimeout(show,360);
+}
+function hideTooltip(){
+  clearTimeout(tooltipTimer);
+  tooltipTarget=null;
+  uiTooltip.classList.remove('show');
+  uiTooltip.setAttribute('aria-hidden','true');
+}
+document.addEventListener('pointerover',e=>{
+  const target=tooltipSource(e.target);
+  if(!target || target===tooltipTarget) return;
+  showTooltip(target,false);
+});
+document.addEventListener('pointerout',e=>{
+  const target=tooltipSource(e.target);
+  if(!target) return;
+  const next=tooltipSource(e.relatedTarget);
+  if(next===target) return;
+  hideTooltip();
+});
+document.addEventListener('focusin',e=>{
+  const target=tooltipSource(e.target);
+  if(target) showTooltip(target,true);
+});
+document.addEventListener('focusout',e=>{
+  if(tooltipSource(e.target)) hideTooltip();
+});
+document.addEventListener('pointerdown',()=>hideTooltip(),true);
+addEventListener('scroll',hideTooltip,{passive:true});
+addEventListener('resize',hideTooltip);
+
+const helpDialog=document.getElementById('helpDialog');
+const btnHelp=document.getElementById('btnHelp');
+const helpClose=document.getElementById('helpClose');
+
+btnHelp.addEventListener('click',()=>{
+  hideTooltip();
+  if(typeof helpDialog.showModal==='function') helpDialog.showModal();
+  else helpDialog.setAttribute('open','');
+});
+helpClose.addEventListener('click',()=>helpDialog.close());
+helpDialog.addEventListener('click',e=>{
+  if(e.target===helpDialog) helpDialog.close();
+});
+helpDialog.addEventListener('cancel',()=>hideTooltip());
+
+function segment(id,fn){
+  const el=document.getElementById(id);
+  el.querySelectorAll('button').forEach(b=>b.onclick=()=>{
+    el.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
+    fn(b.dataset.v);
+  });
+}
+
+function syncInkUi(){
+  const entry=artEntry(),enabled=!!entry&&entry.mode!=='original';
+  const picker=document.getElementById('inkCustom');
+  const choice=document.getElementById('customInkChoice');
+  choice.hidden=!enabled;
+  choice.title=entry?.mode==='ink'&&!entry.inkCustom?'Automatic contrast with the shirt. Choose a color to override.':'Choose artwork color';
+  picker.disabled=artLoading||!enabled;
+  if(!entry)return;
+  const color=inkHex(entry);
+  document.getElementById('inkCustomChip').style.background=color;
+  picker.value=color;
+}
+
+let inkEditingEntry=null;
+function setCustomArtworkInk(value){
+  const entry=artEntry();
+  if(artLoading||!entry||entry.mode==='original'||!/^#[0-9a-f]{6}$/i.test(value))return;
+  if(entry.inkCustom?.toLowerCase()===value.toLowerCase())return;
+  if(inkEditingEntry!==entry){recordArtUndo();inkEditingEntry=entry;}
+  entry.inkCustom=value.toUpperCase();
+  requestArtworkRender(entry);syncInkUi();
+}
+const inkColorInput=document.getElementById('inkCustom');
+inkColorInput.addEventListener('input',()=>setCustomArtworkInk(inkColorInput.value));
+inkColorInput.addEventListener('change',()=>{setCustomArtworkInk(inkColorInput.value);inkEditingEntry=null;});
+inkColorInput.addEventListener('blur',()=>{inkEditingEntry=null;syncInkUi();});
+
+segment('segWind',v=>{state.wind=+v;});
+segment('segLight',v=>{state.light=v; applyLightingPreset();});
+segment('segView',v=>setView(v));
+function setColorMode(mode){
+  if(!['light','system','dark'].includes(mode))return;
+  state.themeMode=mode;applyTheme(true);
+  if(!state.shirtColorsCustomized){
+    state.blank=GARMENTS.findIndex(g=>g.name===(state.theme==='dark'?'Washed Black':'Chalk'));
+    renderGarmentSwatches();
+  }
+  applyLook();
+}
+document.querySelectorAll('[data-theme-mode]').forEach(button=>{
+  button.addEventListener('click',()=>setColorMode(button.dataset.themeMode));
+});
+systemColorScheme.addEventListener('change',()=>{
+  if(state.themeMode==='system')setColorMode('system');
+});
+document.getElementById('bgCustom').addEventListener('input',e=>{
+  state.bg=e.target.value;
+  document.getElementById('bgColorChip').style.background=e.target.value;
+  applyBackground();
+});
+const artRoughness=document.getElementById('artRoughness');
+const artRoughnessName=document.getElementById('artRoughnessName');
+function setArtworkRoughness(raw){
+  const v=Math.max(0,Math.min(100,Math.round(Number(raw)||0)));
+  state.artRoughness=v;
+  artRoughness.value=String(v);
+  artRoughnessName.textContent=String(v);
+  uni.uArtRough.value=v/100;
+}
+artRoughness.addEventListener('input',e=>setArtworkRoughness(e.target.value));
+setArtworkRoughness(state.artRoughness);
+
+document.getElementById('resetArtRoughness').addEventListener('click',()=>setArtworkRoughness(97));
+
+const INERTIA_DEFAULTS={enabled:true,strength:15,ramp:100,settle:0.5,elasticity:60,overshoot:70,release:70,sensitivity:50,bias:25,sleeve:100,arc:100};
+
+function inertiaFlowPower(v){
+  const t=clamp(v/100,0,1);
+  return t<=0.5 ? lerp(0.55,1.0,t*2) : lerp(1.0,2.10,(t-0.5)*2);
+}
+function syncInertiaUniformShape(){
+  uni.uTwistFlowPower.value=inertiaFlowPower(state.inertia.bias);
+  uni.uSleeveBoost.value=(state.inertia.sleeve/100)*0.80;
+  uni.uSleeveArc.value=state.inertia.arc/100;
+}
+const MOTION_APPLIERS={};
+function bindMotionPair(key, rangeId, numId, min, max, step){
+  const range=document.getElementById(rangeId);
+  const num=document.getElementById(numId);
+
+  function clean(raw){
+    let v=Number(raw);
+    if(!Number.isFinite(v)) v=state.inertia[key];
+    v=clamp(v,min,max);
+    if(step<1){
+      const places=String(step).split('.')[1]?.length || 0;
+      v=Number(v.toFixed(places));
+    }else{
+      v=Math.round(v/step)*step;
+    }
+    return v;
+  }
+  function apply(raw){
+    const v=clean(raw);
+    state.inertia[key]=v;
+    range.value=String(v);
+    num.value=String(v);
+    syncInertiaUniformShape();
+  }
+  MOTION_APPLIERS[key]=apply;
+
+  range.addEventListener('input',e=>apply(e.target.value));
+  num.addEventListener('input',e=>apply(e.target.value));
+  num.addEventListener('change',e=>apply(e.target.value));
+  num.addEventListener('wheel',e=>{
+    e.preventDefault();
+    apply(state.inertia[key] + (e.deltaY<0 ? step : -step));
+  },{passive:false});
+  apply(state.inertia[key]);
+}
+
+bindMotionPair('strength','inertiaStrength','inertiaStrengthNum',0,15,0.25);
+bindMotionPair('ramp','inertiaRamp','inertiaRampNum',15,300,5);
+bindMotionPair('settle','inertiaSettle','inertiaSettleNum',0.20,2.50,0.05);
+bindMotionPair('elasticity','inertiaElasticity','inertiaElasticityNum',10,100,1);
+bindMotionPair('overshoot','inertiaOvershoot','inertiaOvershootNum',0,100,1);
+bindMotionPair('release','inertiaRelease','inertiaReleaseNum',0,150,1);
+bindMotionPair('sensitivity','inertiaSensitivity','inertiaSensitivityNum',0,100,1);
+bindMotionPair('bias','inertiaBias','inertiaBiasNum',0,100,1);
+bindMotionPair('sleeve','inertiaSleeve','inertiaSleeveNum',0,100,1);
+bindMotionPair('arc','inertiaArc','inertiaArcNum',0,100,1);
+
+document.querySelectorAll('[data-reset-motion]').forEach(btn=>{
+  const key=btn.dataset.resetMotion;
+  const defaultValue=INERTIA_DEFAULTS[key];
+  btn.dataset.tip=`Reset this control to its default value (${defaultValue}).`;
+  btn.addEventListener('click',()=>{
+    const apply=MOTION_APPLIERS[key];
+    if(apply) apply(defaultValue);
+  });
+});
+
+const inertiaEnabled=document.getElementById('inertiaEnabled');
+inertiaEnabled.addEventListener('change',e=>{
+  state.inertia.enabled=e.target.checked;
+  if(!state.inertia.enabled){
+    inertiaInput=inertiaTwist=inertiaVelocity=inertiaReleaseKick=0;
+    inertiaLoadTarget=0;
+    inertiaLastMotionVelocity=0;
+    uni.uTwist.value=0;
+  }
+});
+
+document.getElementById('resetInertia').addEventListener('click',()=>{
+  Object.assign(state.inertia,INERTIA_DEFAULTS);
+  inertiaEnabled.checked=state.inertia.enabled;
+  [
+    ['strength','inertiaStrength','inertiaStrengthNum'],
+    ['ramp','inertiaRamp','inertiaRampNum'],
+    ['settle','inertiaSettle','inertiaSettleNum'],
+    ['elasticity','inertiaElasticity','inertiaElasticityNum'],
+    ['overshoot','inertiaOvershoot','inertiaOvershootNum'],
+    ['release','inertiaRelease','inertiaReleaseNum'],
+    ['sensitivity','inertiaSensitivity','inertiaSensitivityNum'],
+    ['bias','inertiaBias','inertiaBiasNum'],
+    ['sleeve','inertiaSleeve','inertiaSleeveNum'],
+    ['arc','inertiaArc','inertiaArcNum']
+  ].forEach(([key,r,n])=>{
+    document.getElementById(r).value=String(state.inertia[key]);
+    document.getElementById(n).value=String(state.inertia[key]);
+  });
+  syncInertiaUniformShape();
+});
+syncInertiaUniformShape();
+document.getElementById('dotGrid').addEventListener('change',e=>{ state.dotGrid=e.target.checked; drawPatternBackground(); });
+const gridScale=document.getElementById('gridScale');
+const gridScaleNum=document.getElementById('gridScaleNum');
+const gridCharSize=document.getElementById('gridCharSize');
+const gridCharSizeNum=document.getElementById('gridCharSizeNum');
+function applyGridScale(raw){
+  const v=Math.max(30, Math.min(175, Math.round(Number(raw)||35)));
+  state.gridScale=v;
+  gridScale.value=String(v);
+  gridScaleNum.value=String(v);
+  drawPatternBackground();
+}
+function applyGridCharSize(raw){
+  const v=Math.max(30, Math.min(160, Math.round(Number(raw)||45)));
+  state.gridCharSize=v;
+  gridCharSize.value=String(v);
+  gridCharSizeNum.value=String(v);
+  drawPatternBackground();
+}
+gridScale.addEventListener('input',e=>applyGridScale(e.target.value));
+gridScaleNum.addEventListener('input',e=>applyGridScale(e.target.value));
+gridCharSize.addEventListener('input',e=>applyGridCharSize(e.target.value));
+gridCharSizeNum.addEventListener('input',e=>applyGridCharSize(e.target.value));
+
+document.getElementById('resetGridScale').addEventListener('click',()=>applyGridScale(35));
+document.getElementById('resetGridCharSize').addEventListener('click',()=>applyGridCharSize(45));
+function syncGridStyle(){document.getElementById('gridCharacterRow').hidden=state.gridType!=='pattern';document.getElementById('gridStrokeRow').hidden=state.gridType!=='square';drawPatternBackground();}
+document.getElementById('gridType').addEventListener('change',e=>{state.gridType=e.target.value;syncGridStyle();});
+document.getElementById('gridColor').addEventListener('input',e=>{state.gridColor=e.target.value;state.gridColorCustom=true;drawPatternBackground();});
+function applyGridStroke(value){const n=Number(value);if(!Number.isFinite(n))return;state.gridStroke=clamp(Math.round(n*4)/4,0.25,3);document.getElementById('gridStroke').value=state.gridStroke;document.getElementById('gridStrokeNum').value=state.gridStroke;drawPatternBackground();}
+for(const id of ['gridStroke','gridStrokeNum'])document.getElementById(id).addEventListener('input',e=>applyGridStroke(e.target.value));
+document.getElementById('resetGridStroke').addEventListener('click',()=>applyGridStroke(0.5));
+
+// Artwork is composited on the GPU into isolated native-UV panels. Moving a
+// graphic changes its quad matrix, never its image pixels or source texture.
+const artworkMaps=new Map(),artworkSources=new Map(),artworkBoundsCache=new WeakMap();
+const artworkDirtyPanels=new Set();
+let artworkDirty=true,artworkDirtyAll=true;
+const artworkClearColor=new THREE.Color();
+const artworkQuad=new THREE.BufferGeometry();
+artworkQuad.setAttribute('position',new THREE.Float32BufferAttribute([-.5,-.5,0,.5,-.5,0,.5,.5,0,-.5,.5,0],3));
+artworkQuad.setAttribute('uv',new THREE.Float32BufferAttribute([0,0,1,0,1,1,0,1],2));
+artworkQuad.setIndex([0,1,2,0,2,3]);
+const ARTWORK_VERTEX=`varying vec2 vArtUv;
+void main(){vArtUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`;
+const ARTWORK_FRAGMENT=`uniform sampler2D uSource;uniform float uOriginal,uTint;
+uniform vec3 uInkColor;varying vec2 vArtUv;
+void main(){
+  vec4 art=texture2D(uSource,vArtUv);
+  vec3 color=uOriginal>.5?art.rgb:uInkColor;
+  if(uTint>.5){
+    // Transfer the chosen color's chroma, preserving source luminance and alpha.
+    // Scale chroma into gamut rather than clipping away highlight/shadow detail.
+    const vec3 weights=vec3(.2126,.7152,.0722);
+    float lightness=dot(art.rgb,weights);
+    vec3 chroma=uInkColor-vec3(dot(uInkColor,weights));
+    float low=min(chroma.r,min(chroma.g,chroma.b));
+    float high=max(chroma.r,max(chroma.g,chroma.b));
+    float strength=1.0;
+    if(low<-.00001)strength=min(strength,lightness/-low);
+    if(high>.00001)strength=min(strength,(1.0-lightness)/high);
+    color=vec3(lightness)+chroma*strength;
+  }
+  // Keep fractional coverage intact AFTER filtering. Thresholding it here
+  // destroys antialiasing, soft edges, and fine details at small print sizes.
+  gl_FragColor=vec4(color,art.a);
+}`;
+function requestArtworkRender(layer=null){
+  artworkDirty=true;
+  const q=layer&&layerProfile(layer);
+  if(q)artworkDirtyPanels.add(`${q.mesh||1}:${q.island}`);
+  else artworkDirtyAll=true;
+}
+function getArtworkMap(meshId){
+  if(!artworkMaps.has(meshId))artworkMaps.set(meshId,{
+    map:{value:null},has:{value:0},target:null,layoutKey:'',geometry:null,
+    tiles:new Map(),scenes:new Map(),quads:new Map(),camera:new THREE.OrthographicCamera(0,1,1,0,-1,1)
+  });
+  return artworkMaps.get(meshId);
+}
+function resetArtworkMaps(){
+  for(const map of artworkMaps.values()){
+    map.target?.dispose();map.target=null;map.map.value=null;map.has.value=0;
+    for(const mesh of map.quads.values()){mesh.removeFromParent();mesh.material.dispose();}
+    map.quads.clear();map.scenes.clear();map.tiles.clear();map.layoutKey='';map.geometry=null;
+  }
+  requestArtworkRender();
+}
+function artworkSource(layer){
+  let cached=artworkSources.get(layer.source);
+  if(!cached){cached={fitted:null,textures:new Map()};artworkSources.set(layer.source,cached);}
+  const source=layer.fit?(cached.fitted||(cached.fitted=fitVisibleArtwork(layer.source))):layer.source;
+  const key=`${source===layer.source?0:1}/${layer.mode==='ink'?'ink':'color'}`;
+  if(!cached.textures.has(key)){
+    const raster=layer.mode==='ink'?makeArtworkMask(source):source;
+    cached.textures.set(key,{texture:texFromArtwork(raster,layer.mode!=='ink'),width:raster.width,height:raster.height});
+  }
+  return cached.textures.get(key);
+}
+function trimArtworkSources(){
+  const sources=new Set(artLayers.map(layer=>layer.source));
+  for(const [source,cached] of artworkSources)if(!sources.has(source)){
+    for(const image of cached.textures.values())image.texture.dispose();
+    artworkSources.delete(source);
+  }
+}
+function artworkPanelBounds(geometry){
+  if(artworkBoundsCache.has(geometry))return artworkBoundsCache.get(geometry);
+  const bounds=new Map(),uv=geometry.getAttribute('uv'),island=geometry.getAttribute('aPrintIsland');
+  if(uv&&island)for(let i=0;i<uv.count;i++){
+    const id=island.getX(i),u=uv.getX(i),v=uv.getY(i);let box=bounds.get(id);
+    if(!box){box={minU:u,maxU:u,minV:v,maxV:v};bounds.set(id,box);}
+    box.minU=Math.min(box.minU,u);box.maxU=Math.max(box.maxU,u);box.minV=Math.min(box.minV,v);box.maxV=Math.max(box.maxV,v);
+  }
+  artworkBoundsCache.set(geometry,bounds);return bounds;
+}
+function layoutArtworkMap(map,geometry,panelIds){
+  const key=panelIds.join(',');
+  if(map.geometry===geometry&&map.layoutKey===key&&geometry.getAttribute('aArtworkUv'))return false;
+  const bounds=artworkPanelBounds(geometry),cols=Math.ceil(Math.sqrt(panelIds.length||1)),rows=Math.ceil((panelIds.length||1)/cols);
+  const limit=Math.min(4096,renderer.capabilities.maxTextureSize),tileSize=Math.min(2048,Math.floor(limit/Math.max(cols,rows))),gutter=8;
+  const width=cols*tileSize,height=rows*tileSize;
+  map.tiles.clear();map.geometry=geometry;map.layoutKey=key;
+  if(panelIds.length){
+    if(!map.target||map.target.width!==width||map.target.height!==height){
+      map.target?.dispose();
+      map.target=new THREE.WebGLRenderTarget(width,height,{
+        depthBuffer:false,stencilBuffer:false,generateMipmaps:false,
+        minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,
+        // WebGL2 encodes the linear blend into sRGB storage on the GPU, keeping
+        // dark image detail without a larger floating-point render target.
+        colorSpace:renderer.capabilities.isWebGL2?THREE.SRGBColorSpace:THREE.LinearSRGBColorSpace
+      });
+      map.map.value=map.target.texture;
+    }
+    map.camera.right=width;map.camera.top=height;map.camera.updateProjectionMatrix();
+    panelIds.forEach((id,i)=>{
+      const b=bounds.get(id),spanU=Math.max(1e-6,b.maxU-b.minU),spanV=Math.max(1e-6,b.maxV-b.minV);
+      const density=(tileSize-gutter*2)/Math.max(spanU,spanV),left=(i%cols)*tileSize,top=Math.floor(i/cols)*tileSize;
+      map.tiles.set(id,{...b,density,left,top,size:tileSize,x:left+(tileSize-spanU*density)/2,y:top+(tileSize-spanV*density)/2});
+    });
+  }else{map.target?.dispose();map.target=null;map.map.value=null;}
+  const uv=geometry.getAttribute('uv'),island=geometry.getAttribute('aPrintIsland'),values=new Float32Array(geometry.attributes.position.count*2).fill(-1);
+  if(uv&&island)for(let i=0;i<uv.count;i++){
+    const tile=map.tiles.get(island.getX(i));if(!tile)continue;
+    values[i*2]=(tile.x+(uv.getX(i)-tile.minU)*tile.density)/width;
+    values[i*2+1]=(tile.y+(uv.getY(i)-tile.minV)*tile.density)/height;
+  }
+  geometry.setAttribute('aArtworkUv',new THREE.BufferAttribute(values,2));
+  return true;
+}
+function updateArtworkQuad(map,layer,index,total){
+  const q=layerProfile(layer),tile=map.tiles.get(q.island);
+  let mesh=map.quads.get(layer.id),scene=map.scenes.get(q.island);
+  if(!scene){scene=new THREE.Scene();map.scenes.set(q.island,scene);}
+  if(!mesh){
+    const material=new THREE.ShaderMaterial({
+      uniforms:{uSource:{value:null},uOriginal:{value:1},uTint:{value:0},uInkColor:{value:new THREE.Color()}},
+      vertexShader:ARTWORK_VERTEX,fragmentShader:ARTWORK_FRAGMENT,
+      transparent:true,depthTest:false,depthWrite:false,side:THREE.DoubleSide,
+      forceSinglePass:true,toneMapped:false
+    });
+    mesh=new THREE.Mesh(artworkQuad,material);mesh.matrixAutoUpdate=false;mesh.frustumCulled=false;
+    map.quads.set(layer.id,mesh);
+  }
+  if(mesh.parent!==scene)scene.add(mesh);
+  mesh.visible=layer.visible;mesh.renderOrder=total-index;
+  if(!layer.visible)return;
+  const image=artworkSource(layer),A=layer.placement,meta=ART_META[layer.slot],aspect=image.height/image.width;
+  const width=meta.w*A.scale*(q.printScale||1)/(!isCustom&&meta.side==='Sleeve'?Math.max(1,aspect):1),height=width*aspect;
+  const [a,b,d,e]=q.basis,c=Math.cos(A.rot*Math.PI/180),s=Math.sin(A.rot*Math.PI/180),k=tile.density;
+  mesh.matrix.set(
+    k*(a*c+b*s)*width,k*(-a*s+b*c)*height,0,tile.x+(q.origin[0]-tile.minU+a*A.x-b*A.y)*k,
+    k*(d*c+e*s)*width,k*(-d*s+e*c)*height,0,tile.y+(q.origin[1]-tile.minV+d*A.x-e*A.y)*k,
+    0,0,1,0,0,0,0,1
+  );
+  mesh.matrixWorldNeedsUpdate=true;
+  const uniforms=mesh.material.uniforms,hex=inkHex(layer);
+  uniforms.uSource.value=image.texture;uniforms.uOriginal.value=layer.mode==='original'?1:0;
+  uniforms.uTint.value=layer.mode==='tint'?1:0;
+  uniforms.uInkColor.value.set(hex);
+}
+function flushArtwork(){
+  if(!artworkDirty||!current)return;
+  const all=artworkDirtyAll,oldTarget=renderer.getRenderTarget(),oldAutoClear=renderer.autoClear,oldAlpha=renderer.getClearAlpha();
+  const oldFace=renderer.getActiveCubeFace(),oldMip=renderer.getActiveMipmapLevel();
+  renderer.getClearColor(artworkClearColor);renderer.autoClear=false;renderer.setClearColor(0x000000,0);
+  try{
+    if(all)trimArtworkSources();
+    current.traverse(mesh=>{
+      if(!mesh.isMesh)return;
+      const geometry=mesh.geometry,meshId=mesh.userData.orbMeshId||1,map=getArtworkMap(meshId),bounds=artworkPanelBounds(geometry);
+      const layers=artLayers.filter(layer=>{const q=layerProfile(layer);return q&&(q.mesh||1)===meshId&&bounds.has(q.island);});
+      const panels=[...new Set(layers.map(layer=>layerProfile(layer).island))].sort((a,b)=>a-b);
+      const changed=layoutArtworkMap(map,geometry,panels),ids=new Set(layers.map(layer=>layer.id));
+      for(const [id,quad] of map.quads)if(!ids.has(id)){quad.removeFromParent();quad.material.dispose();map.quads.delete(id);}
+      for(const [id,scene] of map.scenes)if(!map.tiles.has(id)){scene.clear();map.scenes.delete(id);}
+      map.has.value=layers.some(layer=>layer.visible)?1:0;
+      if(!map.target)return;
+      const dirty=panels.filter(id=>all||changed||artworkDirtyPanels.has(`${meshId}:${id}`));
+      layers.forEach((layer,i)=>{if(dirty.includes(layerProfile(layer).island))updateArtworkQuad(map,layer,i,layers.length);});
+      for(const id of dirty){
+        const tile=map.tiles.get(id),target=map.target;
+        // RenderTarget scissor coordinates are physical pixels, independent of
+        // the display's pixel ratio. Clear and repaint only the edited panel.
+        target.scissorTest=true;target.scissor.set(tile.left,tile.top,tile.size,tile.size);
+        renderer.setRenderTarget(target);renderer.clear(true,false,false);
+        target.scissor.set(tile.left+4,tile.top+4,tile.size-8,tile.size-8);
+        renderer.setRenderTarget(target);
+        const scene=map.scenes.get(id);if(scene)renderer.render(scene,map.camera);
+      }
+    });
+    artworkDirty=false;artworkDirtyAll=false;artworkDirtyPanels.clear();
+  }finally{
+    renderer.autoClear=oldAutoClear;renderer.setClearColor(artworkClearColor,oldAlpha);
+    renderer.setRenderTarget(oldTarget,oldFace,oldMip);
+  }
+}
+
+// One independent graphic per row. The array is the visual stack: top first.
+const fileInput=document.getElementById('file');
+let pendingSlot='back',pendingLayerId=null,pendingUploadAction='add',artLoading=false;
+let artLayers=[],nextArtId=1,activeArtId=null,renamingArtId=null;
+const artHistory=[],layerRows=new Map();
+const artEntry=(id=activeArtId)=>artLayers.find(layer=>layer.id===id)||null;
+const layerProfile=layer=>layer.anchor||UV_PROFILES[layer.slot];
+function suggestArtworkName(filename){
+  let name=String(filename||'Artwork').replace(/\.(png|jpe?g|webp|gif|avif|svg)$/i,'')
+    .replace(/[_]+/g,' ').replace(/\s+/g,' ').trim();
+  // Remove only recognizable export suffixes; retain color, placement and v02.
+  name=name.replace(/[ -]+(?:[a-f0-9]{12,}|\d{3,5}x\d{3,5}(?:px)?|20\d{6}[-T]\d{6})$/i,'').trim()||'Artwork';
+  if(name.length<=48)return name;
+  let head=name.slice(0,27),tail=name.slice(-17);
+  if(head.includes(' '))head=head.replace(/\s+\S*$/,'');
+  if(tail.includes(' '))tail=tail.replace(/^\S*\s+/,'');
+  return head.trim()+' … '+tail.trim();
+}
+function uniqueArtworkName(name,names){
+  let result=name,n=2;
+  while(names.has(result.toLocaleLowerCase()))result=`${name} (${n++})`;
+  names.add(result.toLocaleLowerCase());return result;
+}
+function initializeLayer(entry,slot,anchor=null,names=new Set(artLayers.map(e=>e.name.toLocaleLowerCase()))){
+  const name=uniqueArtworkName(entry.name,names);
+  return {...entry,name,autoName:name,nameEdited:false,id:'art-'+nextArtId++,slot,visible:true,anchor:anchor?structuredClone(anchor):null,
+    placement:{x:0,y:0,scale:ART_META[slot].scale/100,rot:0}};
+}
+function beginArtworkRename(id){
+  const entry=artEntry(id);if(artLoading||!entry)return;
+  if(renamingArtId===id)return;
+  finishArtworkRename(true);
+  selectArtwork(id);renamingArtId=id;
+  const row=layerRows.get(id),input=row.querySelector('.art-name-input');
+  row.querySelector('.art-select').hidden=true;row.querySelector('.art-rename').hidden=true;
+  row.querySelector('.art-name-edit').hidden=false;
+  input.value=entry.name;input.focus();input.select();
+}
+function finishArtworkRename(save=true,refocus=false){
+  const id=renamingArtId;if(!id)return;
+  renamingArtId=null;
+  const row=layerRows.get(id),entry=artEntry(id);
+  const name=row?.querySelector('.art-name-input').value.replace(/\s+/g,' ').trim();
+  if(save&&entry&&name&&name!==entry.name){
+    recordArtUndo();entry.name=name;entry.nameEdited=name!==entry.autoName;
+  }
+  if(row){
+    row.querySelector('.art-name-edit').hidden=true;
+    row.querySelector('.art-select').hidden=false;row.querySelector('.art-rename').hidden=false;
+  }
+  syncArtworkUi();
+  if(refocus)row?.querySelector('.art-select').focus();
+}
+function recordArtUndo(){
+  artHistory.push({active:activeArtId,layers:artLayers.map(e=>({...e,placement:{...e.placement},anchor:e.anchor?structuredClone(e.anchor):null}))});
+  if(artHistory.length>12)artHistory.shift();
+  document.getElementById('artUndo').disabled=false;
+}
+function undoArtwork(){
+  if(artLoading||!artHistory.length)return;
+  finishArtworkRename(false);cancelLayerDrag();cancelAnchorPick();
+  const snapshot=artHistory.pop();
+  artLayers=snapshot.layers;activeArtId=snapshot.active;inkEditingEntry=null;
+  if(artEntry())activeArtSlot=artEntry().slot;
+  requestArtworkRender();syncArtworkUi();artStatus('');
+}
+function artStatus(message){document.getElementById('artStatus').textContent=message;}
+function selectArtwork(id){
+  if(renamingArtId&&renamingArtId!==id)finishArtworkRename(true);
+  if(anchorPickId&&anchorPickId!==id)cancelAnchorPick();
+  activeArtId=artEntry(id)?id:null;inkEditingEntry=null;
+  if(artEntry())activeArtSlot=artEntry().slot;
+  syncArtworkUi();
+}
+function syncArtControls(){
+  const entry=artEntry();if(!entry)return;
+  const A=entry.placement,vals={x:A.x/.0018,y:A.y/.0018,scale:A.scale*100,rot:A.rot};
+  for(const prop of ['x','y','scale','rot']){
+    const pair=artControlPair(entry.slot,prop),value=Math.round(vals[prop]);
+    pair.range.value=value;pair.num.value=value;
+  }
+}
+function createLayerRow(layer){
+  const wrap=document.createElement('div');wrap.className='art-layer';wrap.dataset.layerId=layer.id;
+  wrap.innerHTML=`<div class="art-slot" data-art-card="${layer.id}" data-slot="${layer.slot}">
+    <button class="art-drag" type="button" title="Drag to reorder; use ↑ or ↓ with the keyboard"><svg viewBox="0 0 12 20" aria-hidden="true"><path d="M3 4h.01M9 4h.01M3 10h.01M9 10h.01M3 16h.01M9 16h.01"/></svg></button>
+    <button class="art-thumb" type="button" aria-controls="artEditor"><img alt="" draggable="false"></button>
+    <div class="art-labels">
+      <button class="art-select" type="button" aria-controls="artEditor" aria-expanded="false"><span class="art-layer-name"></span><span class="art-layer-placement"></span></button>
+      <button class="art-rename" type="button" title="Rename layer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15z"/></svg></button>
+      <div class="art-name-edit" hidden><input class="art-name-input" type="text" maxlength="80" aria-label="Layer name" autocomplete="off" spellcheck="false" enterkeyhint="done"><small class="art-name-source"></small></div>
+    </div>
+    <button class="art-eye" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path class="eye-slash" d="m3 3 18 18"/></svg></button>
+    <button class="art-remove" type="button" title="Remove layer">×</button></div>`;
+  const toggle=()=>{if(!artLoading)selectArtwork(activeArtId===layer.id?null:layer.id);};
+  wrap.firstElementChild.addEventListener('click',e=>{if(!e.target.closest('button,input,.art-name-edit'))toggle();});
+  const select=wrap.querySelector('.art-select');
+  select.onclick=e=>{if(e.detail<2||e.detail===undefined)toggle();};
+  select.ondblclick=e=>{e.preventDefault();beginArtworkRename(layer.id);};
+  wrap.querySelector('.art-rename').onclick=()=>beginArtworkRename(layer.id);
+  const nameInput=wrap.querySelector('.art-name-input');
+  nameInput.addEventListener('keydown',e=>{
+    if(e.isComposing)return;
+    if(e.key==='Enter'||e.key==='Escape'){
+      e.preventDefault();e.stopPropagation();finishArtworkRename(e.key==='Enter',true);
+    }
+  });
+  nameInput.addEventListener('blur',()=>{if(renamingArtId===layer.id)finishArtworkRename(true);});
+  wrap.querySelector('.art-thumb').onclick=toggle;
+  wrap.querySelector('.art-remove').onclick=()=>clearArtwork(layer.id);
+  wrap.querySelector('.art-eye').onclick=()=>{
+    const entry=artEntry(layer.id);if(artLoading||!entry)return;
+    recordArtUndo();entry.visible=!entry.visible;requestArtworkRender(entry);syncArtworkUi();
+  };
+  const handle=wrap.querySelector('.art-drag');
+  handle.addEventListener('pointerdown',e=>beginLayerDrag(e,layer.id));
+  handle.addEventListener('keydown',e=>{
+    if(e.key==='ArrowUp'||e.key==='ArrowDown'){
+      e.preventDefault();moveArtwork(layer.id,e.key==='ArrowUp'?-1:1);handle.focus();
+    }
+  });
+  return wrap;
+}
+function syncArtworkUi(){
+  const list=document.getElementById('artLayers'),editor=document.getElementById('artEditor');
+  const entry=artEntry();
+  // Park the shared form before removing a row so its controls and listeners survive.
+  const parent=entry?layerRows.get(entry.id):null;
+  if(editor.parentElement!==parent)document.getElementById('artEditorParking').appendChild(editor);
+  for(const [id,wrap] of layerRows)if(!artEntry(id)){wrap.remove();layerRows.delete(id);}
+  let cursor=list.firstElementChild;
+  for(const layer of artLayers){
+    let wrap=layerRows.get(layer.id);
+    if(!wrap){wrap=createLayerRow(layer);layerRows.set(layer.id,wrap);}
+    // Do not detach/reinsert the active form on slider or color-picker updates.
+    if(wrap!==cursor)list.insertBefore(wrap,cursor);else cursor=cursor.nextElementSibling;
+    const row=wrap.firstElementChild,selected=layer.id===activeArtId;
+    wrap.classList.toggle('active',selected);
+    row.classList.toggle('selected',selected);row.classList.toggle('art-hidden',!layer.visible);
+    const label=ART_META[layer.slot].label;
+    row.querySelector('.art-layer-name').textContent=layer.name;
+    const sourceName=layer.sourceName||layer.name;
+    row.querySelector('.art-layer-name').title=`${layer.name}\nSource: ${sourceName}`;
+    row.querySelector('.art-select').title=`${sourceName}\nDouble-click to rename`;
+    row.querySelector('.art-name-source').textContent='Source: '+sourceName;
+    row.querySelector('.art-rename').setAttribute('aria-label',`Rename ${layer.name}`);
+    row.querySelector('.art-name-input').disabled=artLoading;
+    row.querySelector('.art-layer-placement').textContent=label+(isCustom&&!layer.anchor?' · Set position':'');
+    const img=row.querySelector('img');if(img.getAttribute('src')!==layer.thumb)img.src=layer.thumb;
+    for(const button of row.querySelectorAll('button'))button.disabled=artLoading;
+    for(const button of row.querySelectorAll('.art-select,.art-thumb')){
+      button.setAttribute('aria-expanded',String(selected));
+      button.setAttribute('aria-label',`Edit ${layer.name}, ${label}`);
+    }
+    row.querySelector('.art-drag').setAttribute('aria-label',`Reorder ${layer.name}, ${label}`);
+    row.querySelector('.art-remove').setAttribute('aria-label',`Remove ${layer.name}, ${label}`);
+    const eye=row.querySelector('.art-eye');
+    eye.setAttribute('aria-pressed',String(layer.visible));
+    eye.setAttribute('aria-label',`${layer.visible?'Hide':'Show'} ${layer.name}, ${label}`);
+    eye.title=layer.visible?'Hide layer':'Show layer';
+  }
+  if(entry){
+    const wrap=layerRows.get(entry.id);if(editor.parentElement!==wrap)wrap.appendChild(editor);
+    document.getElementById('artEditorName').textContent=ART_META[entry.slot].label;
+    editor.setAttribute('aria-label',`Controls for ${entry.name}, ${ART_META[entry.slot].label}`);
+  }
+  editor.hidden=!entry;
+  document.getElementById('artPosition').hidden=!current;
+  for(const id of ['artPosition','artUploadAny'])document.getElementById(id).disabled=artLoading;
+  document.getElementById('artUploadAny').textContent=artLoading?'Adding…':'+ Add artwork';
+  for(const id of ['artMode','artFit','artReset','artAdd','artReplace','artView'])document.getElementById(id).disabled=artLoading||!entry;
+  document.getElementById('artMode').value=entry?.mode||'original';
+  document.getElementById('artFit').checked=!!entry?.fit;
+  document.getElementById('artUndo').disabled=artLoading||!artHistory.length;
+  const index=artLayers.indexOf(entry);
+  document.getElementById('artRaise').disabled=artLoading||index<=0;
+  document.getElementById('artLower').disabled=artLoading||index<0||index>=artLayers.length-1;
+  document.querySelectorAll('[data-art-range],[data-art-num],[data-reset-art-one]').forEach(el=>el.disabled=artLoading||!entry);
+  document.getElementById('artEmpty').hidden=artLayers.length>0;
+  syncInkUi();syncArtControls();
+}
+function prepareArtworkSource(img){
+  const limit=Math.max(1,Math.min(4096,renderer.capabilities.maxTextureSize-8));
+  const width=img.naturalWidth||img.width,height=img.naturalHeight||img.height;
+  if(!width||!height)throw new Error('Image has no usable dimensions.');
+  const scale=Math.min(1,limit/width,limit/height),cv=document.createElement('canvas');
+  cv.width=Math.max(1,Math.round(width*scale));cv.height=Math.max(1,Math.round(height*scale));
+  const cx=cv.getContext('2d');cx.imageSmoothingEnabled=scale<1;cx.imageSmoothingQuality='high';
+  cx.drawImage(img,0,0,cv.width,cv.height);return cv;
+}
+function makeArtworkEntry(img,name){
+  const source=prepareArtworkSource(img),thumb=document.createElement('canvas');thumb.width=72;thumb.height=72;
+  const scale=Math.min(72/source.width,72/source.height);
+  thumb.getContext('2d').drawImage(source,(72-source.width*scale)/2,(72-source.height*scale)/2,source.width*scale,source.height*scale);
+  return {source,sourceName:String(name||'Artwork'),name:suggestArtworkName(name),mode:'original',inkCustom:null,fit:false,thumb:thumb.toDataURL('image/png')};
+}
+function fitVisibleArtwork(source){
+  const w=source.width,h=source.height,d=source.getContext('2d').getImageData(0,0,w,h).data;
+  let left=w,top=h,right=-1,bottom=-1;
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++)if(d[(y*w+x)*4+3]>0){
+    left=Math.min(left,x);right=Math.max(right,x);top=Math.min(top,y);bottom=Math.max(bottom,y);
+  }
+  if(right<left||(left===0&&top===0&&right===w-1&&bottom===h-1))return source;
+  const cv=document.createElement('canvas');cv.width=right-left+1;cv.height=bottom-top+1;
+  const cx=cv.getContext('2d');cx.imageSmoothingEnabled=false;
+  cx.drawImage(source,left,top,cv.width,cv.height,0,0,cv.width,cv.height);return cv;
+}
+function openArtUpload(id,action='add'){
+  const entry=artEntry(id);if(artLoading||!entry)return;
+  pendingSlot=entry.slot;pendingLayerId=id;pendingUploadAction=action;
+  fileInput.value='';fileInput.click();
+}
+function decodeArtworkFile(file){
+  return new Promise((resolve,reject)=>{
+    const url=URL.createObjectURL(file),img=new Image();
+    img.onload=()=>{try{resolve(makeArtworkEntry(img,file.name));}catch(e){reject(e);}finally{URL.revokeObjectURL(url);}};
+    img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('Unsupported or damaged image'));};img.src=url;
+  });
+}
+async function loadArtFiles(slot,files,action='add',targetId=null){
+  if(artLoading)return [];
+  const images=Array.from(files).filter(f=>f.type.startsWith('image/')||/\.(png|jpe?g|webp|gif|avif|svg)$/i.test(f.name));
+  if(!images.length){artStatus('Choose a PNG, JPG, WebP, or another supported image.');return [];}
+  artLoading=true;cancelLayerDrag();cancelAnchorPick();artStatus('');syncArtworkUi();
+  const entries=[],failed=[];
+  for(const [i,file] of images.entries()){
+
+    try{entries.push(await decodeArtworkFile(file));}catch{failed.push(file.name);}
+  }
+  let added=[];
+  if(entries.length){
+    recordArtUndo();
+    const target=artEntry(targetId),index=artLayers.indexOf(target);
+    // Reuse a placement's last native anchor, but copy it into every new layer.
+    const anchor=target?.anchor||artLayers.find(e=>e.slot===slot&&e.anchor)?.anchor||null;
+    const names=new Set(artLayers.filter(e=>action!=='replace'||e!==target).map(e=>e.name.toLocaleLowerCase()));
+    added=entries.map(e=>initializeLayer(e,slot,anchor,names));
+    if(action==='replace'&&target){
+      added[0].id=target.id;added[0].placement={...target.placement};added[0].visible=target.visible;
+      if(target.nameEdited){added[0].name=target.name;added[0].nameEdited=true;}
+      artLayers.splice(index,1,...added);
+    }else artLayers.splice(index<0?0:index,0,...added);
+    activeArtId=added[0].id;activeArtSlot=slot;requestArtworkRender();
+  }
+  artLoading=false;syncArtworkUi();
+  artStatus(failed.length?`Could not read: ${failed.join(', ')}.`:'');
+  return added;
+}
+function clearArtwork(id){
+  const entry=artEntry(id);if(artLoading||!entry)return;
+  if(renamingArtId===id)finishArtworkRename(false);
+  recordArtUndo();const index=artLayers.indexOf(entry);artLayers.splice(index,1);
+  if(anchorPickId===id)cancelAnchorPick();
+  if(activeArtId===id)activeArtId=null;
+  requestArtworkRender();syncArtworkUi();
+  const next=artLayers[Math.min(index,artLayers.length-1)];
+  (next?layerRows.get(next.id).querySelector('.art-select'):document.getElementById('artUploadAny')).focus();
+  artStatus('');
+}
+function reorderArtwork(id,beforeId){
+  if(artLoading)return false;
+  const entry=artEntry(id);if(!entry||beforeId===id)return false;
+  const reordered=artLayers.filter(e=>e!==entry),before=reordered.findIndex(e=>e.id===beforeId);
+  reordered.splice(before<0?reordered.length:before,0,entry);
+  if(reordered.every((e,i)=>e===artLayers[i]))return false;
+  recordArtUndo();artLayers=reordered;
+  requestArtworkRender();selectArtwork(id);
+  artStatus('');
+  return true;
+}
+function moveArtwork(id,direction){
+  const index=artLayers.findIndex(e=>e.id===id),destination=index+direction;
+  if(index<0||destination<0||destination>=artLayers.length)return;
+  const others=artLayers.filter(e=>e.id!==id);
+  reorderArtwork(id,others[destination]?.id||null);
+}
+
+// Pointer sorting supports mouse, pen and touch without intercepting file drops.
+let layerDrag=null,layerScrollFrame=0;
+function beginLayerDrag(e,id){
+  if(artLoading||e.button!==0||artLayers.length<2)return;
+  e.preventDefault();cancelLayerDrag();
+  layerDrag={id,pointerId:e.pointerId,handle:e.currentTarget,startX:e.clientX,startY:e.clientY,y:e.clientY,started:false,beforeId:null};
+  e.currentTarget.setPointerCapture(e.pointerId);
+}
+function updateLayerDrop(){
+  if(!layerDrag?.started)return;
+  const list=document.getElementById('artLayers');
+  list.querySelectorAll('.drop-before').forEach(el=>el.classList.remove('drop-before'));
+  list.classList.remove('drop-end');layerDrag.beforeId=null;
+  for(const entry of artLayers){
+    if(entry.id===layerDrag.id)continue;
+    const wrap=layerRows.get(entry.id),rect=wrap.firstElementChild.getBoundingClientRect();
+    if(layerDrag.y<rect.top+rect.height/2){layerDrag.beforeId=entry.id;wrap.classList.add('drop-before');break;}
+  }
+  if(!layerDrag.beforeId)list.classList.add('drop-end');
+}
+function scrollLayerDrag(){
+  if(!layerDrag?.started)return;
+  const pane=document.getElementById('panel'),rect=pane.getBoundingClientRect(),margin=Math.min(40,rect.height/4);
+  const dy=layerDrag.y<rect.top+margin?-Math.min(12,(rect.top+margin-layerDrag.y)*.3):
+    layerDrag.y>rect.bottom-margin?Math.min(12,(layerDrag.y-rect.bottom+margin)*.3):0;
+  if(dy){pane.scrollTop+=dy;updateLayerDrop();}
+  layerScrollFrame=requestAnimationFrame(scrollLayerDrag);
+}
+document.addEventListener('pointermove',e=>{
+  if(!layerDrag||e.pointerId!==layerDrag.pointerId)return;
+  layerDrag.y=e.clientY;
+  if(!layerDrag.started&&Math.hypot(e.clientX-layerDrag.startX,e.clientY-layerDrag.startY)>4){
+    layerDrag.started=true;
+    document.getElementById('artLayers').classList.add('sorting');
+    layerRows.get(layerDrag.id).classList.add('is-dragging');
+    layerScrollFrame=requestAnimationFrame(scrollLayerDrag);
+  }
+  if(layerDrag.started){e.preventDefault();updateLayerDrop();}
+},{passive:false});
+function cancelLayerDrag(){
+  if(!layerDrag)return;
+  const d=layerDrag;layerDrag=null;cancelAnimationFrame(layerScrollFrame);
+  const list=document.getElementById('artLayers');list.classList.remove('sorting','drop-end');
+  list.querySelectorAll('.drop-before,.is-dragging').forEach(el=>el.classList.remove('drop-before','is-dragging'));
+  if(d.handle.hasPointerCapture(d.pointerId))d.handle.releasePointerCapture(d.pointerId);
+}
+document.addEventListener('pointerup',e=>{
+  if(!layerDrag||e.pointerId!==layerDrag.pointerId)return;
+  const d=layerDrag;cancelLayerDrag();
+  if(d.started)reorderArtwork(d.id,d.beforeId);else selectArtwork(d.id);
+  layerRows.get(d.id)?.querySelector('.art-drag').focus();
+});
+document.addEventListener('pointercancel',cancelLayerDrag);
+window.addEventListener('blur',cancelLayerDrag);
+document.addEventListener('keydown',e=>{if(e.key==='Escape')cancelLayerDrag();});
+
+fileInput.addEventListener('change',async()=>{
+  if(pendingUploadAction==='choose')openPlacementPicker(fileInput.files);
+  else{
+    const added=await loadArtFiles(pendingSlot,fileInput.files,pendingUploadAction,pendingLayerId);
+    if(isCustom&&added[0]&&!added[0].anchor)beginAnchorPick(added[0].id);
+  }
+});
+document.getElementById('artAdd').onclick=()=>openArtUpload(activeArtId,'add');
+document.getElementById('artReplace').onclick=()=>openArtUpload(activeArtId,'replace');
+document.getElementById('artUndo').onclick=undoArtwork;
+document.getElementById('artView').onclick=()=>viewArtwork(activeArtSlot);
+document.getElementById('artClose').onclick=()=>{
+  const id=activeArtId;selectArtwork(null);layerRows.get(id)?.querySelector('.art-select').focus();
+};
+document.getElementById('artRaise').onclick=()=>moveArtwork(activeArtId,-1);
+document.getElementById('artLower').onclick=()=>moveArtwork(activeArtId,1);
+document.getElementById('artMode').onchange=e=>{
+  const entry=artEntry();if(artLoading||!entry)return;
+  recordArtUndo();entry.mode=e.target.value;
+  if(entry.mode!=='original'&&!entry.inkCustom)entry.inkCustom=inkHex(entry);
+  requestArtworkRender(entry);syncArtworkUi();
+};
+document.getElementById('artFit').onchange=e=>{
+  const entry=artEntry();if(artLoading||!entry)return;
+  recordArtUndo();entry.fit=e.target.checked;requestArtworkRender(entry);syncArtworkUi();
+};
+document.getElementById('artReset').onclick=()=>{
+  const entry=artEntry();if(artLoading||!entry)return;
+  recordArtUndo();for(const prop of ['x','y','scale','rot'])applyArtValue(entry.id,prop,artDefault(entry.slot,prop));
+};
+for(const prop of ['x','y','scale','rot']){
+  const pair=artControlPair(activeArtSlot,prop);let editingId=null,wheelTimer;
+  const begin=()=>{if(editingId!==activeArtId){recordArtUndo();editingId=activeArtId;}};
+  for(const input of [pair.range,pair.num]){
+    input.addEventListener('input',()=>{if(artLoading||!artEntry())return;begin();applyArtValue(activeArtId,prop,input.value);});
+    input.addEventListener('change',()=>editingId=null);input.addEventListener('blur',()=>editingId=null);
+    input.addEventListener('wheel',e=>{
+      if(input.disabled||!artEntry())return;
+      e.preventDefault();begin();applyArtValue(activeArtId,prop,Number(pair.num.value)+(e.deltaY<0?1:-1)*(e.shiftKey?10:1));
+      clearTimeout(wheelTimer);wheelTimer=setTimeout(()=>editingId=null,250);
+    },{passive:false});
+  }
+  document.querySelector(`[data-reset-art-one="${prop}"]`).onclick=()=>{
+    const entry=artEntry();if(artLoading||!entry)return;
+    recordArtUndo();applyArtValue(entry.id,prop,artDefault(entry.slot,prop));
+  };
+}
+document.getElementById('artWorkspace').addEventListener('keydown',e=>{
+  if(/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName))return;
+  if(e.key==='F2'&&artEntry()){e.preventDefault();beginArtworkRename(activeArtId);return;}
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();undoArtwork();}
+});
+syncArtworkUi();
+
+
+function makeArtworkMask(img){
+  // Source preparation already bounds both dimensions to the GPU limit.
+  // Keep that resolution and every source alpha level, including edge pixels.
+  const srcW=img.width,srcH=img.height,pad=4;
+  const out=document.createElement('canvas');
+  out.width=srcW+pad*2;out.height=srcH+pad*2;
+  const cx=out.getContext('2d',{willReadFrequently:true});
+  cx.drawImage(img,pad,pad);
+  const im=cx.getImageData(pad,pad,srcW,srcH),d=im.data;
+  let useAlpha=false;
+  for(let i=3;i<d.length;i+=4)if(d[i]<255){useAlpha=true;break;}
+  let cornerLum=0,samples=0;
+  if(!useAlpha){
+    const size=Math.min(12,srcW,srcH);
+    for(const [x0,y0] of [[0,0],[srcW-size,0],[0,srcH-size],[srcW-size,srcH-size]]){
+      for(let y=y0;y<y0+size;y++)for(let x=x0;x<x0+size;x++){
+        const i=(y*srcW+x)*4;
+        cornerLum+=d[i]*.299+d[i+1]*.587+d[i+2]*.114;samples++;
+      }
+    }
+  }
+  const backgroundIsLight=cornerLum/Math.max(1,samples)>127;
+  for(let i=0;i<d.length;i+=4){
+    if(!useAlpha){
+      const lum=d[i]*.299+d[i+1]*.587+d[i+2]*.114;
+      d[i+3]=backgroundIsLight?255-lum:lum;
+    }
+    d[i]=255;d[i+1]=255;d[i+2]=255;
+  }
+  // No threshold, edge deletion, or blur. Padding only isolates texture edges.
+  cx.putImageData(im,pad,pad);
+  return out;
+}
+function texFromArtwork(cv,original=false){
+  const t=new THREE.CanvasTexture(cv);
+  t.colorSpace=original?THREE.SRGBColorSpace:THREE.NoColorSpace;
+  t.flipY=false;t.wrapS=t.wrapT=THREE.ClampToEdgeWrapping;
+  t.magFilter=THREE.LinearFilter;
+  // Filter coverage before compositing, including when artwork is reduced or
+  // rotated. Mipmaps are generated once, never while adjusting a layer.
+  t.minFilter=THREE.LinearMipmapLinearFilter;t.generateMipmaps=true;
+  t.premultiplyAlpha=false;
+  t.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+  t.needsUpdate=true;return t;
+}
+// model
+document.getElementById('btnModel').onclick=()=>{
+  const f=document.getElementById('fileModel'); f.value=''; f.click();
+};
+document.getElementById('fileModel').onchange=e=>{
+  if(e.target.files[0]) loadModel(e.target.files[0]);
+};
+document.getElementById('btnFlip').onclick=()=>{
+  if(!isCustom)return;
+  const turn=new THREE.Matrix4().makeRotationY(Math.PI);
+  current.traverse(o=>{if(o.isMesh){o.geometry.applyMatrix4(turn);o.geometry.computeBoundingSphere();}});
+  for(const q of artLayers.map(layer=>layer.anchor).filter(Boolean)){
+    q.point=new THREE.Vector3(...q.point).applyMatrix4(turn).toArray();
+    q.normal=new THREE.Vector3(...q.normal).transformDirection(turn).toArray();
+  }
+  requestArtworkRender();rebuildPresentClone(false);
+};
+document.getElementById('btnShipped').onclick=()=>loadCatalog(selectedCatalogId);
+document.getElementById('artPosition').onclick=()=>beginAnchorPick(activeArtId);
+document.getElementById('positionCancel').onclick=()=>{cancelAnchorPick();artStatus('');};
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&anchorPickId){cancelAnchorPick();artStatus('');}});
+
+// Global image drop and manual Add artwork share the same placement chooser.
+const placementDialog=document.getElementById('placementDialog');
+let placementFiles=[],placementThumbUrl=null,placementReturnFocus=null;
+function openPlacementPicker(files,suggested=activeArtSlot){
+  if(artLoading)return;
+  const images=Array.from(files).filter(f=>f.type.startsWith('image/')||/\.(png|jpe?g|webp|gif|avif|svg)$/i.test(f.name));
+  if(!images.length){artStatus('Choose a supported image file.');return;}
+  placementFiles=images;placementReturnFocus=document.activeElement;
+  if(placementThumbUrl)URL.revokeObjectURL(placementThumbUrl);
+  placementThumbUrl=URL.createObjectURL(images[0]);
+  document.getElementById('placementImage').src=placementThumbUrl;
+  document.getElementById('placementFileName').textContent=images.length===1?images[0].name:`${images.length} images`;
+  for(const button of placementDialog.querySelectorAll('[data-place]')){
+    const key=button.dataset.place,count=artLayers.filter(layer=>layer.slot===key).length;
+    button.classList.toggle('suggested',key===suggested);
+    button.disabled=false;
+    button.querySelector('small').textContent=isCustom&&!artLayers.some(layer=>layer.slot===key&&layer.anchor)?'Choose position on model':count?`${count} layer${count===1?'':'s'} · Add another`:'Add graphic';
+  }
+  if(!placementDialog.open)placementDialog.showModal();
+}
+function closePlacementPicker(){placementDialog.close();}
+placementDialog.addEventListener('close',()=>{
+  placementFiles=[];
+  if(placementThumbUrl)URL.revokeObjectURL(placementThumbUrl);
+  placementThumbUrl=null;document.getElementById('placementImage').removeAttribute('src');
+  placementReturnFocus?.focus?.();
+});
+document.getElementById('placementCancel').onclick=closePlacementPicker;
+placementDialog.addEventListener('click',e=>{if(e.target===placementDialog)closePlacementPicker();});
+for(const button of placementDialog.querySelectorAll('[data-place]'))button.onclick=async()=>{
+  const files=placementFiles.slice(),slot=button.dataset.place;
+  closePlacementPicker();const added=await loadArtFiles(slot,files,'add');
+  if(added.length){viewArtwork(slot);if(isCustom&&!added[0].anchor)beginAnchorPick(added[0].id);}
+};
+document.getElementById('artUploadAny').onclick=()=>{
+  if(artLoading)return;
+  pendingUploadAction='choose';fileInput.value='';fileInput.click();
+};
+const dropEl=document.getElementById('drop');
+let dragDepth=0;
+const hasDropFiles=e=>Array.from(e.dataTransfer?.types||[]).includes('Files');
+document.addEventListener('dragenter',e=>{if(!hasDropFiles(e))return;e.preventDefault();dragDepth++;dropEl.classList.add('on');});
+document.addEventListener('dragover',e=>{if(hasDropFiles(e)){e.preventDefault();e.dataTransfer.dropEffect='copy';}});
+document.addEventListener('dragleave',e=>{if(!hasDropFiles(e))return;if(--dragDepth<=0){dragDepth=0;dropEl.classList.remove('on');}});
+document.addEventListener('drop',e=>{
+  if(!hasDropFiles(e))return;
+  e.preventDefault();dragDepth=0;dropEl.classList.remove('on');
+  const files=Array.from(e.dataTransfer.files),model=files.find(f=>/\.glb$/i.test(f.name));
+  if(model){loadModel(model);return;}
+  const slot=e.target.closest?.('[data-art-card]')?.dataset.slot||activeArtSlot;
+  openPlacementPicker(files,slot);
+});
+window.addEventListener('blur',()=>{dragDepth=0;dropEl.classList.remove('on');});
+
+
+// present + save
+const pageHeader=document.querySelector('header');
+const panel=document.getElementById('panel');
+const mobilePresentQuery=window.matchMedia('(max-width:820px)');
+const isMobilePresent=()=>mobilePresentQuery.matches;
+function enterPresent(){
+  if(state.present || !current) return;
+
+  // Clone is already cached. Make it visible and mark Present active in the
+  // same frame so the animation loop cannot immediately hide it again.
+  if(!presentCloneActive) rebuildPresentClone(false);
+  const showPair=!isMobilePresent();
+  presentGarment.visible=showPair;
+  setPresentCloneOpacity(0);
+  presentShadow.visible=showPair;
+  presentShadow.material.opacity=0;
+  presentSpin=0;
+  presentMix=0;
+  state.present=true;
+  document.body.classList.add('present');
+  stage.dataset.present='1';
+}
+function exitPresent(){
+  if(!state.present) return;
+
+  // Preserve the apparent orientation of the primary shirt when its temporary
+  // presentation rotation is removed, avoiding a visual snap on exit.
+  state.az-=presentSpin;
+  state.taz-=presentSpin;
+  presentSpin=0;
+
+  state.present=false;
+  document.body.classList.remove('present');
+  stage.dataset.present='0';
+}
+document.getElementById('btnPresent').onclick=enterPresent;
+addEventListener('keydown',e=>{ if(e.key==='Escape'&&state.present) exitPresent(); });
+
+const presentExitShield=document.getElementById('presentExitShield');
+presentExitShield.addEventListener('pointerdown',e=>{
+  // Block the gesture before it can reach the full-viewport WebGL canvas.
+  e.preventDefault();
+  e.stopPropagation();
+},{passive:false});
+presentExitShield.addEventListener('click',e=>{
+  e.preventDefault();
+  e.stopPropagation();
+  if(state.present) exitPresent();
+});
+presentExitShield.addEventListener('wheel',e=>{
+  if(!state.present) return;
+  e.preventDefault();
+  e.stopPropagation();
+},{passive:false});
+
+document.getElementById('btnSave').onclick=()=>{
+  if(state.present) return;
+
+  const dpr=renderer.getPixelRatio();
+  renderer.setPixelRatio(Math.min(3,dpr*2));
+  resize();
+  draw();
+
+  const source=renderer.domElement;
+  let url;
+
+  if(state.present){
+    url=source.toDataURL('image/png');
+  }else{
+    // Preserve the original behavior: normal exports contain the preview stage,
+    // not the interface-sized transparent areas of the permanent canvas.
+    const r=stage.getBoundingClientRect();
+    const px=renderer.getPixelRatio();
+    const crop=document.createElement('canvas');
+    crop.width=Math.max(1,Math.round(r.width*px));
+    crop.height=Math.max(1,Math.round(r.height*px));
+    const cx=crop.getContext('2d');
+    cx.drawImage(
+      source,
+      Math.round(r.left*px),Math.round(r.top*px),
+      crop.width,crop.height,
+      0,0,crop.width,crop.height
+    );
+    url=crop.toDataURL('image/png');
+  }
+
+  renderer.setPixelRatio(dpr);
+  resize();
+  draw();
+
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=`${BRAND.exportPrefix}-${activeGarmentId||'custom-garment'}-${currentGarment().name.toLowerCase()}-${state.view||'free'}.png`;
+  a.click();
+};
+
+/* ================================= loop ================================= */
+
+function resize(){
+  const w=window.innerWidth||1,h=window.innerHeight||1;
+  renderer.setSize(w,h,false);
+  drawPatternBackground();
+}
+addEventListener('resize',resize);
+
+const clock=new THREE.Clock();
+let intro=REDUCED?1:0;
+
+// Tunable rotational cloth inertia.
+// "Settle time" changes the release timescale while preserving roughly the
+// same damping character, so ramp-in and settle-out can be tuned separately.
+const INERTIA_BASE_SETTLE=0.35;
+let inertiaInput=0;
+let inertiaTwist=0;
+let inertiaVelocity=0;
+let inertiaReleaseKick=0;
+let inertiaLoadTarget=0;
+let inertiaLastMotionVelocity=0;
+
+function updateFabricInertia(dt){
+  if(REDUCED || !state.inertia.enabled){
+    inertiaInput=inertiaTwist=inertiaVelocity=inertiaReleaseKick=0;
+    inertiaLoadTarget=0;
+    inertiaLastMotionVelocity=0;
+    uni.uTwist.value=0;
+    return;
+  }
+
+  const maxTwist=THREE.MathUtils.degToRad(state.inertia.strength);
+
+  if(dragging){
+    // While the pointer is held, do NOT run the settling spring.
+    // We only load a trailing deformation and hold it there until release.
+    const raw=orbitInputVelocity;
+    const rampTau=Math.max(0.015,state.inertia.ramp/1000);
+    const inputBlend=1-Math.exp(-dt/rampTau);
+    inertiaInput += (raw-inertiaInput)*inputBlend;
+
+    const sens=clamp(state.inertia.sensitivity/100,0,1);
+    const dead=lerp(0.30,0.04,sens);
+    const full=lerp(4.60,1.80,sens);
+    const mag=Math.abs(inertiaInput);
+
+    if(mag>dead && maxTwist>0){
+      let t=clamp((mag-dead)/Math.max(0.001,full-dead),0,1);
+      t=t*t*(3-2*t);
+
+      // IMPORTANT: use the SAME sign as camera azimuth change.
+      // From the user's apparent-shirt-rotation perspective, this makes the
+      // lower fabric and sleeves trail behind instead of moving ahead.
+      inertiaLoadTarget=Math.sign(inertiaInput)*maxTwist*t;
+    }
+
+    // A second, slower load stage makes the lower fabric visibly "stay back"
+    // before accumulating its lag. Pausing while still held does not settle it.
+    const loadTau=Math.max(0.025,rampTau*1.35);
+    const loadBlend=1-Math.exp(-dt/loadTau);
+    inertiaTwist += (inertiaLoadTarget-inertiaTwist)*loadBlend;
+
+    // No spring velocity is allowed to build while held; all oscillation begins
+    // only after pointer release.
+    inertiaVelocity=0;
+    inertiaReleaseKick=0;
+
+  }else{
+    // Once released, the loaded twist is free to catch up to neutral and swing
+    // past it. This is the only phase where the under-damped spring runs.
+    inertiaInput += (0-inertiaInput)*(1-Math.exp(-dt/0.10));
+
+    const settleScale=clamp(state.inertia.settle/INERTIA_BASE_SETTLE,0.35,7.2);
+    const activeK=clamp(state.inertia.elasticity,10,100);
+    const k=activeK/(settleScale*settleScale);
+
+    const over=clamp(state.inertia.overshoot/100,0,1);
+    const dampingRatio=lerp(1.02,0.18,over);
+    const damping=(2*Math.sqrt(activeK)*dampingRatio)/settleScale;
+
+    if(Math.abs(inertiaReleaseKick)>0.000001){
+      inertiaVelocity += inertiaReleaseKick;
+      inertiaReleaseKick=0;
+    }
+
+    inertiaVelocity += (0-inertiaTwist)*k*dt;
+    inertiaVelocity *= Math.exp(-damping*dt);
+    inertiaTwist += inertiaVelocity*dt;
+    inertiaTwist=clamp(inertiaTwist,-maxTwist*1.20,maxTwist*1.20);
+
+    if(Math.abs(inertiaTwist)<0.00002 && Math.abs(inertiaVelocity)<0.00005){
+      inertiaTwist=0;
+      inertiaVelocity=0;
+      inertiaLoadTarget=0;
+      inertiaLastMotionVelocity=0;
+    }
+  }
+
+  uni.uTwist.value=inertiaTwist;
+}
+
+const presentScreenRight=new THREE.Vector3();
+
+function activeRenderRect(eased){
+  const W=window.innerWidth||1;
+  const H=window.innerHeight||1;
+  const r=stage.getBoundingClientRect();
+
+  // #stage remains the normal-mode render region. Present smoothly grows that
+  // region into the entire viewport. This is only a viewport/scissor change,
+  // not a WebGL canvas resize.
+  const left=THREE.MathUtils.lerp(r.left,0,eased);
+  const top=THREE.MathUtils.lerp(r.top,0,eased);
+  const width=THREE.MathUtils.lerp(Math.max(1,r.width),W,eased);
+  const height=THREE.MathUtils.lerp(Math.max(1,r.height),H,eased);
+
+  return {left,top,width,height,W,H};
+}
+
+function draw(){
+  flushArtwork();
+  const eased=presentMix*presentMix*(3-2*presentMix);
+  const mobileSingle=isMobilePresent();
+  const vr=activeRenderRect(eased);
+  const activeAspect=Math.max(0.1,vr.width/vr.height);
+
+  // Mobile does not need an artificial zoom anymore. Expanding the actual
+  // render region vertically gives the shirt the space it was missing.
+  //
+  // On desktop, zoom out only when the viewport is narrow enough that a
+  // two-shirt layout genuinely needs extra horizontal room.
+  const tanHalfFov=Math.tan(THREE.MathUtils.degToRad(camera.fov*0.5));
+  // Keep enough physical separation that the two garment meshes never pass
+  // through each other. Narrow windows are handled by camera fit, not by
+  // squeezing the shirts together.
+  const targetPairOffset=PRESENT_OFFSET;
+  const baseHorizontalHalf=tanHalfFov*state.r*activeAspect;
+  const approxShirtHalfWidth=0.39;
+  const neededHalf=(targetPairOffset+approxShirtHalfWidth)*1.12;
+  const narrowPairFit=mobileSingle ? 1 : THREE.MathUtils.clamp(neededHalf/Math.max(0.001,baseHorizontalHalf),1,1.80);
+
+  // Mobile Present uses the full viewport, but backs the camera away slightly
+  // so the whole garment has comfortable breathing room top-to-bottom.
+  const mobileFit=mobileSingle ? THREE.MathUtils.lerp(1,1.14,eased) : 1;
+  const viewR=state.r*THREE.MathUtils.lerp(1,narrowPairFit,eased)*mobileFit;
+
+  camera.aspect=activeAspect;
+  camera.updateProjectionMatrix();
+  camera.position.set(
+    viewR*Math.sin(state.el)*Math.sin(state.az),
+    viewR*Math.cos(state.el)+0.04,
+    viewR*Math.sin(state.el)*Math.cos(state.az));
+  camera.lookAt(0,0.02,0);
+  camera.updateMatrixWorld();
+
+  presentScreenRight.set(1,0,0).applyQuaternion(camera.quaternion);
+
+  if(mobileSingle){
+    // One centered shirt in mobile Present.
+    garment.position.set(0,-0.350,0);
+  }else{
+    garment.position.set(
+      presentScreenRight.x*(-targetPairOffset*eased),
+      -0.350,
+      presentScreenRight.z*(-targetPairOffset*eased)
+    );
+  }
+
+  shirtShadow.position.x=garment.position.x;
+  shirtShadow.position.z=garment.position.z;
+
+  if(presentCloneActive && !mobileSingle){
+    // Start beyond the ACTUAL viewport edge. Because the WebGL canvas itself is
+    // full-window, the only clipping boundary is now the real screen edge,
+    // never an invisible internal #stage edge.
+    const horizontalHalf=tanHalfFov*viewR*activeAspect;
+    const cloneStart=horizontalHalf+approxShirtHalfWidth*1.20;
+    const cloneOffset=THREE.MathUtils.lerp(cloneStart,targetPairOffset,eased);
+
+    presentGarment.position.set(
+      presentScreenRight.x*cloneOffset,
+      -0.350,
+      presentScreenRight.z*cloneOffset
+    );
+    presentGarment.rotation.y=presentSpin+Math.PI;
+
+    // Fade only while crossing the real screen edge. This prevents a hard
+    // cropped vertical silhouette without making the shirt pop in beside A.
+    let cloneAlpha=THREE.MathUtils.clamp((eased-0.06)/0.24,0,1);
+    cloneAlpha=cloneAlpha*cloneAlpha*(3-2*cloneAlpha);
+
+    const cloneShown=cloneAlpha>0.004;
+    presentGarment.visible=cloneShown;
+    setPresentCloneOpacity(cloneAlpha);
+
+    presentShadow.position.x=presentGarment.position.x;
+    presentShadow.position.z=presentGarment.position.z;
+    presentShadow.visible=cloneShown;
+    presentShadow.material.opacity=cloneAlpha;
+  }else{
+    presentGarment.visible=false;
+    setPresentCloneOpacity(0);
+    presentShadow.visible=false;
+    presentShadow.material.opacity=0;
+  }
+
+  garment.rotation.y=presentSpin;
+
+  // Clear the entire permanent canvas so no previous larger presentation frame
+  // can linger when the viewport contracts back into #stage.
+  renderer.setScissorTest(false);
+  renderer.setViewport(0,0,vr.W,vr.H);
+  renderer.clear(true,true,true);
+
+  // WebGL viewport origin is bottom-left; DOM rect origin is top-left.
+  const vx=vr.left;
+  const vy=vr.H-(vr.top+vr.height);
+  renderer.setViewport(vx,vy,vr.width,vr.height);
+  renderer.setScissor(vx,vy,vr.width,vr.height);
+  renderer.setScissorTest(true);
+  renderer.render(scene,camera);
+  renderer.setScissorTest(false);
+}
+function tick(){
+  requestAnimationFrame(tick);
+  const dt=Math.min(0.05,clock.getDelta());
+  uni.uTime.value+=dt;
+  if(intro<1){
+    intro=Math.min(1,intro+dt/1.15);
+    state.r=lerp(2.45,state.tr,1-Math.pow(1-intro,3));
+  } else state.r+=(state.tr-state.r)*0.16;
+  const presentTarget=state.present?1:0;
+  const presentFollow=1-Math.exp(-dt*6.2);
+  presentMix+=(presentTarget-presentMix)*presentFollow;
+
+  if(state.present && !REDUCED) presentSpin+=dt*0.19;
+
+  if(!state.present && presentMix<0.002 && presentCloneActive){
+    presentMix=0;
+    presentGarment.visible=false;
+    setPresentCloneOpacity(0);
+    presentShadow.visible=false;
+    presentShadow.material.opacity=0;
+    garment.rotation.y=0;
+    garment.position.set(0,-0.350,0);
+  }
+
+  state.az+=(state.taz-state.az)*0.22;
+  state.el+=(state.tel-state.el)*0.22;
+  uni.uWind.value+=(WIND_LEVELS[state.wind]-uni.uWind.value)*0.05;
+  updateFabricInertia(dt);
+  if(anchorPickId){uni.uWind.value=0;uni.uTwist.value=0;}
+  draw();
+}
+
+/* ================================= boot ================================= */
+
+const loadImg=b64=>new Promise((res,rej)=>{
+  const i=new Image(); i.onload=()=>res(i); i.onerror=rej;
+  i.src='data:image/png;base64,'+b64;
+});
+
+function brandArtworkSourceUrl(url,longEdge){
+  if(!url.startsWith('data:image/svg+xml'))return url;
+  const comma=url.indexOf(','),payload=url.slice(comma+1);
+  const text=url.slice(0,comma).includes(';base64')?atob(payload):decodeURIComponent(payload);
+  const doc=new DOMParser().parseFromString(text,'image/svg+xml'),svg=doc.documentElement;
+  if(svg.localName!=='svg'||doc.querySelector('parsererror'))throw new Error('Invalid brand SVG.');
+  const box=(svg.getAttribute('viewBox')||'').trim().split(/[\s,]+/).map(Number);
+  const w=box[2]||parseFloat(svg.getAttribute('width')),h=box[3]||parseFloat(svg.getAttribute('height'));
+  if(!(w>0&&h>0))return url;
+  // Set the SVG's rasterization viewport BEFORE decoding. Enlarging a small
+  // decoded bitmap later cannot recover the original vector edge detail.
+  const limit=Math.max(1,Math.min(longEdge,4096,renderer.capabilities.maxTextureSize-8));
+  const scale=limit/Math.max(w,h);
+  svg.setAttribute('width',Math.max(1,Math.round(w*scale))+'px');
+  svg.setAttribute('height',Math.max(1,Math.round(h*scale))+'px');
+  return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(new XMLSerializer().serializeToString(svg));
+}
+const loadSvg=(url,longEdge)=>new Promise((resolve,reject)=>{
+  const img=new Image();img.onload=()=>resolve(img);img.onerror=reject;
+  try{img.src=brandArtworkSourceUrl(url,longEdge);}catch(error){reject(error);}
+});
+function initializeBrandArtwork(logo,back){
+  return [[logo,'Emblem','chest'],[back,'Wordmark','back']].map(([image,name,slot])=>{
+    const entry=makeArtworkEntry(image,BRAND.name+' '+name+'.svg');
+    entry.mode='ink'; // Only the startup graphics override the Original default.
+    // A null custom color follows the garment until the user picks a color.
+    const layer=initializeLayer(entry,slot);
+    if(slot==='chest')layer.placement.scale=.6;
+    return layer;
+  });
+}
+await Promise.all([loadSvg(BRAND.wordmark,4096),loadSvg(BRAND.emblem,2048)]).then(async ([back,logo])=>{
+  artLayers=initializeBrandArtwork(logo,back);
+  requestArtworkRender();syncArtworkUi();
+  setColorMode(state.themeMode);
+  if(REDUCED||anchorPickId){ uni.uWind.value=0; uni.uTwist.value=0; }
+  resize(); setView('angle');
+  tick();
+  await loadCatalog(selectedCatalogId);
+  requestAnimationFrame(()=>document.body.classList.add('ready'));
+}).catch(err=>{ console.error(err); bootMsg.textContent='Preview could not initialize. Reload to try again.'; });

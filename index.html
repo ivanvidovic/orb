@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<!-- Release 12: four authored garments. Deploy index.html with the assets folder. Source: orb-tee-11.html. -->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ORB Garment Studio</title>
+<script src="./assets/js/brand.js"></script>
+<link rel="stylesheet" href="./assets/css/studio.css">
+</head>
+<body data-theme="light">
+<script>(()=>{const theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.body.dataset.theme=theme;document.documentElement.dataset.theme=theme;document.documentElement.style.colorScheme=theme;})();</script>
+
+<canvas id="bgPattern" aria-hidden="true"></canvas>
+<div id="presentExitShield" aria-hidden="true"></div>
+
+<header>
+  <span class="brand-mark"><svg id="mark" class="fadein" role="img" aria-label="ORB" xmlns="http://www.w3.org/2000/svg"></svg></span>
+  <span class="hspacer"></span>
+
+  <div class="topTools fadein" aria-label="Preview controls">
+    <div class="quickGroup">
+      <div class="quickLabel">Camera</div>
+      <div class="quickSeg" id="segView" aria-label="Camera view">
+        <button type="button" data-v="front" aria-pressed="false" aria-label="Camera 1: Front view" title="1 · Front">1</button>
+        <button type="button" data-v="angle" aria-pressed="true" aria-label="Camera 2: Angle view" title="2 · Angle">2</button>
+        <button type="button" data-v="back" aria-pressed="false" aria-label="Camera 3: Back view" title="3 · Back">3</button>
+      </div>
+    </div>
+
+    <div class="quickGroup">
+      <div class="quickLabel">Lighting</div>
+      <div class="quickSeg" id="segLight" aria-label="Lighting preset">
+        <button type="button" data-v="soft" aria-pressed="false" aria-label="Lighting 1: Soft studio" title="1 · Soft studio">1</button>
+        <button type="button" data-v="key" aria-pressed="true" aria-label="Lighting 2: Directional key" title="2 · Directional key">2</button>
+        <button type="button" data-v="rim" aria-pressed="false" aria-label="Lighting 3: Rim studio" title="3 · Rim studio">3</button>
+      </div>
+    </div>
+
+    <div class="quickGroup">
+      <div class="quickLabel">Wind</div>
+      <div class="quickSeg" id="segWind" aria-label="Wind amount">
+        <button type="button" data-v="0" aria-pressed="false" aria-label="Wind 1: Still" title="1 · Still">1</button>
+        <button type="button" data-v="1" aria-pressed="true" aria-label="Wind 2: Gentle" title="2 · Gentle">2</button>
+        <button type="button" data-v="2" aria-pressed="false" aria-label="Wind 3: Breezy" title="3 · Breezy">3</button>
+      </div>
+    </div>
+
+  </div>
+
+    <div class="topActions" aria-label="Preview actions">
+      <button class="topAction" id="btnPresent" type="button">Present</button>
+      <button class="topAction" id="btnSave" type="button">Save Image</button>
+    </div>
+  <button class="helpBtn fadein" id="btnHelp" type="button" aria-label="Open tool help">?</button>
+
+  <div class="themeToggle fadein" id="themeModes" role="group" aria-label="Color mode">
+    <button type="button" data-theme-mode="light" aria-pressed="false" aria-label="Light mode" title="Light mode">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5"></circle><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M18.7 5.3l-1.8 1.8M7.1 16.9l-1.8 1.8"></path></svg>
+    </button>
+    <button type="button" data-theme-mode="system" aria-pressed="true" aria-label="System mode" title="System mode: follow your device">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="1"></rect><path d="M8 21h8M12 17v4"></path></svg>
+    </button>
+    <button type="button" data-theme-mode="dark" aria-pressed="false" aria-label="Dark mode" title="Dark mode">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4 7 7 0 0 0 20 14.5Z"></path></svg>
+    </button>
+  </div>
+</header>
+
+<main>
+  <div id="stage">
+    <canvas id="gl"></canvas>
+    <div id="drop"><span class="lbl lbl-ink">Drop artwork to choose a placement</span></div>
+    <div id="positionHint" hidden><span id="positionHintText"></span><button id="positionCancel" type="button">Cancel</button></div><div id="boot"><p class="lbl" id="bootMsg">Loading</p></div>
+  </div>
+
+  <aside id="panel">
+    <details class="sectionFold fadein" open>
+      <summary>Garment Appearance</summary>
+      <div class="sectionBody artworkPrimary">
+        <div class="garmentChooser">
+          <label for="garmentSelect">Garment</label>
+          <select id="garmentSelect" aria-label="Garment">
+            <option value="mens-tee" selected>Men's T-Shirt</option>
+            <option value="womens-tee">Women's T-Shirt</option>
+            <option value="mens-hoodie">Men's Hoodie</option>
+            <option value="womens-hoodie">Women's Hoodie</option>
+          </select>
+          <p id="modelStatus" role="status" aria-live="polite"></p>
+          <button id="modelRetry" type="button" hidden>Retry loading</button>
+        </div>
+
+        <div id="artWorkspace">
+  <div class="art-heading"><span>Artwork</span><button id="artUploadAny" type="button">+ Add artwork</button><button id="artUndo" type="button" disabled>Undo</button></div>
+<div id="artLayers" aria-label="Artwork layers"></div>
+<p id="artEmpty" hidden>Drop an image or choose Add artwork to get started.</p>
+<div id="artEditorParking" hidden>
+<section id="artEditor" hidden aria-label="Selected artwork controls">
+  <div class="art-editor-head"><strong id="artEditorName">Back</strong><button id="artPosition" type="button" hidden>Set position</button><button id="artView" type="button">View on garment</button><button id="artClose" type="button" aria-label="Close artwork controls">Done</button></div>
+  <div class="art-toolbar"><button id="artAdd" type="button" title="Add separate layers at this placement">+ Add here</button><button id="artReplace" type="button" title="Replace the selected graphic">Replace image</button></div>
+  <div class="art-mode-row">
+    <label for="artMode">Render as</label>
+    <div class="art-mode-choice">
+      <select id="artMode"><option value="original">Original</option><option value="tint" title="Colorize while preserving light/dark detail, backgrounds, and transparency">Tint</option><option value="ink" title="One ink color; use image transparency or extract a simple light/dark background">Single ink</option></select>
+      <label class="sw custom" id="customInkChoice" hidden title="Choose ink color">
+      <i id="inkCustomChip" style="background:#181818"></i>
+      <span class="pickerGlyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m19 3 2 2-8.5 8.5-3-3z"></path><path d="m8.8 11.2-4.3 4.3v4h4l4.3-4.3"></path></svg></span>
+      <input id="inkCustom" type="color" value="#181818" aria-label="Custom artwork color">
+    </label>
+    </div>
+  </div>
+  <label class="art-fit"><input id="artFit" type="checkbox">Fit visible artwork <span title="Ignore transparent margins when sizing. Opaque backgrounds stay intact.">ⓘ</span></label>
+  <div class="art-transforms"><div class="art-control"><label for="art-x">Left / right</label><input id="art-x" data-art-range data-prop="x" type="range" min="-100" max="100" step="1"><input class="num" data-art-num data-prop="x" type="number" min="-100" max="100" step="1" aria-label="Left / right value"><button type="button" data-reset-art-one="x" aria-label="Reset left / right" title="Reset left / right">↺</button></div>
+<div class="art-control"><label for="art-y">Up / down</label><input id="art-y" data-art-range data-prop="y" type="range" min="-100" max="100" step="1"><input class="num" data-art-num data-prop="y" type="number" min="-100" max="100" step="1" aria-label="Up / down value"><button type="button" data-reset-art-one="y" aria-label="Reset up / down" title="Reset up / down">↺</button></div>
+<div class="art-control"><label for="art-scale">Scale</label><input id="art-scale" data-art-range data-prop="scale" type="range" min="25" max="200" step="1"><input class="num" data-art-num data-prop="scale" type="number" min="25" max="200" step="1" aria-label="Scale value"><button type="button" data-reset-art-one="scale" aria-label="Reset scale" title="Reset scale">↺</button></div>
+<div class="art-control"><label for="art-rot">Rotation</label><input id="art-rot" data-art-range data-prop="rot" type="range" min="-180" max="180" step="1"><input class="num" data-art-num data-prop="rot" type="number" min="-180" max="180" step="1" aria-label="Rotation value"><button type="button" data-reset-art-one="rot" aria-label="Reset rotation" title="Reset rotation">↺</button></div></div>
+  <div class="art-editor-foot"><div class="art-order" role="group" aria-label="Layer order"><button id="artRaise" type="button" aria-label="Move layer up" title="Move layer up">↑</button><button id="artLower" type="button" aria-label="Move layer down" title="Move layer down">↓</button></div><button id="artReset" type="button">Reset placement</button></div>
+</section>
+</div>
+<p id="artStatus" role="status" aria-live="polite"></p>
+</div>
+
+        <div class="appearanceControls">
+          <div class="subsec">
+            <div class="grphd"><span class="lbl">Garment Color</span><span class="lbl" id="blankName">Chalk</span></div>
+            <div class="swatches" id="swatches" role="radiogroup" aria-label="Garment color"></div>
+          </div>
+
+
+          <div class="subsec">
+            <div class="grphd"><span class="lbl">Artwork Roughness</span><span class="lbl" id="artRoughnessName">97</span></div>
+            <div class="finishCtrl hasReset">
+              <span class="finishEnd">Glossy</span>
+              <input id="artRoughness" type="range" min="0" max="100" step="1" value="97" aria-label="Artwork roughness, zero glossy and one hundred rough">
+              <span class="finishEnd">Rough</span>
+              <button class="motionResetOne" id="resetArtRoughness" type="button" aria-label="Reset Artwork Roughness to default" data-tip="Reset Artwork Roughness to its default value (97)."><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 8.5V4.5h4"></path><path d="M5.2 7.1A8 8 0 1 1 4.4 14"></path></svg></button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </details>
+
+    <details class="sectionFold fadein" open>
+      <summary>Environment</summary>
+      <div class="sectionBody envBody">
+        <div class="envItem">
+          <div class="pickerline"><span class="lbl">Background Color</span><label class="sw custom colorSingle" aria-label="Background color" title="Background color"><i id="bgColorChip" style="background:#f4f4f4"></i><input id="bgCustom" type="color" value="#f4f4f4" aria-label="Background color"></label></div>
+        </div>
+
+        <div class="envItem">
+          <div class="gridHead"><span class="lbl">Grid</span><input id="dotGrid" type="checkbox" aria-label="Show background grid" checked></div>
+<div class="grid-style-row"><label for="gridType">Style</label><select id="gridType"><option value="square">Square grid</option><option value="pattern">Pattern paper</option></select><input id="gridColor" type="color" value="#e0e0e0" aria-label="Grid color" title="Grid color"></div>
+<div class="ctrl hasReset" id="gridStrokeRow"><label for="gridStroke">Stroke</label><input id="gridStroke" type="range" min="0.25" max="3" step="0.25" value="0.5"><input id="gridStrokeNum" class="num" type="number" min="0.25" max="3" step="0.25" value="0.5" aria-label="Grid stroke thickness in pixels"><button id="resetGridStroke" class="motionResetOne" type="button" aria-label="Reset grid stroke">↺</button></div>
+          <div class="ctrl hasReset"><label for="gridScale">Grid scale</label><input id="gridScale" type="range" min="30" max="175" step="1" value="35" aria-label="Grid scale"><input class="num" id="gridScaleNum" type="number" min="30" max="175" step="1" value="35" inputmode="numeric" aria-label="Grid scale value"><button class="motionResetOne" id="resetGridScale" type="button" aria-label="Reset Grid scale to default" data-tip="Reset Grid scale to its default value (35)."><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 8.5V4.5h4"></path><path d="M5.2 7.1A8 8 0 1 1 4.4 14"></path></svg></button></div>
+          <div class="ctrl hasReset" id="gridCharacterRow" hidden><label for="gridCharSize">Character size</label><input id="gridCharSize" type="range" min="30" max="160" step="1" value="45" aria-label="Character size"><input class="num" id="gridCharSizeNum" type="number" min="30" max="160" step="1" value="45" inputmode="numeric" aria-label="Character size value"><button class="motionResetOne" id="resetGridCharSize" type="button" aria-label="Reset Character size to default" data-tip="Reset Character size to its default value (45)."><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 8.5V4.5h4"></path><path d="M5.2 7.1A8 8 0 1 1 4.4 14"></path></svg></button></div>
+        </div>
+
+        <div class="envItem">
+          <div class="grphd"><span class="lbl">3D Model</span></div>
+          <div class="artrow"><span class="artname"><span class="lbl">Current model</span><b id="modelName">Men's T-Shirt</b></span><button class="uploadBtn link" id="btnModel" type="button">Upload .glb</button></div>
+          <div class="artrow" id="rowFit" hidden><span class="artname"><span class="lbl">Fitted</span><b id="fitNote">—</b></span><button class="link" id="btnFlip" type="button">Turn around</button><button class="link" id="btnShipped" type="button">Restore selection</button></div>
+        </div>
+      </div>
+    </details>
+
+    <details class="sectionFold fadein" id="motionTuning" hidden>
+      <summary>Fabric Motion</summary>
+      <div class="sectionBody motionBody">
+        <div class="motionEnable">
+          <span class="lbl">Rotation Inertia</span>
+          <input id="inertiaEnabled" type="checkbox" checked aria-label="Rotation inertia enabled">
+        </div>
+
+        <div class="ctrl motionCtrl">
+          <label for="inertiaStrength">Strength</label>
+          <input id="inertiaStrength" type="range" min="0" max="15" step="0.25" value="15">
+          <input class="num" id="inertiaStrengthNum" type="number" min="0" max="15" step="0.25" value="15" inputmode="decimal" aria-label="Inertia strength in degrees">
+          <button class="motionResetOne" type="button" data-reset-motion="strength" aria-label="Reset Strength to default"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 8.5V4.5h4"></path><path d="M5.2 7.1A8 8 0 1 1 4.4 14"></path></svg></button>
+        </div>
+
+        <div class="ctrl motionCtrl">
+          <label for="inertiaRamp">Ramp delay</label>
+          <input id="inertiaRamp" type="range" min="15" max="300" step="5" value="100">
+          <input class="num" id="inertiaRampNum" type="number" min="15" max="300" step="5" value="100" inputmode="numeric" aria-label="Inertia ramp delay in milliseconds">
+          <button class="motionResetOne" type="button" data-reset-motion="ramp" aria-label="Reset Ramp delay to default"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 8.5V4.5h4"></path><path d="M5.2 7.1A8 8 0 1 1 4.4 14"></path></svg></button>
+        </div>
+
+        <div class="ctrl motionCtrl">
+          <label for="inertiaSettle">Settle time</label>
+          <input id="inertiaSettle" type="range" min="0.20" max="2.50" step="0.05" value="0.5">
+          <input class="num" id="inertiaSettleNum" type="number" min="0.20" max="2.50" step="0.05" value="0.5" inputmode="decimal" aria-label="Inertia settle time in seconds">
+          <button class="motionResetOne" type="button" data-reset-motion="settle" aria-label="Reset Settle time to default"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 8.5V4.5h4"></path><path d="M5.2 7.1A8 8 0 1 1 4.4 14"></path></svg></button>
+        </div>
+
+        <div class="ctrl motionCtrl">
+          <label for="inertiaElasticity">Elasticity</label>
+          <input id="inertiaElasticity" type="range" min="10" max="100" step="1" value="60">
+          <input class="num" id="inertiaElasticityNum" type="number" min="10" max="100" step="1" value="60" inputmode="numeric" aria-label="Fabric inertia elasticity">
+          <button class="motionResetOne" type="button" data-reset-motion="elasticity" aria-label="Reset Elasticity to default"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 8.5V4.5h4"></path><path d="M5.2 7.1A8 8 0 1 1 4.4 14"></path></svg></button>
+        </div>
+
+        <div class="ctrl motionCtrl">
+          <label for="inertiaOvershoot">Overshoot</label>
+          <input id="inertiaOvershoot" type="range" min="0" max="100" step="1" value="70">
+          <input class="num" id="inertiaOvershootNum" type="number" min="0" max="100" step="1" value="70" inputmode="numeric" aria-label="Fabric inertia overshoot amount">
+          <button class="motionResetOne" type="button" data-reset-motion="overshoot" aria-label="Reset Overshoot to default"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 8.5V4.5h4"></path><path d="M5.2 7.1A8 8 0 1 1 4.4 14"></path></svg></button>
+        </div>
+
+        <div class="ctrl motionCtrl">
+          <label for="inertiaRelease">Release momentum</label>
+          <input id="inertiaRelease" type="range" min="0" max="150" step="1" value="70">
+          <input class="num" id="inertiaReleaseNum" type="number" min="0" max="150" step="1" value="70" inputmode="numeric" aria-label="Fabric release momentum">
+          <button class="motionResetOne" type="button" data-reset-motion="release" aria-label="Reset Release momentum to default"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 8.5V4.5h4"></path><path d="M5.2 7.1A8 8 0 1 1 4.4 14"></path></svg></button>
+        </div>
+
+        <div class="ctrl motionCtrl">
+          <label for="inertiaSensitivity">Sensitivity</label>
+          <input id="inertiaSensitivity" type="range" min="0" max="100" step="1" value="50">
+          <input class="num" id="inertiaSensitivityNum" type="number" min="0" max="100" step="1" value="50" inputmode="numeric" aria-label="Rotation inertia sensitivity">
+          <button class="motionResetOne" type="button" data-reset-motion="sensitivity" aria-label="Reset Sensitivity to default"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 8.5V4.5h4"></path><path d="M5.2 7.1A8 8 0 1 1 4.4 14"></path></svg></button>
+        </div>
+
+        <div class="ctrl motionCtrl">
+          <label for="inertiaBias">Lower-body bias</label>
+          <input id="inertiaBias" type="range" min="0" max="100" step="1" value="25">
+          <input class="num" id="inertiaBiasNum" type="number" min="0" max="100" step="1" value="25" inputmode="numeric" aria-label="Lower body motion bias">
+          <button class="motionResetOne" type="button" data-reset-motion="bias" aria-label="Reset Lower-body bias to default"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 8.5V4.5h4"></path><path d="M5.2 7.1A8 8 0 1 1 4.4 14"></path></svg></button>
+        </div>
+
+        <div class="ctrl motionCtrl">
+          <label for="inertiaSleeve">Sleeve drag</label>
+          <input id="inertiaSleeve" type="range" min="0" max="100" step="1" value="100">
+          <input class="num" id="inertiaSleeveNum" type="number" min="0" max="100" step="1" value="100" inputmode="numeric" aria-label="Sleeve drag amount">
+          <button class="motionResetOne" type="button" data-reset-motion="sleeve" aria-label="Reset Sleeve drag to default"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 8.5V4.5h4"></path><path d="M5.2 7.1A8 8 0 1 1 4.4 14"></path></svg></button>
+        </div>
+
+        <div class="ctrl motionCtrl">
+          <label for="inertiaArc">Sleeve arc</label>
+          <input id="inertiaArc" type="range" min="0" max="100" step="1" value="100">
+          <input class="num" id="inertiaArcNum" type="number" min="0" max="100" step="1" value="100" inputmode="numeric" aria-label="Sleeve shoulder-pivot arc amount">
+          <button class="motionResetOne" type="button" data-reset-motion="arc" aria-label="Reset Sleeve arc to default"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 8.5V4.5h4"></path><path d="M5.2 7.1A8 8 0 1 1 4.4 14"></path></svg></button>
+        </div>
+
+        <div class="motionReset">
+          <button class="link" id="resetInertia" type="button">Reset motion</button>
+        </div>
+      </div>
+    </details>
+  </aside>
+</main>
+
+<dialog id="placementDialog" aria-labelledby="placementTitle"><div class="placement-head"><div><span class="lbl">Artwork</span><h2 id="placementTitle">Choose a placement</h2></div><button id="placementCancel" type="button" aria-label="Cancel placement">×</button></div><div class="placement-file"><img id="placementImage" alt="Artwork preview"><span id="placementFileName"></span></div><div class="placement-options"><section><h3>Front</h3><button type="button" data-place="chest"><span>Left chest</span><small>New placement</small></button><button type="button" data-place="rightchest"><span>Right chest</span><small>New placement</small></button><button type="button" data-place="front"><span>Full front</span><small>New placement</small></button></section><section><h3>Back</h3><button type="button" data-place="back"><span>Full back</span><small>New placement</small></button><button type="button" data-place="lowerback"><span>Lower back</span><small>New placement</small></button></section><section><h3>Shoulders</h3><button type="button" data-place="leftshoulder"><span>Left shoulder</span><small>New placement</small></button><button type="button" data-place="rightshoulder"><span>Right shoulder</span><small>New placement</small></button></section></div><p class="placement-note">Left and right refer to the person wearing the garment. Every image is added as a separate layer.</p></dialog>
+<dialog id="helpDialog" aria-labelledby="helpTitle">
+  <div class="helpHead">
+    <div><span class="helpEyebrow">Quick guide</span><h2 id="helpTitle">ORB Garment Studio</h2></div>
+    <button class="helpClose" id="helpClose" type="button" aria-label="Close help">×</button>
+  </div>
+  <div class="helpBody">
+    <ol class="guideSteps">
+      <li><span class="guideNumber" aria-hidden="true">01</span><section>
+        <h3>Add artwork</h3>
+        <p>Drop an image onto the workspace and choose a placement. On mobile, tap <strong>Add artwork</strong>. Left and right refer to the wearer.</p>
+      </section></li>
+      <li><span class="guideNumber" aria-hidden="true">02</span><section>
+        <h3>Arrange your layers</h3>
+        <p>Select a graphic to open its controls directly below the row. Add multiple graphics to any placement. Drag the grip to reorder them; higher layers appear on top. On touch or keyboard, you can also use <strong>↑ ↓</strong>. Use <strong>×</strong> to remove one graphic. <strong>Undo</strong> restores it.</p>
+      </section></li>
+      <li><span class="guideNumber" aria-hidden="true">03</span><section>
+        <h3>Color and finish</h3>
+        <p><strong>Original</strong> is the default for uploads and preserves image colors, backgrounds, and transparency. The starting ORB graphics use <strong>Single ink</strong> with automatic shirt contrast until you choose an ink color. <strong>Tint</strong> changes the color family while preserving light/dark detail and transparency. <strong>Single ink</strong> uses one flat color, preserving soft edges and extracting simple light or dark backgrounds. Both use the picker beside the mode selector; each layer remembers its color. Choose garment colors and print roughness in the sidebar; <strong>Fit visible artwork</strong> trims transparent margins. Use the pencil or double-click a layer name to rename it. Enter saves, Escape cancels; the original filename appears while editing.</p>
+      </section></li>
+      <li><span class="guideNumber" aria-hidden="true">04</span><section>
+        <h3>Preview and export</h3>
+        <p>Drag to rotate; scroll or pinch to zoom. Use the camera, light, and wind presets above. The middle theme button follows your system’s light or dark appearance. <strong>Environment</strong> controls the background and grid. <strong>Present</strong> hides the interface; <strong>Save Image</strong> exports the current view.</p>
+      </section></li>
+    </ol>
+    <details class="guideAdvanced">
+      <summary>Using your own 3D model</summary>
+      <p>Choose one of the four garments at the top of Garment Appearance. Artwork uses each garment’s own UV panels. You can also upload a GLB with embedded textures and non-overlapping UVs. Select an artwork row, choose <strong>Set position</strong>, then tap the model. <strong>Turn around</strong> corrects its orientation; <strong>Restore selection</strong> returns to the built-in garment.</p>
+    </details>
+  </div>
+  <div class="helpFooter"><span><kbd>Esc</kbd> to close</span><span>orb-tee-11.html</span></div>
+</dialog>
+
+<div id="uiTooltip" role="tooltip" aria-hidden="true"></div>
+<input type="file" id="file" accept="image/*" multiple hidden>
+<input type="file" id="fileModel" accept=".glb,model/gltf-binary" hidden>
+
+<script>
+/* three + addons resolve through an import map so GLTFLoader's bare
+   'three' specifier works. Written before the module below is parsed. */
+(function(){
+  var CDN = './assets/vendor/three/';
+  var s = document.createElement('script');
+  s.type = 'importmap';
+  s.textContent = JSON.stringify({imports:{
+    'three': CDN + 'build/three.module.js',
+    'three/addons/': CDN + 'examples/jsm/'
+  }});
+  document.head.appendChild(s);
+})();
+</script>
+
+<script type="module" src="./assets/js/studio.js"></script>
+</body>
+</html>
