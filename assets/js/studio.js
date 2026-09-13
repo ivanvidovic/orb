@@ -175,7 +175,7 @@ const uni = {
 const VERT_HEAD=`
   uniform float uTime; uniform float uWind; uniform float uTwist;
   uniform float uTwistFlowPower; uniform float uSleeveBoost; uniform float uSleeveArc; uniform vec3 uDir;
-  attribute float aFlow; attribute vec2 aArtworkUv; varying vec2 vArtworkUv;
+  attribute float aFlow; attribute vec3 aMotionAnchor; attribute vec2 aArtworkUv; varying vec2 vArtworkUv;
   vec3 gDisp;
 
   vec3 kBreeze(vec3 p, float flow){
@@ -265,19 +265,19 @@ function patchFabricMaterial(mat){
     sh.vertexShader = sh.vertexShader.replace('#include <beginnormal_vertex>',
       `#include <beginnormal_vertex>
        vArtworkUv = aArtworkUv;
-       gDisp = kFabricDisp(position, aFlow);
+       gDisp = kFabricDisp(aMotionAnchor, aFlow);
        if (aFlow > 0.001) {
          vec3 T1 = normalize(cross(objectNormal, vec3(0.0,1.0,0.0)) + vec3(1e-5));
          vec3 T2 = normalize(cross(objectNormal, T1));
          float e = 0.022;
          vec3 p0 = position + gDisp;
-         vec3 pa = position + T1*e + kFabricDisp(position + T1*e, aFlow);
-         vec3 pb = position + T2*e + kFabricDisp(position + T2*e, aFlow);
+         vec3 pa = position + T1*e + kFabricDisp(aMotionAnchor + T1*e, aFlow);
+         vec3 pb = position + T2*e + kFabricDisp(aMotionAnchor + T2*e, aFlow);
          vec3 nn = normalize(cross(pa-p0, pb-p0));
          objectNormal = dot(nn, objectNormal) < 0.0 ? -nn : nn;
          #ifdef USE_TANGENT
            vec3 pt = position + objectTangent*e;
-           objectTangent = normalize(pt + kFabricDisp(pt, aFlow) - p0);
+           objectTangent = normalize(pt + kFabricDisp(aMotionAnchor + objectTangent*e, aFlow) - p0);
            objectTangent = normalize(objectTangent - objectNormal*dot(objectTangent,objectNormal));
          #endif
        }`);
@@ -437,13 +437,11 @@ function setGarment(obj, custom){
 
 const TARGET_H=0.74, HEM_Y=-0.024;
 
-function makeFlow(geo){
-  const p=geo.attributes.position, n=p.count;
+function makeFlow(geo,garmentHalfWidth){
+  const p=geo.getAttribute('aMotionAnchor')||geo.attributes.position, n=p.count;
   const fl=new Float32Array(n);
   const yMin=HEM_Y, yMax=Y_SH;
-  let halfW=0;
-  for(let i=0;i<n;i++) halfW=Math.max(halfW, Math.abs(p.getX(i)));
-  halfW=Math.max(halfW,1e-4);
+  const halfW=Math.max(garmentHalfWidth,1e-4);
   for(let i=0;i<n;i++){
     const hn=clamp((p.getY(i)-yMin)/(yMax-yMin),0,1);
     let f=Math.pow(clamp(1-hn/0.86,0,1),1.35);
@@ -482,7 +480,8 @@ function adopt(root){
     g.morphAttributes={};
     g.applyMatrix4(o.matrixWorld);
     if(!g.attributes.normal) g.computeVertexNormals();
-    makeFlow(g);
+    g.setAttribute('aMotionAnchor',g.attributes.position);
+    makeFlow(g,size.x*s/2);
     ensurePrintIslands(g);
     tris += (g.index ? g.index.count : g.attributes.position.count)/3;
 
@@ -510,6 +509,7 @@ function adopt(root){
   if (out.children.length===0) throw new Error('no meshes');
 
   const b2=new THREE.Box3().setFromObject(out), sz=b2.getSize(new THREE.Vector3());
+  out.userData.halfWidth=sz.x/2;
   return { group:out, tris:Math.round(tris), size:sz };
 }
 
@@ -548,6 +548,22 @@ function disposeModel(root){
   root.traverse(o=>{if(!o.isMesh)return;o.geometry.dispose();for(const m of Array.isArray(o.material)?o.material:[o.material]){for(const v of Object.values(m))if(v?.isTexture)textures.add(v);m.dispose();}});
   for(const t of textures)t.dispose();
 }
+
+async function applyCalibration(group,item){
+  const base=new URL('../calibration/'+item.file.replace(/\.glb$/,''),import.meta.url).href;
+  const [metaResponse,binResponse]=await Promise.all([fetch(base+'.json'),fetch(base+'.bin')]);
+  if(!metaResponse.ok||!binResponse.ok)throw new Error('Garment calibration could not load.');
+  const meta=await metaResponse.json(),data=await binResponse.arrayBuffer();
+  const meshes=[];group.traverse(o=>{if(o.isMesh)meshes.push(o);});
+  for(const mesh of meshes){
+    const g=mesh.geometry,part=meta.parts.find(p=>p.vertices===g.attributes.position.count&&p.indices===(g.index?.count||g.attributes.position.count));
+    if(!part)throw new Error('Garment calibration does not match this model.');
+    if(part.printUV)g.setAttribute('orbPrintUv',new THREE.BufferAttribute(new Float32Array(data,part.printUV.offset,part.printUV.count),2));
+    if(part.motionAnchor)g.setAttribute('aMotionAnchor',new THREE.BufferAttribute(new Float32Array(data,part.motionAnchor.offset,part.motionAnchor.count),3));
+    makeFlow(g,group.userData.halfWidth);
+  }
+}
+
 function calibratePlacements(group,kind){
   // Pick the main cloth surface, excluding thread, cords, hardware and neck rib.
   const meshes=[];
@@ -606,6 +622,7 @@ async function loadCatalog(id){
       modelStatus.textContent='Loading '+item.label+amount+'…';
     });
     imported=gltf.scene;res=adopt(imported);
+    await applyCalibration(res.group,item);
     const profiles=calibratePlacements(res.group,item.type);
     disposeImported(imported);imported=null;
     UV_PROFILES=profiles;modelKind='catalog';
@@ -893,6 +910,15 @@ function nativeAnchor(hit){
   const mesh=hit.object,g=mesh.geometry,p=g.attributes.position,uv=g.attributes.uv;
   if(!uv||!hit.face||!hit.uv)throw new Error('This surface needs native UV coordinates.');
   const {a,b,c}=hit.face;
+  const chart=g.getAttribute('orbPrintUv');
+  if(chart){
+    const local=mesh.worldToLocal(hit.point.clone());
+    const tri=new THREE.Triangle(...[a,b,c].map(i=>new THREE.Vector3().fromBufferAttribute(p,i)));
+    const weights=tri.getBarycoord(local,new THREE.Vector3());
+    const origin=[0,0];[a,b,c].forEach((index,k)=>{origin[0]+=chart.getX(index)*weights.getComponent(k);origin[1]+=chart.getY(index)*weights.getComponent(k);});
+    return {origin,basis:[1,0,0,1],point:local.toArray(),normal:tri.getNormal(new THREE.Vector3()).toArray(),mesh:mesh.userData.orbMeshId,island:g.getAttribute('aPrintIsland').getX(a)};
+  }
+
   const pa=new THREE.Vector3().fromBufferAttribute(p,a);
   const e1=new THREE.Vector3().fromBufferAttribute(p,b).sub(pa);
   const e2=new THREE.Vector3().fromBufferAttribute(p,c).sub(pa);
@@ -1525,7 +1551,7 @@ function trimArtworkSources(){
 }
 function artworkPanelBounds(geometry){
   if(artworkBoundsCache.has(geometry))return artworkBoundsCache.get(geometry);
-  const bounds=new Map(),uv=geometry.getAttribute('uv'),island=geometry.getAttribute('aPrintIsland');
+  const bounds=new Map(),uv=geometry.getAttribute('orbPrintUv')||geometry.getAttribute('uv'),island=geometry.getAttribute('aPrintIsland');
   if(uv&&island)for(let i=0;i<uv.count;i++){
     const id=island.getX(i),u=uv.getX(i),v=uv.getY(i);let box=bounds.get(id);
     if(!box){box={minU:u,maxU:u,minV:v,maxV:v};bounds.set(id,box);}
@@ -1537,19 +1563,20 @@ function layoutArtworkMap(map,geometry,panelIds){
   const key=panelIds.join(',');
   if(map.geometry===geometry&&map.layoutKey===key&&geometry.getAttribute('aArtworkUv'))return false;
   const bounds=artworkPanelBounds(geometry),cols=Math.ceil(Math.sqrt(panelIds.length||1)),rows=Math.ceil((panelIds.length||1)/cols);
-  const limit=Math.min(4096,renderer.capabilities.maxTextureSize),tileSize=Math.min(2048,Math.floor(limit/Math.max(cols,rows))),gutter=8;
+  const limit=Math.min(8192,renderer.capabilities.maxTextureSize),tileSize=Math.min(4096,Math.floor(limit/Math.max(cols,rows))),gutter=8;
   const width=cols*tileSize,height=rows*tileSize;
   map.tiles.clear();map.geometry=geometry;map.layoutKey=key;
   if(panelIds.length){
     if(!map.target||map.target.width!==width||map.target.height!==height){
       map.target?.dispose();
       map.target=new THREE.WebGLRenderTarget(width,height,{
-        depthBuffer:false,stencilBuffer:false,generateMipmaps:false,
-        minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,
+        depthBuffer:false,stencilBuffer:false,generateMipmaps:true,
+        minFilter:THREE.LinearMipmapLinearFilter,magFilter:THREE.LinearFilter,
         // WebGL2 encodes the linear blend into sRGB storage on the GPU, keeping
         // dark image detail without a larger floating-point render target.
         colorSpace:renderer.capabilities.isWebGL2?THREE.SRGBColorSpace:THREE.LinearSRGBColorSpace
       });
+      map.target.texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
       map.map.value=map.target.texture;
     }
     map.camera.right=width;map.camera.top=height;map.camera.updateProjectionMatrix();
@@ -1559,7 +1586,7 @@ function layoutArtworkMap(map,geometry,panelIds){
       map.tiles.set(id,{...b,density,left,top,size:tileSize,x:left+(tileSize-spanU*density)/2,y:top+(tileSize-spanV*density)/2});
     });
   }else{map.target?.dispose();map.target=null;map.map.value=null;}
-  const uv=geometry.getAttribute('uv'),island=geometry.getAttribute('aPrintIsland'),values=new Float32Array(geometry.attributes.position.count*2).fill(-1);
+  const uv=geometry.getAttribute('orbPrintUv')||geometry.getAttribute('uv'),island=geometry.getAttribute('aPrintIsland'),values=new Float32Array(geometry.attributes.position.count*2).fill(-1);
   if(uv&&island)for(let i=0;i<uv.count;i++){
     const tile=map.tiles.get(island.getX(i));if(!tile)continue;
     values[i*2]=(tile.x+(uv.getX(i)-tile.minU)*tile.density)/width;
