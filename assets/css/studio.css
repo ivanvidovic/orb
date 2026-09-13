@@ -618,3 +618,20 @@ select,select option,select optgroup{color:var(--ink);background-color:var(--pap
 @media(max-width:600px){.placement-options{grid-template-columns:1fr;gap:20px;padding:0 16px}.placement-tabs{padding:0 16px 14px}.garment-drawing{max-width:270px}.placement-options.placement-inside{grid-template-columns:1fr}.placement-legend{gap:3px 12px}}
 
 #lightPower,#lightLock{accent-color:var(--ink)}
+
+/* Release 16: named lighting, independent material response, tidy layer actions. */
+.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+.topTools{grid-template-columns:repeat(2,minmax(0,1fr))}
+#segLight{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;border:0;background:none}
+#segLight button{width:auto;min-height:34px;border:1px solid var(--rule);border-radius:6px;font-size:11px;padding:5px 8px;white-space:nowrap}
+#segLight button[aria-pressed="true"]{border-color:var(--ink);background:var(--ink);color:var(--paper)}
+#nightColors{display:flex;gap:12px}#nightColors[hidden]{display:none}
+.night-color{display:flex;align-items:center;justify-content:space-between;gap:8px;flex:1;font-size:11px}
+.control-note{font-size:11px;line-height:1.5;color:var(--graphite);margin:0}
+.emission-controls{display:grid;gap:8px;border-top:1px solid var(--rule);padding-top:10px;margin:10px 0 12px}
+.emission-controls input[type=range]{width:100%;min-width:0;accent-color:var(--ink)}
+.emission-controls .light-lock{font-size:11px}
+#artWorkspace .art-editor-head{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;margin-bottom:10px}
+#artWorkspace .art-editor-head button{white-space:nowrap;min-height:32px;font-size:11px;padding:5px 9px;flex:0 0 auto}
+#artWorkspace #artPosition{margin-right:auto}
+#artWorkspace #artClose{margin-left:auto}

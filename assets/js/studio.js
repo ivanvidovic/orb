@@ -83,21 +83,28 @@ renderer.setPixelRatio(Math.min(2, devicePixelRatio||1));
 renderer.outputColorSpace=THREE.SRGBColorSpace;
 renderer.toneMapping=THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure=1.0;
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.shadowMap.autoUpdate=false;
 
 const scene=new THREE.Scene();
 scene.background=null;
 const camera=new THREE.PerspectiveCamera(34,1,0.05,40);
 
 // Small HDR environments provide broad reflections as well as direct lights.
-function makeEnvironment(kind){
+const NIGHT_DEFAULTS={green:'#73ff68',magenta:'#ee53bd'};
+const environmentTargets=new WeakMap();
+function makeEnvironment(kind,colors=NIGHT_DEFAULTS){
   const W=256,H=128,data=new Float32Array(W*H*4);
+  const green=new THREE.Color(colors.green).toArray(),magenta=new THREE.Color(colors.magenta).toArray();
   const boxes=kind==='studio'?[[-.8,.65,.45,.5,2.8,[1,1,1]],[2.25,.3,.22,.65,1.8,[1,1,1]],[.9,1.2,.8,.22,1.2,[1,1,1]]]
     :kind==='day'?[[-.8,.85,.16,.16,5,[1,.91,.75]]]
-    :[[-.9,.4,.22,.6,1.3,[1,.37,.08]],[1.1,.25,.2,.55,1.1,[.10,.65,1]],[2.8,.4,.35,.3,.8,[.5,.16,1]]];
+    :kind==='uv'?[[-.8,.65,.5,.5,.16,[.32,.12,1]]]
+    :[[-.9,.4,.22,.6,.55,green],[1.1,.25,.2,.55,.4,magenta],[2.8,.4,.35,.3,.35,magenta]];
   for(let y=0;y<H;y++)for(let x=0;x<W;x++){
     const az=x/W*Math.PI*2-Math.PI,el=Math.PI/2-y/H*Math.PI,sky=Math.max(0,Math.sin(el));
     const base=kind==='studio'?[.08+.12*sky,.08+.12*sky,.08+.12*sky]
-      :kind==='day'?[.14+.31*sky,.15+.43*sky,.17+.65*sky]:[.015+.015*sky,.02+.025*sky,.04+.04*sky];
+      :kind==='day'?[.14+.31*sky,.15+.43*sky,.17+.65*sky]:kind==='uv'?[.001,.001,.004]:[.006+.008*sky,.008+.01*sky,.012+.015*sky];
     for(const [a,e,w,h,power,color] of boxes){
       const distance=Math.atan2(Math.sin(az-a),Math.cos(az-a));
       const value=power*Math.exp(-Math.pow(distance/w,6)-Math.pow((el-e)/h,6));
@@ -107,9 +114,10 @@ function makeEnvironment(kind){
   }
   const t=new THREE.DataTexture(data,W,H,THREE.RGBAFormat,THREE.FloatType);
   t.mapping=THREE.EquirectangularReflectionMapping;t.needsUpdate=true;
-  const pm=new THREE.PMREMGenerator(renderer),env=pm.fromEquirectangular(t).texture;pm.dispose();t.dispose();return env;
+  const pm=new THREE.PMREMGenerator(renderer),target=pm.fromEquirectangular(t),env=target.texture;
+  environmentTargets.set(env,target);pm.dispose();t.dispose();return env;
 }
-const environments={studio:makeEnvironment('studio'),day:makeEnvironment('day'),night:makeEnvironment('night')};
+const environments={studio:makeEnvironment('studio'),day:makeEnvironment('day'),night:makeEnvironment('night'),uv:makeEnvironment('uv')};
 scene.environment=environments.studio;
 const lightRig=new THREE.Group();scene.add(lightRig);
 const hemi=new THREE.HemisphereLight(),key=new THREE.DirectionalLight(),fil=new THREE.DirectionalLight(),rim=new THREE.DirectionalLight();
@@ -117,6 +125,30 @@ lightRig.add(hemi,key,fil,rim,key.target,fil.target,rim.target);
 const lightReference=new THREE.Quaternion(),lightInverse=new THREE.Quaternion();
 const lightEnvironmentRotation={value:new THREE.Matrix3()},lightEnvironmentPower={value:1};
 const lightRotationMatrix=new THREE.Matrix4();
+const effectUniforms={uBlackLight:{value:0},uFabricGlow:{value:0},uFabricUV:{value:0}};
+let lightReferenceReady=false,shadowDirty=true,lastShadowTime=-Infinity,lastShadowSignature='';
+key.castShadow=true;
+key.shadow.mapSize.set(MOBILE?1024:2048,MOBILE?1024:2048);
+Object.assign(key.shadow.camera,{left:-.72,right:.72,top:.68,bottom:-.68,near:.1,far:6});
+key.shadow.camera.updateProjectionMatrix();
+key.shadow.bias=-.00008;key.shadow.normalBias=.0015;
+function updateShadowMap(){
+  const c=camera.quaternion,g=garment,p=presentGarment;
+  const sig=[state.selfShadows,state.light,state.lightLocked,c.x,c.y,c.z,c.w,g.position.x,g.position.z,g.rotation.y,p.visible,p.position.x,p.position.z,p.rotation.y,activeGarmentId].join('/');
+  const moving=Math.abs(uni.uWind.value)>.00001||Math.abs(uni.uTwist.value)>.00001;
+  const now=performance.now();
+  // Reuse the depth map when still; moving cloth refreshes at up to 30 Hz.
+  if(state.selfShadows&&(shadowDirty||sig!==lastShadowSignature||moving&&now-lastShadowTime>1000/30)){
+    const extent=presentGarment.visible?1.15:.72;
+    if(key.shadow.camera.right!==extent){key.shadow.camera.left=-extent;key.shadow.camera.right=extent;key.shadow.camera.updateProjectionMatrix();}
+    renderer.shadowMap.needsUpdate=true;lastShadowTime=now;shadowDirty=false;lastShadowSignature=sig;
+  }
+}
+function syncFabricEffects(){
+  const strength=state.fabricEmission/100;
+  effectUniforms.uFabricGlow.value=state.fabricGlow?strength:0;
+  effectUniforms.uFabricUV.value=state.fabricUV?strength:0;
+}
 const LIGHT_PRESETS={
   studio:{label:'Studio',description:'Soft neutral studio light for judging fabric and print.',
     exposure:.98,hemi:.32,hemiSky:'#ffffff',hemiGround:'#c2bdb6',
@@ -128,28 +160,38 @@ const LIGHT_PRESETS={
     key:2.25,keyColor:'#fff1d7',keyPos:[1.5,2.4,1.3],
     fill:.30,fillColor:'#c2d8ff',fillPos:[-1.5,1.2,1.0],
     rim:.62,rimColor:'#e0eaff',rimPos:[-.7,1.5,-1.8]},
-  night:{label:'City night',description:'Amber street light with cyan and violet city reflections.',
-    exposure:1.02,hemi:.20,hemiSky:'#a5b9ed',hemiGround:'#433952',
-    key:1.75,keyColor:'#ffc078',keyPos:[-1.7,1.3,1.4],
-    fill:1.20,fillColor:'#5bccff',fillPos:[1.5,.6,.95],
-    rim:1.80,rimColor:'#b293ff',rimPos:[.8,1.1,-1.6]}
+  night:{label:'City night',description:'Green and magenta city lights. Edit either color below.',
+    exposure:1.0,hemi:.10,hemiSky:'#a5b9ed',hemiGround:'#433952',
+    key:1.65,keyColor:NIGHT_DEFAULTS.green,keyPos:[-1.7,1.3,1.4],
+    fill:.48,fillColor:NIGHT_DEFAULTS.magenta,fillPos:[1.5,.6,.95],
+    rim:1.15,rimColor:NIGHT_DEFAULTS.magenta,rimPos:[.8,1.1,-1.6]},
+  uv:{label:'Black light',description:'Dark violet room with a little neutral fill. UV-reactive materials fluoresce; glow-in-the-dark materials remain luminous.',
+    exposure:1,hemi:.035,hemiSky:'#77718f',hemiGround:'#252030',
+    key:.28,keyColor:'#a5a1bc',keyPos:[-1.65,1.85,1.35],
+    fill:.07,fillColor:'#9a78fa',fillPos:[1.55,.45,1],
+    rim:.35,rimColor:'#6633ef',rimPos:[.45,1.1,-1.8]}
 };
 function applyLightingPreset(){
   const p=LIGHT_PRESETS[state.light]||LIGHT_PRESETS.studio,power=state.lightPower/100;
   renderer.toneMappingExposure=p.exposure;scene.environment=environments[state.light]||environments.studio;
-  lightEnvironmentPower.value=power;
+  lightEnvironmentPower.value=power*(state.light==='studio'?.55:state.light==='day'?.65:.45);
+  effectUniforms.uBlackLight.value=state.light==='uv'?power:0;
+  document.getElementById('nightColors').hidden=state.light!=='night';
+  shadowDirty=true;
   hemi.color.set(p.hemiSky);hemi.groundColor.set(p.hemiGround);hemi.intensity=p.hemi*power;
-  key.color.set(p.keyColor);key.intensity=p.key*power;key.position.set(...p.keyPos);
-  fil.color.set(p.fillColor);fil.intensity=p.fill*power;fil.position.set(...p.fillPos);
-  rim.color.set(p.rimColor);rim.intensity=p.rim*power;rim.position.set(...p.rimPos);
+  key.color.set(state.light==='night'?state.nightGreen:p.keyColor);key.intensity=p.key*power;key.position.set(...p.keyPos);
+  fil.color.set(state.light==='night'?state.nightMagenta:p.fillColor);fil.intensity=p.fill*power;fil.position.set(...p.fillPos);
+  rim.color.set(state.light==='night'?state.nightMagenta:p.rimColor);rim.intensity=p.rim*power;rim.position.set(...p.rimPos);
   document.getElementById('lightDescription').textContent=p.description;
 }
 function updateLightLock(){
+  if(!lightReferenceReady){lightReference.copy(camera.quaternion);lightReferenceReady=true;}
   if(state.lightLocked){
     lightRig.quaternion.copy(camera.quaternion).multiply(lightInverse.copy(lightReference).invert());
-    lightRotationMatrix.makeRotationFromQuaternion(lightInverse.copy(lightRig.quaternion).invert());
-    lightEnvironmentRotation.value.setFromMatrix4(lightRotationMatrix);
-  }else{lightRig.quaternion.identity();lightEnvironmentRotation.value.identity();}
+  }
+  lightRotationMatrix.makeRotationFromQuaternion(lightInverse.copy(lightRig.quaternion).invert());
+  lightEnvironmentRotation.value.setFromMatrix4(lightRotationMatrix);
+
 }
 
 // soft studio pools
@@ -263,25 +305,56 @@ const VERT_HEAD=`
 
 const FRAG_HEAD=`
 uniform float uArtRough,uHasArtwork;
-uniform sampler2D uArtwork;
+uniform sampler2D uArtwork,uArtworkEffects;
+uniform float uHasEffects,uBlackLight,uFabricGlow,uFabricUV,uFabricReactive;
+vec3 kFabricColor=vec3(0.0),kArtColor=vec3(0.0);
+vec2 kArtEffects=vec2(0.0);
 varying vec2 vArtworkUv;
 float kArtworkMask=0.0;`;
 const FRAG_PRINT=`{
-kArtworkMask=0.0;
+kArtworkMask=0.0;kFabricColor=diffuseColor.rgb;
 if(gl_FrontFacing&&uHasArtwork>0.5&&vArtworkUv.x>=0.0&&vArtworkUv.y>=0.0){
   vec4 art=texture2D(uArtwork,vArtworkUv);
   diffuseColor.rgb=diffuseColor.rgb*(1.0-art.a)+art.rgb;
-  kArtworkMask=art.a;
+  kArtworkMask=art.a;kArtColor=art.rgb/max(art.a,.0001);
+  if(uHasEffects>.5)kArtEffects=texture2D(uArtworkEffects,vArtworkUv).rg*4.0;
 }
 if(!gl_FrontFacing)diffuseColor.rgb*=0.60;
 }`;
 
+// This is an appearance preview: emission brightens the surface, without
+// adding costly per-layer lights or bloom that would blur the print edges.
+const FRAG_EMISSION=`
+vec3 kIncident=(reflectedLight.directDiffuse+reflectedLight.indirectDiffuse)/max(diffuseColor.rgb,vec3(.025));
+float kLight=dot(kIncident,vec3(.2126,.7152,.0722));
+float kDark=1.0-smoothstep(.08,.65,kLight);
+// Virtual UV excitation uses the shadowed direct light, so recessed fabric
+// does not become a uniformly luminous silhouette under black light.
+float kUV=uBlackLight*clamp(dot(reflectedLight.directDiffuse/max(diffuseColor.rgb,vec3(.025)),vec3(.2126,.7152,.0722))*14.0,.015,1.0);
+float kGlow=kArtEffects.r*kDark+kArtEffects.g*kUV;
+float kFabric=(uFabricGlow*kDark+uFabricUV*kUV)*uFabricReactive;
+totalEmissiveRadiance+=kArtColor*kGlow+kFabricColor*kFabric*(1.0-kArtworkMask);
+`;
+function makeFabricDepthMaterial(){
+  const depth=new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking,side:THREE.DoubleSide});
+  depth.onBeforeCompile=sh=>{
+    Object.assign(sh.uniforms,uni);
+    sh.vertexShader=VERT_HEAD+sh.vertexShader;
+    sh.vertexShader=sh.vertexShader.replace('#include <begin_vertex>',
+      '#include <begin_vertex>\n transformed += kFabricDisp(aMotionAnchor,aFlow);');
+  };
+  depth.customProgramCacheKey=()=> 'orb-motion-depth-16';
+  return depth;
+}
 function patchFabricMaterial(mat){
   mat.userData.orbFabric=true;
   mat.onBeforeCompile=sh=>{
     Object.assign(sh.uniforms, uni);
     const artwork=getArtworkMap(mat.userData.orbMeshId||1);
     sh.uniforms.uArtwork=artwork.map;sh.uniforms.uHasArtwork=artwork.has;
+    sh.uniforms.uArtworkEffects=artwork.effects;sh.uniforms.uHasEffects=artwork.hasEffects;
+    Object.assign(sh.uniforms,effectUniforms);
+    sh.uniforms.uFabricReactive={value:mat.userData.orbTintable?1:0};
     sh.uniforms.uLightEnvRotation=lightEnvironmentRotation;sh.uniforms.uLightEnvPower=lightEnvironmentPower;
     const environmentChunk=THREE.ShaderChunk.envmap_physical_pars_fragment
       .replace('inverseTransformDirection( normal, viewMatrix );','uLightEnvRotation * inverseTransformDirection( normal, viewMatrix );')
@@ -313,10 +386,11 @@ function patchFabricMaterial(mat){
     sh.fragmentShader = FRAG_HEAD + '\n' + sh.fragmentShader;
     sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>',
       '#include <map_fragment>\n' + FRAG_PRINT);
+    sh.fragmentShader=sh.fragmentShader.replace('#include <aomap_fragment>','#include <aomap_fragment>\n'+FRAG_EMISSION);
     sh.fragmentShader = sh.fragmentShader.replace('#include <roughnessmap_fragment>',
       '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, clamp(uArtRough, 0.02, 1.0), clamp(kArtworkMask, 0.0, 1.0));');
   };
-  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v08-light-lock';
+  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v16-emission-shadow';
   mat.needsUpdate=true;
   return mat;
 }
@@ -370,10 +444,12 @@ function rebuildPresentClone(show=false){
   // Share the current geometry, but use lightweight material copies so the
   // incoming shirt can fade at the viewport edge without affecting the
   // original shirt.
+  const depthById=new Map();current.traverse(o=>{if(o.isMesh)depthById.set(o.userData.orbMeshId,o.customDepthMaterial);});
   const clone=current.clone(true);
   clone.traverse(o=>{
     if(!o.isMesh) return;
     o.frustumCulled=false;
+    o.customDepthMaterial=depthById.get(o.userData.orbMeshId);
 
     if(Array.isArray(o.material)){
       o.material=o.material.map(src=>{
@@ -429,6 +505,7 @@ function ensurePrintIslands(geometry){
 }
 let current=null, isCustom=false;
 function setGarment(obj, custom){
+  shadowDirty=true;
   resetArtworkMaps();
   artLayers.forEach(layer=>layer.anchor=null);artHistory.length=0;
   // Remove the old presentation clone before disposing any geometry it shares.
@@ -520,6 +597,8 @@ function adopt(root){
       return patchFabricMaterial(material);
     });
     const mesh=new THREE.Mesh(g,Array.isArray(o.material)?materials:materials[0]);
+    mesh.castShadow=true;mesh.receiveShadow=true;
+    mesh.customDepthMaterial=makeFabricDepthMaterial();
     mesh.name=o.name;
     mesh.userData.orbMeshId=meshId;
     out.add(mesh);
@@ -657,7 +736,7 @@ function disposeImported(root){
 }
 function disposeModel(root){
   const textures=new Set();
-  root.traverse(o=>{if(!o.isMesh)return;o.geometry.dispose();for(const m of Array.isArray(o.material)?o.material:[o.material]){for(const v of Object.values(m))if(v?.isTexture)textures.add(v);m.dispose();}});
+  root.traverse(o=>{if(!o.isMesh)return;o.customDepthMaterial?.dispose();o.geometry.dispose();for(const m of Array.isArray(o.material)?o.material:[o.material]){for(const v of Object.values(m))if(v?.isTexture)textures.add(v);m.dispose();}});
   for(const t of textures)t.dispose();
 }
 
@@ -795,7 +874,7 @@ const THEMES={
   dark:{bg:BRAND.dark.paper},
 };
 const systemColorScheme=matchMedia('(prefers-color-scheme: dark)');
-const state={ themeMode:'system', theme:'light', blank:0, garmentCustom:'#D8D8D8', artRoughness:97, shirtColorsCustomized:false, bg:THEMES.light.bg, dotGrid:true, gridType:'square', gridColor:BRAND.light.grid, gridColorCustom:false, gridStroke:0.5, gridScale:35, gridCharSize:45, light:'studio', lightPower:100, lightLocked:false, wind:1, view:'angle',
+const state={ themeMode:'system', theme:'light', blank:0, garmentCustom:'#D8D8D8', artRoughness:97, shirtColorsCustomized:false, bg:THEMES.light.bg, dotGrid:true, gridType:'square', gridColor:BRAND.light.grid, gridColorCustom:false, gridStroke:0.5, gridScale:35, gridCharSize:45, light:'studio', lightPower:100, lightLocked:true, nightGreen:NIGHT_DEFAULTS.green, nightMagenta:NIGHT_DEFAULTS.magenta, selfShadows:true, fabricGlow:false, fabricUV:false, fabricEmission:100, wind:1, view:'angle',
   inertia:{enabled:true,strength:15,ramp:100,settle:0.5,elasticity:60,overshoot:70,release:70,sensitivity:50,bias:25,sleeve:100,arc:100},
   focus:new THREE.Vector3(0,.02,0),focusTarget:new THREE.Vector3(0,.02,0),az:0.62, el:1.30, r:1.55, taz:0.62, tel:1.30, tr:1.55, present:false };
 const WIND_LEVELS=[0,0.011,0.024];
@@ -1114,7 +1193,7 @@ addEventListener('pointercancel',endOrbitDrag);
 canvas.addEventListener('wheel',e=>{
   e.preventDefault();
   if(state.present && isMobilePresent()) return;
-  state.tr=clamp(state.tr+e.deltaY*0.0012,state.focusTarget.y>.1?.3:.72,2.6);
+  zoomGarment(e.deltaY*.0012);
 },{passive:false});
 canvas.addEventListener('touchmove',e=>{
   if(e.touches.length!==2) return;
@@ -1129,7 +1208,7 @@ canvas.addEventListener('touchmove',e=>{
 
   const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,
                      e.touches[0].clientY-e.touches[1].clientY);
-  if(pinch) state.tr=clamp(state.tr+(pinch-d)*0.004,state.focusTarget.y>.1?.3:.72,2.6);
+  if(pinch)zoomGarment((pinch-d)*.004);
   pinch=d;
 },{passive:false});
 canvas.addEventListener('touchend',()=>{pinch=0;});
@@ -1142,6 +1221,24 @@ canvas.addEventListener('keydown',e=>{
   state.taz+=k[0]; state.tel=clamp(state.tel-k[1],0.55,2.05); setView(null);
 });
 
+let inspectionFocus=null;
+const garmentCenter=new THREE.Vector3(0,.02,0);
+function zoomGarment(delta){
+  state.tr=clamp(state.tr+delta,inspectionFocus?.3:.72,2.6);
+  updateInspectionFocus();
+}
+function updateInspectionFocus(){
+  if(!inspectionFocus)return;
+  const end=(GARMENT_CATALOG.find(g=>g.id===activeGarmentId)?.distance||1.55)*.88;
+  const t=clamp((state.tr-inspectionFocus.distance)/(end-inspectionFocus.distance),0,1);
+  state.focusTarget.lerpVectors(inspectionFocus.point,garmentCenter,t*t*(3-2*t));
+  if(t===1){state.focusTarget.copy(garmentCenter);inspectionFocus=null;}
+}
+function leaveInspection(){
+  if(!inspectionFocus)return;
+  inspectionFocus=null;state.focusTarget.copy(garmentCenter);
+  state.tr=GARMENT_CATALOG.find(g=>g.id===activeGarmentId)?.distance||1.55;
+}
 const VIEWS={front:[0,1.45],angle:[0.62,1.30],back:[Math.PI,1.45]};
 function viewArtwork(slot){
   const meta=ART_META[slot],q=UV_PROFILES[slot];
@@ -1149,6 +1246,7 @@ function viewArtwork(slot){
   if(q&&['Hood','Inside'].includes(meta.side)){
     state.focusTarget.fromArray(q.point);state.focusTarget.y-=.350;
     state.tr=meta.side==='Inside'?.48:.68;
+    inspectionFocus={point:state.focusTarget.clone(),distance:state.tr};
   }
 }
 function setView(v){
@@ -1156,7 +1254,7 @@ function setView(v){
   document.querySelectorAll('#segView button')
     .forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===v)));
   if(!v) return;
-  state.focusTarget.set(0,.02,0);
+  inspectionFocus=null;state.focusTarget.set(0,.02,0);
   state.tr=GARMENT_CATALOG.find(g=>g.id===activeGarmentId)?.distance||1.55;
   const special={insideleft:[-.1,1.45],insideright:[.1,1.45],neck:[0,1.12]};
   const [az,el]=special[v]||(v==='left'?[Math.PI/2,1.3]:v==='right'?[-Math.PI/2,1.3]:VIEWS[v]);
@@ -1242,9 +1340,10 @@ const staticTips=[
   ['#segView button[data-v="angle"]','Camera 2: move to the default three-quarter view.'],
   ['#segView button[data-v="back"]','Camera 3: move to a straight back view.'],
 
-  ['#segLight button[data-v="soft"]','Lighting 1: broad soft studio light with the flattest, most even result.'],
-  ['#segLight button[data-v="key"]','Lighting 2: stronger directional key light for more form and contrast.'],
-  ['#segLight button[data-v="rim"]','Lighting 3: studio setup with stronger edge separation and directional contrast.'],
+  ['#segLight button[data-v="studio"]','Soft neutral studio lighting for evaluating fabric and print.'],
+  ['#segLight button[data-v="day"]','Warm outdoor daylight with cool sky fill.'],
+  ['#segLight button[data-v="night"]','Green and magenta city lights, with editable colors below.'],
+  ['#segLight button[data-v="uv"]','Dark violet lighting for checking UV-reactive fabric and artwork.'],
 
   ['#segWind button[data-v="0"]','Wind 1: no continuous breeze deformation. Rotation inertia can still move the shirt.'],
   ['#segWind button[data-v="1"]','Wind 2: gentle continuous fabric movement.'],
@@ -1422,7 +1521,32 @@ document.getElementById('lightPower').addEventListener('input',event=>{
   state.lightPower=Number(event.target.value);document.getElementById('lightPowerValue').textContent=state.lightPower+'%';applyLightingPreset();
 });
 document.getElementById('lightLock').addEventListener('change',event=>{
-  state.lightLocked=event.target.checked;lightReference.copy(camera.quaternion);updateLightLock();
+  state.lightLocked=!event.target.checked;
+  // Resume following from the current rig pose, avoiding a jump on toggle.
+  lightReference.copy(lightRig.quaternion).invert().multiply(camera.quaternion);
+  updateLightLock();shadowDirty=true;
+});
+let nightEnvironmentTimer;
+for(const [id,prop] of [['nightGreen','nightGreen'],['nightMagenta','nightMagenta']]){
+  document.getElementById(id).addEventListener('input',e=>{
+    state[prop]=e.target.value;document.getElementById(id+'Chip').style.background=e.target.value;
+    applyLightingPreset();clearTimeout(nightEnvironmentTimer);
+    nightEnvironmentTimer=setTimeout(()=>{
+      const old=environments.night;
+      environments.night=makeEnvironment('night',{green:state.nightGreen,magenta:state.nightMagenta});
+      applyLightingPreset();environmentTargets.get(old)?.dispose();environmentTargets.delete(old);
+    },140);
+  });
+}
+document.getElementById('selfShadows').addEventListener('change',e=>{
+  state.selfShadows=e.target.checked;renderer.shadowMap.enabled=state.selfShadows;shadowDirty=true;
+  scene.traverse(o=>{if(o.isMesh)for(const m of Array.isArray(o.material)?o.material:[o.material])m.needsUpdate=true;});
+});
+for(const [id,prop] of [['fabricGlow','fabricGlow'],['fabricUV','fabricUV']])document.getElementById(id).addEventListener('change',e=>{
+  state[prop]=e.target.checked;syncFabricEffects();
+});
+document.getElementById('fabricEmission').addEventListener('input',e=>{
+  state.fabricEmission=Number(e.target.value);document.getElementById('fabricEmissionValue').textContent=state.fabricEmission+'%';syncFabricEffects();
 });
 segment('segView',v=>setView(v));
 function setColorMode(mode){
@@ -1604,7 +1728,7 @@ artworkQuad.setAttribute('uv',new THREE.Float32BufferAttribute([0,0,1,0,1,1,0,1]
 artworkQuad.setIndex([0,1,2,0,2,3]);
 const ARTWORK_VERTEX=`varying vec2 vArtUv;
 void main(){vArtUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`;
-const ARTWORK_FRAGMENT=`uniform sampler2D uSource;uniform float uOriginal,uTint;
+const ARTWORK_FRAGMENT=`uniform sampler2D uSource;uniform float uOriginal,uTint,uEffectsPass;uniform vec2 uEffects;
 uniform vec3 uInkColor;varying vec2 vArtUv;
 void main(){
   vec4 art=texture2D(uSource,vArtUv);
@@ -1624,7 +1748,7 @@ void main(){
   }
   // Keep fractional coverage intact AFTER filtering. Thresholding it here
   // destroys antialiasing, soft edges, and fine details at small print sizes.
-  gl_FragColor=vec4(color,art.a);
+  gl_FragColor=vec4(uEffectsPass>.5?vec3(uEffects,0.0):color,art.a);
 }`;
 function requestArtworkRender(layer=null){
   artworkDirty=true;
@@ -1634,7 +1758,7 @@ function requestArtworkRender(layer=null){
 }
 function getArtworkMap(meshId){
   if(!artworkMaps.has(meshId))artworkMaps.set(meshId,{
-    map:{value:null},has:{value:0},target:null,layoutKey:'',geometry:null,
+    map:{value:null},has:{value:0},effects:{value:null},hasEffects:{value:0},effectTarget:null,target:null,layoutKey:'',geometry:null,
     tiles:new Map(),scenes:new Map(),quads:new Map(),camera:new THREE.OrthographicCamera(0,1,1,0,-1,1)
   });
   return artworkMaps.get(meshId);
@@ -1642,6 +1766,7 @@ function getArtworkMap(meshId){
 function resetArtworkMaps(){
   for(const map of artworkMaps.values()){
     map.target?.dispose();map.target=null;map.map.value=null;map.has.value=0;
+    map.effectTarget?.dispose();map.effectTarget=null;map.effects.value=null;map.hasEffects.value=0;
     for(const mesh of map.quads.values()){mesh.removeFromParent();mesh.material.dispose();}
     map.quads.clear();map.scenes.clear();map.tiles.clear();map.layoutKey='';map.geometry=null;
   }
@@ -1717,7 +1842,7 @@ function updateArtworkQuad(map,layer,index,total){
   if(!scene){scene=new THREE.Scene();map.scenes.set(q.island,scene);}
   if(!mesh){
     const material=new THREE.ShaderMaterial({
-      uniforms:{uSource:{value:null},uOriginal:{value:1},uTint:{value:0},uInkColor:{value:new THREE.Color()}},
+      uniforms:{uSource:{value:null},uOriginal:{value:1},uTint:{value:0},uEffectsPass:{value:0},uEffects:{value:new THREE.Vector2()},uInkColor:{value:new THREE.Color()}},
       vertexShader:ARTWORK_VERTEX,fragmentShader:ARTWORK_FRAGMENT,
       transparent:true,depthTest:false,depthWrite:false,side:THREE.DoubleSide,
       forceSinglePass:true,toneMapped:false
@@ -1741,6 +1866,32 @@ function updateArtworkQuad(map,layer,index,total){
   uniforms.uSource.value=image.texture;uniforms.uOriginal.value=layer.mode==='original'?1:0;
   uniforms.uTint.value=layer.mode==='tint'?1:0;
   uniforms.uInkColor.value.set(hex);
+  uniforms.uEffects.value.set(layer.glow?(layer.emission??100)/400:0,layer.uvReactive?(layer.emission??100)/400:0);
+}
+function prepareEffectMap(map,layers){
+  const enabled=layers.some(l=>l.visible&&(l.glow||l.uvReactive));
+  map.hasEffects.value=enabled?1:0;
+  if(!enabled){map.effectTarget?.dispose();map.effectTarget=null;map.effects.value=null;return false;}
+  // Only allocate when needed. A quarter-resolution linear mask preserves the
+  // existing full-resolution color atlas and caps extra storage at 16 MiB.
+  const w=map.target.width/4,h=map.target.height/4;
+  if(map.effectTarget?.width===w&&map.effectTarget?.height===h)return false;
+  map.effectTarget?.dispose();
+  map.effectTarget=new THREE.WebGLRenderTarget(w,h,{depthBuffer:false,stencilBuffer:false,minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter});
+  map.effects.value=map.effectTarget.texture;return true;
+}
+function renderEffectPanels(map,dirty){
+  if(!map.effectTarget)return;
+  const target=map.effectTarget;
+  for(const id of dirty){
+    const tile=map.tiles.get(id),panel=map.scenes.get(id);if(!panel)continue;
+    for(const quad of panel.children)quad.material.uniforms.uEffectsPass.value=1;
+    target.scissorTest=true;target.scissor.set(tile.left/4,tile.top/4,tile.size/4,tile.size/4);
+    renderer.setRenderTarget(target);renderer.clear(true,false,false);
+    target.scissor.set((tile.left+4)/4,(tile.top+4)/4,(tile.size-8)/4,(tile.size-8)/4);
+    renderer.setRenderTarget(target);renderer.render(panel,map.camera);
+    for(const quad of panel.children)quad.material.uniforms.uEffectsPass.value=0;
+  }
 }
 function flushArtwork(){
   if(!artworkDirty||!current)return;
@@ -1758,8 +1909,9 @@ function flushArtwork(){
       for(const [id,quad] of map.quads)if(!ids.has(id)){quad.removeFromParent();quad.material.dispose();map.quads.delete(id);}
       for(const [id,scene] of map.scenes)if(!map.tiles.has(id)){scene.clear();map.scenes.delete(id);}
       map.has.value=layers.some(layer=>layer.visible)?1:0;
-      if(!map.target)return;
-      const dirty=panels.filter(id=>all||changed||artworkDirtyPanels.has(`${meshId}:${id}`));
+      if(!map.target){map.effectTarget?.dispose();map.effectTarget=null;map.effects.value=null;map.hasEffects.value=0;return;}
+      const effectsChanged=prepareEffectMap(map,layers);
+      const dirty=panels.filter(id=>all||changed||effectsChanged||artworkDirtyPanels.has(`${meshId}:${id}`));
       layers.forEach((layer,i)=>{if(dirty.includes(layerProfile(layer).island))updateArtworkQuad(map,layer,i,layers.length);});
       for(const id of dirty){
         const tile=map.tiles.get(id),target=map.target;
@@ -1771,6 +1923,7 @@ function flushArtwork(){
         renderer.setRenderTarget(target);
         const scene=map.scenes.get(id);if(scene)renderer.render(scene,map.camera);
       }
+      renderEffectPanels(map,dirty);
     });
     artworkDirty=false;artworkDirtyAll=false;artworkDirtyPanels.clear();
   }finally{
@@ -1804,7 +1957,7 @@ function uniqueArtworkName(name,names){
 }
 function initializeLayer(entry,slot,anchor=null,names=new Set(artLayers.map(e=>e.name.toLocaleLowerCase()))){
   const name=uniqueArtworkName(entry.name,names);
-  return {...entry,name,autoName:name,nameEdited:false,id:'art-'+nextArtId++,slot,visible:true,anchor:anchor?structuredClone(anchor):null,
+  return {...entry,name,autoName:name,nameEdited:false,id:'art-'+nextArtId++,slot,visible:true,glow:false,uvReactive:false,emission:100,anchor:anchor?structuredClone(anchor):null,
     placement:{x:0,y:0,scale:ART_META[slot].scale/100,rot:0}};
 }
 function beginArtworkRename(id){
@@ -1855,6 +2008,10 @@ function selectArtwork(id){
 }
 function syncArtControls(){
   const entry=artEntry();if(!entry)return;
+  document.getElementById('artGlow').checked=!!entry.glow;
+  document.getElementById('artUV').checked=!!entry.uvReactive;
+  document.getElementById('artEmission').value=entry.emission??100;
+  document.getElementById('artEmissionValue').textContent=(entry.emission??100)+'%';
   const A=entry.placement,vals={x:A.x/.0018,y:A.y/.0018,scale:A.scale*100,rot:A.rot};
   for(const prop of ['x','y','scale','rot']){
     const pair=artControlPair(entry.slot,prop),value=Math.round(vals[prop]);
@@ -2124,7 +2281,7 @@ document.getElementById('artReplace').onclick=()=>openArtUpload(activeArtId,'rep
 document.getElementById('artUndo').onclick=undoArtwork;
 document.getElementById('artView').onclick=()=>viewArtwork(activeArtSlot);
 document.getElementById('artClose').onclick=()=>{
-  const id=activeArtId;selectArtwork(null);layerRows.get(id)?.querySelector('.art-select').focus();
+  leaveInspection();const id=activeArtId;selectArtwork(null);layerRows.get(id)?.querySelector('.art-select').focus();
 };
 document.getElementById('artRaise').onclick=()=>moveArtwork(activeArtId,-1);
 document.getElementById('artLower').onclick=()=>moveArtwork(activeArtId,1);
@@ -2134,6 +2291,17 @@ document.getElementById('artMode').onchange=e=>{
   if(entry.mode!=='original'&&!entry.inkCustom)entry.inkCustom=inkHex(entry);
   requestArtworkRender(entry);syncArtworkUi();
 };
+for(const [id,prop] of [['artGlow','glow'],['artUV','uvReactive']])document.getElementById(id).onchange=e=>{
+  const entry=artEntry();if(artLoading||!entry)return;
+  recordArtUndo();entry[prop]=e.target.checked;requestArtworkRender(entry);syncArtControls();
+};
+let emissionEditingId=null;
+document.getElementById('artEmission').addEventListener('input',e=>{
+  const entry=artEntry();if(artLoading||!entry)return;
+  if(emissionEditingId!==entry.id){recordArtUndo();emissionEditingId=entry.id;}
+  entry.emission=Number(e.target.value);requestArtworkRender(entry);syncArtControls();
+});
+for(const event of ['change','blur'])document.getElementById('artEmission').addEventListener(event,()=>emissionEditingId=null);
 document.getElementById('artFit').onchange=e=>{
   const entry=artEntry();if(artLoading||!entry)return;
   recordArtUndo();entry.fit=e.target.checked;requestArtworkRender(entry);syncArtworkUi();
@@ -2616,6 +2784,7 @@ function draw(){
   renderer.setViewport(vx,vy,vr.width,vr.height);
   renderer.setScissor(vx,vy,vr.width,vr.height);
   renderer.setScissorTest(true);
+  updateShadowMap();
   renderer.render(scene,camera);
   renderer.setScissorTest(false);
 }

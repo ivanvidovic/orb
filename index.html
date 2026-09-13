@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>ORB Garment Studio</title>
 <script src="./assets/js/brand.js"></script>
-<link rel="stylesheet" href="./assets/css/studio.css?v=15">
+<link rel="stylesheet" href="./assets/css/studio.css?v=16">
 </head>
 <body data-theme="light">
 <script>(()=>{const theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.body.dataset.theme=theme;document.documentElement.dataset.theme=theme;document.documentElement.style.colorScheme=theme;})();</script>
@@ -25,15 +25,6 @@
         <button type="button" data-v="front" aria-pressed="false" aria-label="Camera 1: Front view" title="1 · Front">1</button>
         <button type="button" data-v="angle" aria-pressed="true" aria-label="Camera 2: Angle view" title="2 · Angle">2</button>
         <button type="button" data-v="back" aria-pressed="false" aria-label="Camera 3: Back view" title="3 · Back">3</button>
-      </div>
-    </div>
-
-    <div class="quickGroup">
-      <div class="quickLabel">Lighting</div>
-      <div class="quickSeg" id="segLight" aria-label="Lighting preset">
-        <button type="button" data-v="studio" aria-pressed="true" aria-label="Lighting 1: Studio" title="1 · Studio">1</button>
-        <button type="button" data-v="day" aria-pressed="false" aria-label="Lighting 2: Outdoor day" title="2 · Outdoor day">2</button>
-        <button type="button" data-v="night" aria-pressed="false" aria-label="Lighting 3: City night" title="3 · City night">3</button>
       </div>
     </div>
 
@@ -98,7 +89,7 @@
 <p id="artEmpty" hidden>Drop an image or choose Add artwork to get started.</p>
 <div id="artEditorParking" hidden>
 <section id="artEditor" hidden aria-label="Selected artwork controls">
-  <div class="art-editor-head"><strong id="artEditorName">Back</strong><button id="artPosition" type="button" hidden>Set position</button><button id="artView" type="button">View on garment</button><button id="artClose" type="button" aria-label="Close artwork controls">Done</button></div>
+  <div class="art-editor-head"><strong id="artEditorName" class="sr-only">Artwork placement</strong><button id="artPosition" type="button" hidden>Set position</button><button id="artView" type="button">View on garment</button><button id="artClose" type="button" aria-label="Close artwork controls">Done</button></div>
   <div class="art-toolbar"><button id="artAdd" type="button" title="Add separate layers at this placement">+ Add here</button><button id="artReplace" type="button" title="Replace the selected graphic">Replace image</button></div>
   <div class="art-mode-row">
     <label for="artMode">Render as</label>
@@ -112,6 +103,12 @@
     </div>
   </div>
   <label class="art-fit"><input id="artFit" type="checkbox">Fit visible artwork <span title="Ignore transparent margins when sizing. Opaque backgrounds stay intact.">ⓘ</span></label>
+  <div class="emission-controls" role="group" aria-label="Artwork light response">
+    <label class="light-lock"><input id="artGlow" type="checkbox">Glow in the dark</label>
+    <label class="light-lock"><input id="artUV" type="checkbox">UV reactive</label>
+    <div class="grphd"><label class="lbl" for="artEmission">Glow intensity</label><output class="lbl" id="artEmissionValue">100%</output></div>
+    <input id="artEmission" type="range" min="0" max="300" step="5" value="100" aria-label="Artwork glow intensity">
+  </div>
   <div class="art-transforms"><div class="art-control"><label for="art-x">Left / right</label><input id="art-x" data-art-range data-prop="x" type="range" min="-100" max="100" step="1"><input class="num" data-art-num data-prop="x" type="number" min="-100" max="100" step="1" aria-label="Left / right value"><button type="button" data-reset-art-one="x" aria-label="Reset left / right" title="Reset left / right">↺</button></div>
 <div class="art-control"><label for="art-y">Up / down</label><input id="art-y" data-art-range data-prop="y" type="range" min="-100" max="100" step="1"><input class="num" data-art-num data-prop="y" type="number" min="-100" max="100" step="1" aria-label="Up / down value"><button type="button" data-reset-art-one="y" aria-label="Reset up / down" title="Reset up / down">↺</button></div>
 <div class="art-control"><label for="art-scale">Scale</label><input id="art-scale" data-art-range data-prop="scale" type="range" min="25" max="200" step="1"><input class="num" data-art-num data-prop="scale" type="number" min="25" max="200" step="1" aria-label="Scale value"><button type="button" data-reset-art-one="scale" aria-label="Reset scale" title="Reset scale">↺</button></div>
@@ -126,6 +123,12 @@
           <div class="subsec">
             <div class="grphd"><span class="lbl">Garment Color</span><span class="lbl" id="blankName">Chalk</span></div>
             <div class="swatches" id="swatches" role="radiogroup" aria-label="Garment color"></div>
+<div class="emission-controls" role="group" aria-label="Fabric light response">
+    <label class="light-lock"><input id="fabricGlow" type="checkbox">Glow in the dark</label>
+    <label class="light-lock"><input id="fabricUV" type="checkbox">UV reactive</label>
+    <div class="grphd"><label class="lbl" for="fabricEmission">Glow intensity</label><output class="lbl" id="fabricEmissionValue">100%</output></div>
+    <input id="fabricEmission" type="range" min="0" max="300" step="5" value="100" aria-label="Fabric glow intensity">
+  </div>
           </div>
 
 
@@ -147,10 +150,23 @@
       <summary>Environment</summary>
       <div class="sectionBody envBody">
         <div class="envItem lightingControls">
-          <div class="grphd"><span class="lbl">Light intensity</span><span class="lbl" id="lightPowerValue">100%</span></div>
-          <input id="lightPower" type="range" min="40" max="140" value="100" step="1" aria-label="Light intensity">
-          <label class="light-lock"><input id="lightLock" type="checkbox">Lock lighting to view</label>
-          <p id="lightDescription">Soft neutral studio light for judging fabric and print.</p>
+          <span class="lbl">Lighting</span>
+          <div class="quickSeg" id="segLight" aria-label="Lighting preset">
+            <button type="button" data-v="studio" aria-pressed="true">Studio</button>
+            <button type="button" data-v="day" aria-pressed="false">Outdoor day</button>
+            <button type="button" data-v="night" aria-pressed="false">City night</button>
+            <button type="button" data-v="uv" aria-pressed="false">Black light</button>
+          </div>
+          <p id="lightDescription" aria-live="polite">Soft neutral studio light for judging fabric and print.</p>
+          <div id="nightColors" hidden>
+            <label class="night-color">Key light <span class="sw custom colorSingle"><i id="nightGreenChip" style="background:#73ff68"></i><input id="nightGreen" type="color" value="#73ff68" aria-label="Night key light color"></span></label>
+            <label class="night-color">Fill / rim <span class="sw custom colorSingle"><i id="nightMagentaChip" style="background:#ee53bd"></i><input id="nightMagenta" type="color" value="#ee53bd" aria-label="Night fill and rim light color"></span></label>
+          </div>
+          <div class="grphd"><label class="lbl" for="lightPower">Light intensity</label><output class="lbl" id="lightPowerValue">100%</output></div>
+          <input id="lightPower" type="range" min="0" max="140" value="100" step="1" aria-label="Light intensity">
+          <label class="light-lock"><input id="lightLock" type="checkbox">Fix lights in scene</label>
+          <p class="control-note">Unchecked: lighting follows your view.</p>
+          <label class="light-lock"><input id="selfShadows" type="checkbox" checked>Garment self-shadows</label>
         </div>
         <div class="envItem">
           <div class="pickerline"><span class="lbl">Background Color</span><label class="sw custom colorSingle" aria-label="Background color" title="Background color"><i id="bgColorChip" style="background:#f4f4f4"></i><input id="bgCustom" type="color" value="#f4f4f4" aria-label="Background color"></label></div>
@@ -280,7 +296,7 @@
       </section></li>
       <li><span class="guideNumber" aria-hidden="true">04</span><section>
         <h3>Preview and export</h3>
-        <p>Drag to rotate; scroll or pinch to zoom. Use the camera, light, and wind presets above. Lighting 1 is Studio, 2 is Outdoor day, and 3 is City night. Adjust intensity in Environment. Lock lighting to view keeps the light angle consistent as you orbit. The middle theme button follows your system’s light or dark appearance. <strong>Environment</strong> controls the background and grid. <strong>Present</strong> hides the interface; <strong>Save Image</strong> exports the current view.</p>
+        <p>Drag to rotate; scroll or pinch to zoom. Use camera and wind presets above. In Environment, choose Studio, Outdoor day, City night, or Black light; adjust light intensity and night colors there. Lighting follows your view by default. Check Fix lights in scene to keep the rig stationary while you orbit. Garment self-shadows add depth to overlapping cloth and can be disabled for performance. The middle theme button follows your system’s light or dark appearance. <strong>Environment</strong> also controls the background and grid. Enable Glow in the dark or UV reactive separately for fabric and artwork layers, then set Glow intensity. Glow becomes visible in darkness and shadow; UV reactivity responds to the Black light preset. These are surface emission previews, without light spill onto nearby cloth. Zoom out from a closeup, or press Done in its artwork controls, to return to the garment center. <strong>Present</strong> hides the interface; <strong>Save Image</strong> exports the current view.</p>
       </section></li>
     </ol>
     <details class="guideAdvanced">
@@ -310,6 +326,6 @@
 })();
 </script>
 
-<script type="module" src="./assets/js/studio.js?v=15"></script>
+<script type="module" src="./assets/js/studio.js?v=16"></script>
 </body>
 </html>
