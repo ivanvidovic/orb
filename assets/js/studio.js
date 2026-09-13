@@ -2475,7 +2475,14 @@ document.getElementById('artMode').onchange=e=>{
 };
 for(const [id,prop] of [['artGlow','glow'],['artUV','uvReactive']])document.getElementById(id).onchange=e=>{
   const entry=artEntry();if(artLoading||!entry)return;
-  recordArtUndo();entry[prop]=e.target.checked;requestArtworkRender(entry);syncArtControls();
+  recordArtUndo();entry[prop]=e.target.checked;
+  if(entry[prop]){
+    entry.mode='ink';
+    if(!entry.inkCustom)entry.inkCustom=inkHex(entry);
+  }
+  requestArtworkRender(entry);syncArtworkUi();
+  // Use the same persistent picker as the swatch, within this user action.
+  if(entry[prop])inkColorInput.click();
 };
 let emissionEditingId=null;
 document.getElementById('artEmission').addEventListener('input',e=>{
