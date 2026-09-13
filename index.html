@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>ORB Garment Studio</title>
 <script src="./assets/js/brand.js"></script>
-<link rel="stylesheet" href="./assets/css/studio.css">
+<link rel="stylesheet" href="./assets/css/studio.css?v=14">
 </head>
 <body data-theme="light">
 <script>(()=>{const theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.body.dataset.theme=theme;document.documentElement.dataset.theme=theme;document.documentElement.style.colorScheme=theme;})();</script>
@@ -31,9 +31,9 @@
     <div class="quickGroup">
       <div class="quickLabel">Lighting</div>
       <div class="quickSeg" id="segLight" aria-label="Lighting preset">
-        <button type="button" data-v="soft" aria-pressed="false" aria-label="Lighting 1: Soft studio" title="1 · Soft studio">1</button>
-        <button type="button" data-v="key" aria-pressed="true" aria-label="Lighting 2: Directional key" title="2 · Directional key">2</button>
-        <button type="button" data-v="rim" aria-pressed="false" aria-label="Lighting 3: Rim studio" title="3 · Rim studio">3</button>
+        <button type="button" data-v="soft" aria-pressed="false" aria-label="Lighting 1: Softbox studio" title="1 · Softbox studio">1</button>
+        <button type="button" data-v="key" aria-pressed="true" aria-label="Lighting 2: Sculpted studio" title="2 · Sculpted studio">2</button>
+        <button type="button" data-v="rim" aria-pressed="false" aria-label="Lighting 3: Edge studio" title="3 · Edge studio">3</button>
       </div>
     </div>
 
@@ -75,20 +75,22 @@
   </div>
 
   <aside id="panel">
-    <details class="sectionFold fadein" open>
-      <summary>Garment Appearance</summary>
-      <div class="sectionBody artworkPrimary">
         <div class="garmentChooser">
-          <label for="garmentSelect">Garment</label>
-          <select id="garmentSelect" aria-label="Garment">
+          <span class="lbl">Garment</span>
+          <select id="garmentSelect" aria-label="Garment" hidden>
             <option value="mens-tee" selected>Men's T-Shirt</option>
             <option value="womens-tee">Women's T-Shirt</option>
             <option value="mens-hoodie">Men's Hoodie</option>
             <option value="womens-hoodie">Women's Hoodie</option>
           </select>
+<div id="garmentButtons" role="group" aria-label="Choose garment"><button type="button" data-garment="mens-tee" aria-pressed="true">Men’s T-Shirt</button><button type="button" data-garment="womens-tee" aria-pressed="false">Women’s T-Shirt</button><button type="button" data-garment="mens-hoodie" aria-pressed="false">Men’s Hoodie</button><button type="button" data-garment="womens-hoodie" aria-pressed="false">Women’s Hoodie</button></div>
           <p id="modelStatus" role="status" aria-live="polite"></p>
           <button id="modelRetry" type="button" hidden>Retry loading</button>
         </div>
+    <details class="sectionFold fadein" open>
+      <summary>Garment Appearance</summary>
+      <div class="sectionBody artworkPrimary">
+
 
         <div id="artWorkspace">
   <div class="art-heading"><span>Artwork</span><button id="artUploadAny" type="button">+ Add artwork</button><button id="artUndo" type="button" disabled>Undo</button></div>
@@ -277,7 +279,7 @@
     </ol>
     <details class="guideAdvanced">
       <summary>Using your own 3D model</summary>
-      <p>Choose one of the four garments at the top of Garment Appearance. Artwork uses each garment’s own UV panels. You can also upload a GLB with embedded textures and non-overlapping UVs. Select an artwork row, choose <strong>Set position</strong>, then tap the model. <strong>Turn around</strong> corrects its orientation; <strong>Restore selection</strong> returns to the built-in garment.</p>
+      <p>Choose one of the four garments at the top of the sidebar. Artwork uses each garment’s own UV panels. You can also upload a GLB with embedded textures and non-overlapping UVs. Select an artwork row, choose <strong>Set position</strong>, then tap the model. <strong>Turn around</strong> corrects its orientation; <strong>Restore selection</strong> returns to the built-in garment.</p>
     </details>
   </div>
   <div class="helpFooter"><span><kbd>Esc</kbd> to close</span><span>orb-tee-11.html</span></div>
@@ -302,6 +304,6 @@
 })();
 </script>
 
-<script type="module" src="./assets/js/studio.js?v=13"></script>
+<script type="module" src="./assets/js/studio.js?v=14"></script>
 </body>
 </html>

@@ -1,3 +1,4 @@
+import {installColorPicker} from './color-picker.js';
 
 const BRAND=window.BRAND;
 document.title=BRAND.title;
@@ -56,7 +57,7 @@ const ART_DEFAULTS=Object.fromEntries(ART_KEYS.map(k=>[k,{x:0,y:0,scale:ART_META
 
 /* =============================== renderer =============================== */
 
-const MOBILE = Math.min(innerWidth,innerHeight)<760 || navigator.maxTouchPoints>1;
+const MOBILE = Math.min(innerWidth,innerHeight)<760 || navigator.maxTouchPoints>0;
 const canvas=document.getElementById('gl'), stage=document.getElementById('stage');
 const patternCanvas=document.getElementById('bgPattern');
 const patternCtx=patternCanvas.getContext('2d');
@@ -78,24 +79,21 @@ scene.background=null;
 const camera=new THREE.PerspectiveCamera(34,1,0.05,40);
 
 scene.environment=(()=>{
-  const W=128,H=64,data=new Uint8Array(W*H*4);
-  for(let j=0;j<H;j++){
-    const el=1-j/(H-1);
-    for(let i=0;i<W;i++){
-      const az=i/(W-1)*Math.PI*2;
-      let l=lerp(0.34,1.0,Math.pow(el,0.75));
-      l+=Math.pow(Math.max(0,Math.cos(az-2.1))*Math.max(0,Math.sin(el*Math.PI*0.9)),6)*0.75;
-      const k=(j*W+i)*4;
-      data[k]=clamp(l*255,0,255); data[k+1]=clamp(l*247,0,255);
-      data[k+2]=clamp(l*235,0,255); data[k+3]=255;
+  const W=256,H=128,data=new Float32Array(W*H*4);
+  const boxes=[[-.8,.65,.45,.5,4.2],[2.25,.3,.22,.65,2.8],[.9,1.2,.8,.22,2.0]];
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+    const az=x/W*Math.PI*2-Math.PI,el=Math.PI/2-y/H*Math.PI;
+    let value=.10+.16*Math.max(0,Math.sin(el));
+    for(const [a,e,w,h,power] of boxes){
+      const distance=Math.atan2(Math.sin(az-a),Math.cos(az-a));
+      value+=power*Math.exp(-Math.pow(distance/w,6)-Math.pow((el-e)/h,6));
     }
+    const i=(y*W+x)*4;data[i]=data[i+1]=data[i+2]=value;data[i+3]=1;
   }
-  const t=new THREE.DataTexture(data,W,H,THREE.RGBAFormat);
-  t.mapping=THREE.EquirectangularReflectionMapping;
-  t.colorSpace=THREE.SRGBColorSpace; t.needsUpdate=true;
-  const pm=new THREE.PMREMGenerator(renderer); pm.compileEquirectangularShader();
-  const env=pm.fromEquirectangular(t).texture; pm.dispose(); t.dispose();
-  return env;
+  const t=new THREE.DataTexture(data,W,H,THREE.RGBAFormat,THREE.FloatType);
+  t.mapping=THREE.EquirectangularReflectionMapping;t.needsUpdate=true;
+  const pm=new THREE.PMREMGenerator(renderer);
+  const env=pm.fromEquirectangular(t).texture;pm.dispose();t.dispose();return env;
 })();
 
 const hemi=new THREE.HemisphereLight(0xffffff,0xd9d0c5,0.85); scene.add(hemi);
@@ -104,22 +102,22 @@ const fil=new THREE.DirectionalLight(0xe4ecf6,0.55); fil.position.set(-1.7,0.5,0
 const rim=new THREE.DirectionalLight(0xffffff,0.85); rim.position.set(-0.5,1.0,-1.8); scene.add(rim);
 const LIGHT_PRESETS={
   soft:{
-    exposure:1.06,hemi:1.05,hemiSky:'#ffffff',hemiGround:'#d9d2c9',
-    key:1.35,keyColor:'#fff8f1',keyPos:[1.15,1.55,1.45],
-    fill:0.90,fillColor:'#eef3f8',fillPos:[-1.25,0.75,1.10],
-    rim:0.30,rimColor:'#ffffff',rimPos:[-0.35,0.95,-1.45]
+    exposure:1.02,hemi:.32,hemiSky:'#ffffff',hemiGround:'#bab7b1',
+    key:2.65,keyColor:'#fff9f3',keyPos:[-1.65,2.0,1.6],
+    fill:.72,fillColor:'#f0f4ff',fillPos:[1.8,.65,1.3],
+    rim:1.4,rimColor:'#ffffff',rimPos:[.9,1.45,-1.7]
   },
   key:{
-    exposure:1.00,hemi:0.52,hemiSky:'#ffffff',hemiGround:'#c9c1b8',
-    key:2.75,keyColor:'#fff5e9',keyPos:[-1.65,1.85,1.35],
-    fill:0.24,fillColor:'#e9f0f7',fillPos:[1.55,0.45,1.00],
-    rim:0.62,rimColor:'#ffffff',rimPos:[0.45,1.10,-1.80]
+    exposure:1.00,hemi:.24,hemiSky:'#ffffff',hemiGround:'#c2bdb6',
+    key:3.05,keyColor:'#fff5e9',keyPos:[-1.65,1.85,1.35],
+    fill:.30,fillColor:'#e9f0ff',fillPos:[1.55,.45,1.0],
+    rim:1.25,rimColor:'#ffffff',rimPos:[.45,1.1,-1.8]
   },
   rim:{
-    exposure:0.99,hemi:0.68,hemiSky:'#ffffff',hemiGround:'#cec7be',
-    key:1.70,keyColor:'#fff7ef',keyPos:[1.20,1.45,1.35],
-    fill:0.36,fillColor:'#e7edf5',fillPos:[-1.30,0.45,0.95],
-    rim:1.55,rimColor:'#ffffff',rimPos:[-1.05,1.25,-1.85]
+    exposure:1.00,hemi:.18,hemiSky:'#ffffff',hemiGround:'#b7bcc5',
+    key:3.0,keyColor:'#fff6ed',keyPos:[-2.0,1.2,.9],
+    fill:.22,fillColor:'#eef3ff',fillPos:[1.4,.6,1.5],
+    rim:2.1,rimColor:'#e5edff',rimPos:[1.4,1.1,-1.5]
   }
 };
 function applyLightingPreset(){
@@ -412,16 +410,7 @@ function setGarment(obj, custom){
   presentCloneActive=false;
 
   if (current){
-    const usedTextures=new Set();
-    current.traverse(o=>{
-      if(!o.isMesh)return;
-      o.geometry.dispose();
-      for(const m of Array.isArray(o.material)?o.material:[o.material]){
-        for(const value of Object.values(m))if(value?.isTexture)usedTextures.add(value);
-        m.dispose();
-      }
-    });
-    usedTextures.forEach(t=>t.dispose());
+    if(!current.userData.catalogCached)disposeModel(current);
     garment.remove(current);
   }
 
@@ -536,9 +525,94 @@ let retryModel=null;
 function modelBusy(value){
   modelLoading=value;
   garmentSelect.disabled=value;
+  syncGarmentButtons();
   for(const id of ['btnModel','btnShipped','btnFlip'])document.getElementById(id).disabled=value;
   stage.setAttribute('aria-busy',String(value));
 }
+function syncGarmentButtons(){
+  for(const button of document.querySelectorAll('[data-garment]')){
+    button.disabled=modelLoading;
+    button.setAttribute('aria-pressed',String(button.dataset.garment===activeGarmentId));
+  }
+}
+document.getElementById('garmentButtons').addEventListener('click',event=>{
+  const button=event.target.closest('[data-garment]');
+  if(button&&!button.disabled)loadCatalog(button.dataset.garment);
+});
+
+// Fetch once, share in-flight requests, and retain prepared models for revisits.
+// Touch devices keep two decoded garments; remaining files stay ready in memory.
+const catalogBytes=new Map(),catalogReady=new Map(),catalogPreparing=new Map();
+const readyLimit=MOBILE?2:4;
+async function getCatalogBytes(item){
+  if(catalogBytes.has(item.id))return catalogBytes.get(item.id);
+  const task=(async()=>{
+    const stem=item.file.replace(/\.glb$/,'');
+    const urls=['../garments/'+item.file,'../calibration/'+stem+'.json','../calibration/'+stem+'.bin'];
+    return Promise.all(urls.map(async (path,index)=>{
+      const response=await fetch(new URL(path,import.meta.url));
+      if(!response.ok)throw new Error('Garment asset could not load.');
+      return index===1?response.json():response.arrayBuffer();
+    }));
+  })();
+  catalogBytes.set(item.id,task);
+  try{return await task;}catch(error){catalogBytes.delete(item.id);throw error;}
+}
+function trimCatalogCache(){
+  for(const [id,res] of catalogReady){
+    if(catalogReady.size<=readyLimit)break;
+    if(res.group===current)continue;
+    catalogReady.delete(id);res.group.userData.catalogCached=false;disposeModel(res.group);
+  }
+}
+async function prepareCatalog(item){
+  if(catalogReady.has(item.id)){
+    const res=catalogReady.get(item.id);catalogReady.delete(item.id);catalogReady.set(item.id,res);return res;
+  }
+  if(catalogPreparing.has(item.id))return catalogPreparing.get(item.id);
+  const task=(async()=>{
+    let imported=null,res=null;
+    try{
+      const [bytes,meta,data]=await getCatalogBytes(item);
+      const gltf=await gltfLoader.parseAsync(bytes,new URL('../garments/',import.meta.url).href);
+      imported=gltf.scene;res=adopt(imported);
+      await applyCalibration(res.group,item,[meta,data]);
+      res.profiles=calibratePlacements(res.group,item.type);
+      if(item.type==='hoodie')res.group.traverse(mesh=>{
+        if(!mesh.isMesh)return;
+        for(const mat of Array.isArray(mesh.material)?mesh.material:[mesh.material]){
+          if(mat.normalMap&&mat.metalness<.5){
+            // The authored fleece roughness averages .93; .86 brings it near cotton's .80.
+            mat.roughness*=.86;mat.normalScale.multiplyScalar(1.65);
+          }
+        }
+      });
+      disposeImported(imported);imported=null;
+      res.group.userData.catalogCached=true;catalogReady.set(item.id,res);return res;
+    }catch(error){
+      if(imported){if(res)disposeImported(imported);else disposeModel(imported);}
+      if(res)disposeModel(res.group);
+      throw error;
+    }finally{catalogPreparing.delete(item.id);}
+  })();
+  catalogPreparing.set(item.id,task);return task;
+}
+const idleSlot=()=>new Promise(resolve=>{
+  if(window.requestIdleCallback)requestIdleCallback(resolve,{timeout:2500});else setTimeout(resolve,200);
+});
+let backgroundCatalogStarted=false;
+async function preloadCatalog(){
+  if(backgroundCatalogStarted)return; backgroundCatalogStarted=true;
+  for(const item of GARMENT_CATALOG){
+    await idleSlot();
+    try{
+      await getCatalogBytes(item);
+      // Avoid retaining four large decoded texture sets on iPad and phones.
+      if(!MOBILE){await idleSlot();await prepareCatalog(item);}
+    }catch(error){/* Foreground selection exposes a retry; background failure is nonblocking. */}
+  }
+}
+
 function disposeImported(root){
   // adopt() cloned geometry and material objects; its textures remain shared.
   root.traverse(o=>{if(o.isMesh){o.geometry.dispose();for(const m of Array.isArray(o.material)?o.material:[o.material])m.dispose();}});
@@ -549,11 +623,8 @@ function disposeModel(root){
   for(const t of textures)t.dispose();
 }
 
-async function applyCalibration(group,item){
-  const base=new URL('../calibration/'+item.file.replace(/\.glb$/,''),import.meta.url).href;
-  const [metaResponse,binResponse]=await Promise.all([fetch(base+'.json'),fetch(base+'.bin')]);
-  if(!metaResponse.ok||!binResponse.ok)throw new Error('Garment calibration could not load.');
-  const meta=await metaResponse.json(),data=await binResponse.arrayBuffer();
+async function applyCalibration(group,item,cached){
+  const [meta,data]=cached|| (await getCatalogBytes(item)).slice(1);
   const meshes=[];group.traverse(o=>{if(o.isMesh)meshes.push(o);});
   for(const mesh of meshes){
     const g=mesh.geometry,part=meta.parts.find(p=>p.vertices===g.attributes.position.count&&p.indices===(g.index?.count||g.attributes.position.count));
@@ -608,25 +679,17 @@ function calibratePlacements(group,kind){
 }
 async function loadCatalog(id){
   if(modelLoading)return false;
+  if(id===activeGarmentId)return true;
   const item=GARMENT_CATALOG.find(g=>g.id===id);if(!item)return false;
   cancelAnchorPick();
   modelBusy(true);modelRetry.hidden=true;retryModel=()=>loadCatalog(id);
   modelStatus.textContent='Loading '+item.label+'…';
   bootMsg.textContent='Loading '+item.label+'…';
   document.getElementById('boot').classList.remove('gone');
-  let imported=null,res=null,committed=false;
   try{
-    const url=new URL('../garments/'+item.file,import.meta.url).href;
-    const gltf=await gltfLoader.loadAsync(url,progress=>{
-      const amount=progress.total?` ${Math.round(progress.loaded/progress.total*100)}%`:'';
-      modelStatus.textContent='Loading '+item.label+amount+'…';
-    });
-    imported=gltf.scene;res=adopt(imported);
-    await applyCalibration(res.group,item);
-    const profiles=calibratePlacements(res.group,item.type);
-    disposeImported(imported);imported=null;
-    UV_PROFILES=profiles;modelKind='catalog';
-    setGarment(res.group,false);committed=true;
+    const res=await prepareCatalog(item);
+    UV_PROFILES=res.profiles;modelKind='catalog';
+    setGarment(res.group,false);trimCatalogCache();
     selectedCatalogId=id;activeGarmentId=id;
     garmentSelect.querySelector('option[value="custom"]')?.remove();
     garmentSelect.value=id;
@@ -640,8 +703,6 @@ async function loadCatalog(id){
     return true;
   }catch(error){
     console.error('Garment load failed',error);
-    if(imported){if(res)disposeImported(imported);else disposeModel(imported);}
-    if(res&&!committed)disposeModel(res.group);
     garmentSelect.value=activeGarmentId||selectedCatalogId;
     modelStatus.textContent='Could not load '+item.label+'. Check your connection and retry.';
     bootMsg.textContent=current?'':modelStatus.textContent;
@@ -666,7 +727,7 @@ async function loadModel(file){
     const gltf=await gltfLoader.loadAsync(url);imported=gltf.scene;
     res=adopt(imported);disposeImported(imported);imported=null;
     cancelAnchorPick();UV_PROFILES={};modelKind='custom';
-    setGarment(res.group,true);committed=true;activeGarmentId='custom';
+    setGarment(res.group,true);committed=true;activeGarmentId='custom';trimCatalogCache();
     if(!garmentSelect.querySelector('option[value="custom"]'))garmentSelect.add(new Option('Custom garment','custom'));
     garmentSelect.value='custom';
     requestArtworkRender();syncArtworkUi();applyLook();artStatus('');
@@ -1084,7 +1145,7 @@ function renderGarmentSwatches(){
   custom.role='radio';
   custom.setAttribute('aria-checked',String(state.blank==='custom'));
   custom.setAttribute('aria-label','Custom garment colour');
-  custom.dataset.tip='Choose a custom shirt color with the system color picker.';
+  custom.dataset.tip='Choose a custom garment color.';
   custom.innerHTML=`<i style="background:${state.garmentCustom}"></i><span class="pickerGlyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m19 3 2 2-8.5 8.5-3-3z"></path><path d="m8.8 11.2-4.3 4.3v4h4l4.3-4.3"></path></svg></span><input type="color" value="${state.garmentCustom}" aria-label="Custom garment colour">`;
   const picker=custom.querySelector('input');
   const activateCustom=()=>{
@@ -2563,6 +2624,7 @@ function initializeBrandArtwork(logo,back){
     return layer;
   });
 }
+installColorPicker();
 await Promise.all([loadSvg(BRAND.wordmark,4096),loadSvg(BRAND.emblem,2048)]).then(async ([back,logo])=>{
   artLayers=initializeBrandArtwork(logo,back);
   requestArtworkRender();syncArtworkUi();
@@ -2572,4 +2634,5 @@ await Promise.all([loadSvg(BRAND.wordmark,4096),loadSvg(BRAND.emblem,2048)]).the
   tick();
   await loadCatalog(selectedCatalogId);
   requestAnimationFrame(()=>document.body.classList.add('ready'));
+  preloadCatalog();
 }).catch(err=>{ console.error(err); bootMsg.textContent='Preview could not initialize. Reload to try again.'; });
