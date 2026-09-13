@@ -24,6 +24,7 @@ export function installColorPicker(){
   function sync(emit=false){
     const color=value();field.style.backgroundColor=`hsl(${h} 100% 50%)`;
     cursor.style.left=s*100+'%';cursor.style.top=(1-v)*100+'%';hue.value=h;
+    const hueValue=document.getElementById('colorHueValue');if(hueValue)hueValue.value=Math.round(h);
     hex.value=color;preview.style.background=color;
     field.setAttribute('aria-valuenow',Math.round(s*100));field.setAttribute('aria-valuetext',`Saturation ${Math.round(s*100)}%, brightness ${Math.round(v*100)}%`);
     if(emit&&target&&target.isConnected){target.value=color;changed=true;target.dispatchEvent(new Event('input',{bubbles:true}));}

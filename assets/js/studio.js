@@ -1,5 +1,6 @@
 import {renderPlacementDiagram} from './placement-diagrams.js';
-import {installColorPicker} from './color-picker.js';
+import {installColorPicker} from './color-picker.js?v=18';
+import {installSliderControls} from './controls.js?v=18';
 
 const BRAND=window.BRAND;
 document.title=BRAND.title;
@@ -125,7 +126,7 @@ lightRig.add(hemi,key,fil,rim,key.target,fil.target,rim.target);
 const lightReference=new THREE.Quaternion(),lightInverse=new THREE.Quaternion();
 const lightEnvironmentRotation={value:new THREE.Matrix3()},lightEnvironmentPower={value:1};
 const lightRotationMatrix=new THREE.Matrix4();
-const effectUniforms={uBlackLight:{value:0},uFabricUV:{value:0}};
+const effectUniforms={uBlackLight:{value:0},uGlowSceneLevel:{value:0},uFabricUV:{value:0}};
 let lightReferenceReady=false,shadowDirty=true,lastShadowTime=-Infinity,lastShadowSignature='';
 key.castShadow=true;
 key.shadow.mapSize.set(MOBILE?1024:2048,MOBILE?1024:2048);
@@ -175,6 +176,7 @@ function applyLightingPreset(){
   renderer.toneMappingExposure=p.exposure;scene.environment=environments[state.light]||environments.studio;
   lightEnvironmentPower.value=power*(state.light==='studio'?.55:state.light==='day'?.65:.45);
   effectUniforms.uBlackLight.value=state.light==='uv'?power:0;
+  effectUniforms.uGlowSceneLevel.value=power*(.16*p.key+.12*p.fill+.08*p.rim+.75*p.hemi)+.20*lightEnvironmentPower.value;
   document.getElementById('nightColors').hidden=state.light!=='night';
   shadowDirty=true;
   hemi.color.set(p.hemiSky);hemi.groundColor.set(p.hemiGround);hemi.intensity=p.hemi*power;
@@ -230,16 +232,22 @@ const uni = {
   uTwistFlowPower:{value:1.0}, uSleeveBoost:{value:0.20}, uSleeveArc:{value:0.65},
   uDir:{value:new THREE.Vector3(0.85,0,0.53).normalize()},
 
-  uArtRough:{value:0.97},
+  uArtRough:{value:0.5},
   uDotGrid:{value:0},
 };
 
 const VERT_HEAD=`
-  uniform float uTime; uniform float uWind; uniform float uTwist;
+  uniform float uTime; uniform float uWind; uniform float uTwist; uniform float uFlowHalfWidth;
   uniform float uTwistFlowPower; uniform float uSleeveBoost; uniform float uSleeveArc; uniform vec3 uDir;
   attribute float aFlow; attribute vec3 aMotionAnchor; attribute vec2 aArtworkUv; varying vec2 vArtworkUv;
   vec3 gDisp;
 
+  float kMotionFlow(vec3 p){
+    float hn=clamp((p.y+.024)/.696,0.0,1.0);
+    float f=pow(clamp(1.0-hn/.86,0.0,1.0),1.35);
+    float rad=abs(p.x)/max(uFlowHalfWidth,.0001);
+    return clamp(max(f,.8*pow(max(0.0,(rad-.70)/.30),1.2)*smoothstep(.26,.58,hn)),0.0,1.0);
+  }
   vec3 kBreeze(vec3 p, float flow){
     if (flow < 0.001) return vec3(0.0);
     float t = uTime;
@@ -305,7 +313,8 @@ const VERT_HEAD=`
 const FRAG_HEAD=`
 uniform float uArtRough,uHasArtwork;
 uniform sampler2D uArtwork,uArtworkEffects;
-uniform float uHasEffects,uBlackLight,uFabricUV,uFabricReactive;
+uniform float uHasEffects,uBlackLight,uFabricUV,uFabricReactive,uGlowSceneLevel;
+float kIlluminance=0.0;
 vec3 kFabricColor=vec3(0.0),kArtColor=vec3(0.0);
 vec2 kArtEffects=vec2(0.0);
 varying vec2 vArtworkUv;
@@ -326,7 +335,10 @@ if(!gl_FrontFacing)diffuseColor.rgb*=0.60;
 const FRAG_EMISSION=`
 vec3 kIncident=(reflectedLight.directDiffuse+reflectedLight.indirectDiffuse)/max(diffuseColor.rgb,vec3(.025));
 float kLight=dot(kIncident,vec3(.2126,.7152,.0722));
-float kDark=1.0-smoothstep(.08,.65,kLight);
+// Raw incident light includes direct shadows, hemisphere and environment.
+// Unlike diffuse/albedo division it does not mistake dark ink for darkness.
+float kAmbient=dot(irradiance+iblIrradiance,vec3(.2126,.7152,.0722));
+float kDark=(1.0-smoothstep(.035,.28,kIlluminance+kAmbient))/(1.0+4.0*uGlowSceneLevel*uGlowSceneLevel);
 // Virtual UV excitation uses the shadowed direct light, so recessed fabric
 // does not become a uniformly luminous silhouette under black light.
 float kUV=uBlackLight*clamp(dot(reflectedLight.directDiffuse/max(diffuseColor.rgb,vec3(.025)),vec3(.2126,.7152,.0722))*14.0,.015,1.0);
@@ -349,6 +361,7 @@ function patchFabricMaterial(mat){
   mat.userData.orbFabric=true;
   mat.onBeforeCompile=sh=>{
     Object.assign(sh.uniforms, uni);
+    sh.uniforms.uFlowHalfWidth={value:mat.userData.orbFlowHalfWidth||.3};
     const artwork=getArtworkMap(mat.userData.orbMeshId||1);
     sh.uniforms.uArtwork=artwork.map;sh.uniforms.uHasArtwork=artwork.has;
     sh.uniforms.uArtworkEffects=artwork.effects;sh.uniforms.uHasEffects=artwork.hasEffects;
@@ -359,6 +372,8 @@ function patchFabricMaterial(mat){
       .replace('inverseTransformDirection( normal, viewMatrix );','uLightEnvRotation * inverseTransformDirection( normal, viewMatrix );')
       .replace('inverseTransformDirection( reflectVec, viewMatrix );','uLightEnvRotation * inverseTransformDirection( reflectVec, viewMatrix );')
       .replaceAll('* envMapIntensity','* envMapIntensity * uLightEnvPower');
+    const lightingChunk=THREE.ShaderChunk.lights_fragment_begin.replaceAll('RE_Direct( directLight,','kIlluminance += dot(directLight.color,vec3(.2126,.7152,.0722))*max(dot(geometryNormal,directLight.direction),0.0); RE_Direct( directLight,');
+    sh.fragmentShader=sh.fragmentShader.replace('#include <lights_fragment_begin>',lightingChunk);
     sh.fragmentShader='uniform mat3 uLightEnvRotation; uniform float uLightEnvPower;\n'+sh.fragmentShader.replace('#include <envmap_physical_pars_fragment>',environmentChunk);
     sh.vertexShader = VERT_HEAD + sh.vertexShader;
     sh.vertexShader = sh.vertexShader.replace('#include <beginnormal_vertex>',
@@ -368,15 +383,15 @@ function patchFabricMaterial(mat){
        if (aFlow > 0.001) {
          vec3 T1 = normalize(cross(objectNormal, vec3(0.0,1.0,0.0)) + vec3(1e-5));
          vec3 T2 = normalize(cross(objectNormal, T1));
-         float e = 0.022;
+         float e = 0.001;
          vec3 p0 = position + gDisp;
-         vec3 pa = position + T1*e + kFabricDisp(aMotionAnchor + T1*e, aFlow);
-         vec3 pb = position + T2*e + kFabricDisp(aMotionAnchor + T2*e, aFlow);
+         vec3 pa = position + T1*e + kFabricDisp(aMotionAnchor + T1*e, kMotionFlow(aMotionAnchor + T1*e));
+         vec3 pb = position + T2*e + kFabricDisp(aMotionAnchor + T2*e, kMotionFlow(aMotionAnchor + T2*e));
          vec3 nn = normalize(cross(pa-p0, pb-p0));
          objectNormal = dot(nn, objectNormal) < 0.0 ? -nn : nn;
          #ifdef USE_TANGENT
            vec3 pt = position + objectTangent*e;
-           objectTangent = normalize(pt + kFabricDisp(aMotionAnchor + objectTangent*e, aFlow) - p0);
+           objectTangent = normalize(pt + kFabricDisp(aMotionAnchor + objectTangent*e, kMotionFlow(aMotionAnchor + objectTangent*e)) - p0);
            objectTangent = normalize(objectTangent - objectNormal*dot(objectTangent,objectNormal));
          #endif
        }`);
@@ -389,7 +404,7 @@ function patchFabricMaterial(mat){
     sh.fragmentShader = sh.fragmentShader.replace('#include <roughnessmap_fragment>',
       '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, clamp(uArtRough, 0.02, 1.0), clamp(kArtworkMask, 0.0, 1.0));');
   };
-  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v17-art-glow';
+  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v18-material-frame';
   mat.needsUpdate=true;
   return mat;
 }
@@ -591,7 +606,7 @@ function adopt(root){
       const material=source&&(source.isMeshStandardMaterial||source.isMeshPhysicalMaterial)
         ?source.clone():new THREE.MeshStandardMaterial({color:currentGarment().hex,roughness:0.96});
       material.side=THREE.DoubleSide;
-      material.userData.orbMeshId=meshId;
+      material.userData.orbMeshId=meshId;material.userData.orbFlowHalfWidth=size.x*s/2;
       // Keep every authored map and material group. Garment tint remains user-controlled.
       material.userData.orbBaseColor=material.color.toArray();
       material.userData.orbTintable=material.metalness<0.5;
@@ -661,7 +676,8 @@ async function getCatalogBytes(item){
     const stem=item.file.replace(/\.glb$/,'');
     const urls=['../garments/'+item.file,'../calibration/'+stem+'.json','../calibration/'+stem+'.bin'];
     return Promise.all(urls.map(async (path,index)=>{
-      const response=await fetch(new URL(path,import.meta.url));
+      const url=new URL(path,import.meta.url);url.searchParams.set('v','18');
+      const response=await fetch(url);
       if(!response.ok)throw new Error('Garment asset could not load.');
       return index===1?response.json():response.arrayBuffer();
     }));
@@ -703,7 +719,7 @@ async function prepareCatalog(item){
         for(const mat of Array.isArray(mesh.material)?mesh.material:[mesh.material]){
           if(mat.normalMap&&mat.metalness<.5){
             // The authored fleece roughness averages .93; .86 brings it near cotton's .80.
-            mat.roughness*=.86;mat.normalScale.multiplyScalar(1.65);
+            mat.roughness*=.86;
           }
         }
       });
@@ -877,7 +893,7 @@ const THEMES={
   dark:{bg:BRAND.dark.paper},
 };
 const systemColorScheme=matchMedia('(prefers-color-scheme: dark)');
-const state={ themeMode:'system', theme:'light', blank:0, garmentCustom:'#D8D8D8', artRoughness:97, shirtColorsCustomized:false, bg:THEMES.light.bg, dotGrid:true, gridType:'square', gridColor:BRAND.light.grid, gridColorCustom:false, gridStroke:0.5, gridScale:35, gridCharSize:45, light:'studio', lightPower:100, lightLocked:true, nightGreen:NIGHT_DEFAULTS.green, nightMagenta:NIGHT_DEFAULTS.magenta, selfShadows:true, fabricUV:false, fabricEmission:100, wind:1, view:'angle',
+const state={ themeMode:'system', theme:'light', blank:0, garmentCustom:'#D8D8D8', artGlossiness:50, shirtColorsCustomized:false, bg:THEMES.light.bg, dotGrid:true, gridType:'square', gridColor:BRAND.light.grid, gridColorCustom:false, gridStroke:0.5, gridScale:35, gridCharSize:45, light:'studio', lightPower:100, lightLocked:true, nightGreen:NIGHT_DEFAULTS.green, nightMagenta:NIGHT_DEFAULTS.magenta, selfShadows:true, fabricUV:false, fabricEmission:100, wind:1, view:'angle',
   inertia:{enabled:true,strength:15,ramp:100,settle:0.5,elasticity:60,overshoot:70,release:70,sensitivity:50,bias:25,sleeve:100,arc:100},
   focus:new THREE.Vector3(0,.02,0),focusTarget:new THREE.Vector3(0,.02,0),az:0.62, el:1.30, r:1.55, taz:0.62, tel:1.30, tr:1.55, present:false };
 const WIND_LEVELS=[0,0.011,0.024];
@@ -1379,7 +1395,7 @@ setControlTip('art-y','Move the selected artwork up or down.');
 setControlTip('art-scale','Resize the selected artwork while preserving its proportions.');
 setControlTip('art-rot','Rotate the selected artwork in degrees.');
 
-setControlTip('artRoughness','Change only the artwork surface finish. Left is glossier; right is rougher. The shirt material is not changed.');
+setControlTip('artGlossiness','Change only the artwork surface finish. Left is matte; right is glossy. The shirt material is not changed.');
 setControlTip('gridScale','Change the spacing between pattern-paper grid intersections. Smaller values make a tighter grid.','gridScaleNum');
 setControlTip('gridCharSize','Change the size of grid letters, numbers, and symbols without changing grid spacing.','gridCharSizeNum');
 
@@ -1521,7 +1537,7 @@ inkColorInput.addEventListener('blur',()=>{inkEditingEntry=null;syncInkUi();});
 segment('segWind',v=>{state.wind=+v;});
 segment('segLight',v=>{state.light=v; applyLightingPreset();});
 document.getElementById('lightPower').addEventListener('input',event=>{
-  state.lightPower=Number(event.target.value);document.getElementById('lightPowerValue').textContent=state.lightPower+'%';applyLightingPreset();
+  state.lightPower=Number(event.target.value);document.getElementById('lightPowerValue').value=state.lightPower;applyLightingPreset();
 });
 document.getElementById('lightLock').addEventListener('change',event=>{
   state.lightLocked=!event.target.checked;
@@ -1549,7 +1565,7 @@ document.getElementById('fabricUV').addEventListener('change',e=>{
   state.fabricUV=e.target.checked;document.getElementById('fabricEmissionControl').hidden=!state.fabricUV;syncFabricEffects();
 });
 document.getElementById('fabricEmission').addEventListener('input',e=>{
-  state.fabricEmission=Number(e.target.value);document.getElementById('fabricEmissionValue').textContent=state.fabricEmission+'%';syncFabricEffects();
+  state.fabricEmission=Number(e.target.value);document.getElementById('fabricEmissionValue').value=state.fabricEmission;syncFabricEffects();
 });
 segment('segView',v=>setView(v));
 function setColorMode(mode){
@@ -1572,19 +1588,19 @@ document.getElementById('bgCustom').addEventListener('input',e=>{
   document.getElementById('bgColorChip').style.background=e.target.value;
   applyBackground();
 });
-const artRoughness=document.getElementById('artRoughness');
-const artRoughnessName=document.getElementById('artRoughnessName');
-function setArtworkRoughness(raw){
+const artGlossiness=document.getElementById('artGlossiness');
+const artGlossinessName=document.getElementById('artGlossinessName');
+function setArtworkGlossiness(raw){
   const v=Math.max(0,Math.min(100,Math.round(Number(raw)||0)));
-  state.artRoughness=v;
-  artRoughness.value=String(v);
-  artRoughnessName.textContent=String(v);
-  uni.uArtRough.value=v/100;
+  state.artGlossiness=v;
+  artGlossiness.value=String(v);
+  artGlossinessName.value=String(v);
+  uni.uArtRough.value=1-v/100;
 }
-artRoughness.addEventListener('input',e=>setArtworkRoughness(e.target.value));
-setArtworkRoughness(state.artRoughness);
+artGlossiness.addEventListener('input',e=>setArtworkGlossiness(e.target.value));
+setArtworkGlossiness(state.artGlossiness);
 
-document.getElementById('resetArtRoughness').addEventListener('click',()=>setArtworkRoughness(97));
+document.getElementById('resetArtGlossiness').addEventListener('click',()=>setArtworkGlossiness(50));
 
 const INERTIA_DEFAULTS={enabled:true,strength:15,ramp:100,settle:0.5,elasticity:60,overshoot:70,release:70,sensitivity:50,bias:25,sleeve:100,arc:100};
 
@@ -2015,7 +2031,7 @@ function syncArtControls(){
   document.getElementById('artUV').checked=!!entry.uvReactive;
   document.getElementById('artEmissionControl').hidden=!(entry.glow||entry.uvReactive);
   document.getElementById('artEmission').value=entry.emission??100;
-  document.getElementById('artEmissionValue').textContent=(entry.emission??100)+'%';
+  document.getElementById('artEmissionValue').value=entry.emission??100;
   const A=entry.placement,vals={x:A.x/.0018,y:A.y/.0018,scale:A.scale*100,rot:A.rot};
   for(const prop of ['x','y','scale','rot']){
     const pair=artControlPair(entry.slot,prop),value=Math.round(vals[prop]);
@@ -2863,6 +2879,7 @@ function initializeBrandArtwork(logo,back){
   });
 }
 installColorPicker();
+installSliderControls(prop=>artDefault(artEntry()?.slot||activeArtSlot,prop));
 await Promise.all([loadSvg(BRAND.wordmark,4096),loadSvg(BRAND.emblem,2048)]).then(async ([back,logo])=>{
   artLayers=initializeBrandArtwork(logo,back);
   requestArtworkRender();syncArtworkUi();

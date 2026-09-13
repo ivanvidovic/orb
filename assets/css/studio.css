@@ -670,3 +670,16 @@ select,select option,select optgroup{color:var(--ink);background-color:var(--pap
 #panel .art-control{grid-template-columns:70px minmax(30px,1fr) 46px 24px;gap:6px}
 #panel .art-control .num{box-sizing:border-box;width:46px;min-width:0;padding:4px 3px;text-align:right;font-family:inherit;font-size:11px;appearance:textfield;-moz-appearance:textfield}
 #panel .art-control .num::-webkit-inner-spin-button,#panel .art-control .num::-webkit-outer-spin-button{appearance:none;margin:0}
+
+/* Release 18: one slider, value field and reset treatment. */
+#panel .inline-range{grid-template-columns:auto minmax(30px,1fr) 46px 24px;gap:6px}
+#panel .compact-control{grid-template-columns:70px minmax(30px,1fr) 46px 24px;gap:6px}
+#panel .slider-row input.num,#colorPopover input.num{box-sizing:border-box;width:46px;min-width:0;min-height:28px;padding:4px 3px;border:1px solid var(--rule);border-radius:0;background:transparent;color:var(--ink);font:inherit;font-size:11px;text-align:right;appearance:textfield;-moz-appearance:textfield}
+.slider-row input.num::-webkit-inner-spin-button,.slider-row input.num::-webkit-outer-spin-button{appearance:none;margin:0}
+#panel .slider-reset,#colorPopover .slider-reset{position:static!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;width:24px!important;height:28px!important;min-width:24px!important;min-height:28px!important;margin:0!important;padding:3px!important;border:0!important;border-radius:0!important;box-shadow:none!important;background:transparent!important;color:var(--ink)!important;cursor:pointer!important;flex:none}
+#panel .slider-reset svg,#colorPopover .slider-reset svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.slider-reset:focus-visible{outline:2px solid var(--ink);outline-offset:2px}.slider-reset:disabled{opacity:.3;cursor:default!important}
+.hue-control{display:grid;grid-template-columns:minmax(50px,1fr) 46px 24px;align-items:center;gap:8px;margin-bottom:12px}
+.hue-control #colorHue{width:100%;min-width:0;margin:0}
+
+#panel button[id^="reset"],#panel #artReset{border:0;background:transparent;box-shadow:none;border-radius:0;color:var(--ink)}
