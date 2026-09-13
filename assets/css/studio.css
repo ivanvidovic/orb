@@ -680,3 +680,6 @@ select,select option,select optgroup{color:var(--ink);background-color:var(--pap
 .hue-control #colorHue{width:100%;min-width:0;margin:0}
 
 #panel button[id^="reset"],#panel #artReset{border:0;background:transparent;box-shadow:none;border-radius:0;color:var(--ink)}
+
+/* Fabric behavior and material response share a compact row. */
+#panel .fabric-options{display:flex;align-items:center;justify-content:space-between;gap:4px 10px;flex-wrap:wrap;margin-top:4px}
