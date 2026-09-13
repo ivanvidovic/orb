@@ -683,3 +683,9 @@ select,select option,select optgroup{color:var(--ink);background-color:var(--pap
 
 /* Fabric behavior and material response share a compact row. */
 #panel .fabric-options{display:flex;align-items:center;justify-content:space-between;gap:4px 10px;flex-wrap:wrap;margin-top:4px}
+
+/* One compact row for artwork file, placement and viewing actions. */
+#artWorkspace .art-editor-head{flex-wrap:nowrap;justify-content:space-between;gap:4px;margin-bottom:8px}
+#artWorkspace .art-editor-head button{font-size:11px;padding:5px 6px;min-width:0;flex:0 0 auto;min-height:32px}
+#artWorkspace .art-editor-head #artPosition{width:28px;padding:5px}
+#artPosition svg{display:block;width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.5}

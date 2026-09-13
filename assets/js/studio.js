@@ -346,7 +346,8 @@ float kVisible=max(0.0,kIlluminance+kAmbient);
 float kDark=exp(-kVisible/.055)*(1.0-smoothstep(.18,.45,kVisible))/(1.0+4.0*uGlowSceneLevel*uGlowSceneLevel);
 // Scattered room UV keeps the fluorescence alive in directional UV shadows.
 // Weak shape fill barely suppresses it; strong ordinary light reduces contrast.
-float kUV=2.5*(1.0-exp(-1.8*(.14*uBlackLight+.86*kUVExposure)))/(1.0+4.0*kVisible*kVisible+2.0*uGlowSceneLevel*uGlowSceneLevel);
+// UV strength is calibrated to half the previous output at a 100% slider.
+float kUV=1.25*(1.0-exp(-1.8*(.14*uBlackLight+.86*kUVExposure)))/(1.0+4.0*kVisible*kVisible+2.0*uGlowSceneLevel*uGlowSceneLevel);
 float kGlow=kArtEffects.r*kDark+kArtEffects.g*kUV;
 float kFabric=uFabricUV*kUV*uFabricReactive;
 totalEmissiveRadiance+=kArtColor*kGlow+kFabricColor*kFabric*(1.0-kArtworkMask);
@@ -444,7 +445,7 @@ function patchFabricMaterial(mat){
     sh.fragmentShader = sh.fragmentShader.replace('#include <roughnessmap_fragment>',
       '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, clamp(uArtRough, 0.02, 1.0), clamp(kArtworkMask, 0.0, 1.0));');
   };
-  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v21-soft-emission';
+  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v22-uv-calibration';
   mat.needsUpdate=true;
   return mat;
 }
