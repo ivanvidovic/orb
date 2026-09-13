@@ -165,7 +165,7 @@ const LIGHT_PRESETS={
     key:1.65,keyColor:NIGHT_DEFAULTS.green,keyPos:[-1.7,1.3,1.4],
     fill:.48,fillColor:NIGHT_DEFAULTS.magenta,fillPos:[1.5,.6,.95],
     rim:1.15,rimColor:NIGHT_DEFAULTS.magenta,rimPos:[.8,1.1,-1.6]},
-  uv:{label:'Black light',description:'Directional black light with subtle neutral fill. UV-reactive ink and fabric fluoresce where the black light reaches them.',
+  uv:{label:'Black light',description:'Black light with scattered room UV and subtle shape fill. Reactive ink stays fluorescent in shadows and brightens toward the light.',
     exposure:1,hemi:.035,hemiSky:'#77718f',hemiGround:'#252030',
     key:.18,keyColor:'#824bff',keyPos:[-1.65,1.85,1.35],
     fill:.07,fillColor:'#c1c3d2',fillPos:[1.55,.45,1],
@@ -312,10 +312,10 @@ const VERT_HEAD=`
 
 const FRAG_HEAD=`
 uniform float uArtRough,uHasArtwork;
-uniform sampler2D uArtwork,uArtworkEffects;
+uniform sampler2D uArtwork,uArtworkEffects,uSpillGlow,uSpillUV;
 uniform float uHasEffects,uBlackLight,uFabricUV,uFabricReactive,uGlowSceneLevel;
-float kIlluminance=0.0,kUVExposure=0.0,kUVVisibility=1.0;
-vec3 kFabricColor=vec3(0.0),kArtColor=vec3(0.0);
+float kIlluminance=0.0,kUVExposure=0.0,kUVVisibility=1.0,kHardVisibility=1.0;
+vec3 kFabricColor=vec3(0.0),kArtColor=vec3(0.0),kEffectNormal=vec3(0.0);
 vec2 kArtEffects=vec2(0.0);
 varying vec2 vArtworkUv;
 float kArtworkMask=0.0;`;
@@ -338,18 +338,24 @@ if(!gl_FrontFacing)diffuseColor.rgb*=0.60;
 // This is an appearance preview: emission brightens the surface, without
 // adding costly per-layer lights or bloom that would blur the print edges.
 const FRAG_EMISSION=`
-// Visible irradiance is independent of ink color and already shadow masked.
+// Macro normals drive the response; weave normals still shade the material.
 float kAmbient=dot(irradiance+iblIrradiance,vec3(.2126,.7152,.0722));
 float kVisible=max(0.0,kIlluminance+kAmbient);
-float kDark=(1.0-smoothstep(.035,.28,kVisible))/(1.0+4.0*uGlowSceneLevel*uGlowSceneLevel);
-// UV is a separate excitation signal from the shadowed key fixture. Neither
-// white fill nor the ink's RGB channels can create UV energy or an edge halo.
-// More visible light reduces fluorescent contrast, without imposing a floor
-// in UV shadows. No UV source means no fluorescence, even in total darkness.
-float kUV=2.5*(1.0-exp(-1.8*kUVExposure))/(1.0+3.0*kVisible+2.0*uGlowSceneLevel*uGlowSceneLevel);
+// No flat on/off plateau: a long, faint tail preserves a gentle transition,
+// while strong visible glow is reserved for the deepest darkness.
+float kDark=exp(-kVisible/.055)*(1.0-smoothstep(.18,.45,kVisible))/(1.0+4.0*uGlowSceneLevel*uGlowSceneLevel);
+// Scattered room UV keeps the fluorescence alive in directional UV shadows.
+// Weak shape fill barely suppresses it; strong ordinary light reduces contrast.
+float kUV=2.5*(1.0-exp(-1.8*(.14*uBlackLight+.86*kUVExposure)))/(1.0+4.0*kVisible*kVisible+2.0*uGlowSceneLevel*uGlowSceneLevel);
 float kGlow=kArtEffects.r*kDark+kArtEffects.g*kUV;
 float kFabric=uFabricUV*kUV*uFabricReactive;
 totalEmissiveRadiance+=kArtColor*kGlow+kFabricColor*kFabric*(1.0-kArtworkMask);
+if(gl_FrontFacing&&uHasEffects>.5&&vArtworkUv.x>=0.0&&vArtworkUv.y>=0.0){
+  // A short-range surface bounce approximation. Cached colors retain the
+  // separate glow/UV strengths; current lighting gates their visible spill.
+  vec3 bounce=4.0*(texture2D(uSpillGlow,vArtworkUv).rgb*kDark+texture2D(uSpillUV,vArtworkUv).rgb*kUV);
+  totalEmissiveRadiance+=bounce*.20*sqrt(clamp(kFabricColor,0.0,1.0)+vec3(.01))*(1.0-kArtworkMask);
+}
 `;
 function makeFabricDepthMaterial(){
   const depth=new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking,side:THREE.DoubleSide});
@@ -370,6 +376,7 @@ function patchFabricMaterial(mat){
     const artwork=getArtworkMap(mat.userData.orbMeshId||1);
     sh.uniforms.uArtwork=artwork.map;sh.uniforms.uHasArtwork=artwork.has;
     sh.uniforms.uArtworkEffects=artwork.effects;sh.uniforms.uHasEffects=artwork.hasEffects;
+    sh.uniforms.uSpillGlow=artwork.spillGlow;sh.uniforms.uSpillUV=artwork.spillUV;
     Object.assign(sh.uniforms,effectUniforms);
     sh.uniforms.uFabricReactive={value:mat.userData.orbTintable?1:0};
     sh.uniforms.uLightEnvRotation=lightEnvironmentRotation;sh.uniforms.uLightEnvPower=lightEnvironmentPower;
@@ -386,12 +393,25 @@ function patchFabricMaterial(mat){
       .replace('getDirectionalLightInfo( directionalLight, directLight );','getDirectionalLightInfo( directionalLight, directLight );\n kUVVisibility=1.0;')
       .replace('directLight.color *= ( directLight.visible && receiveShadow ) ? getShadow(', 'kUVVisibility = ( directLight.visible && receiveShadow ) ? getShadow(')
       .replace('\n\t\tRE_Direct( directLight,',`\n        directLight.color *= kUVVisibility;
+        // Broader shadow filtering is only used by the emission response.
+        // The visible cloth and artwork keep the normal shadow definition.
+        #if defined(USE_SHADOWMAP) && (UNROLLED_LOOP_INDEX < NUM_DIR_LIGHT_SHADOWS)
+        if((uHasEffects>.5||uFabricUV>0.0)&&receiveShadow){
+          kHardVisibility=kUVVisibility;
+          kUVVisibility=.25*(
+            getShadow(directionalShadowMap[i],directionalLightShadow.shadowMapSize,directionalLightShadow.shadowBias,directionalLightShadow.shadowRadius,vDirectionalShadowCoord[i]+vec4(vec2(2.0,0.0)/directionalLightShadow.shadowMapSize*vDirectionalShadowCoord[i].w,0.0,0.0))+
+            getShadow(directionalShadowMap[i],directionalLightShadow.shadowMapSize,directionalLightShadow.shadowBias,directionalLightShadow.shadowRadius,vDirectionalShadowCoord[i]+vec4(vec2(-2.0,0.0)/directionalLightShadow.shadowMapSize*vDirectionalShadowCoord[i].w,0.0,0.0))+
+            getShadow(directionalShadowMap[i],directionalLightShadow.shadowMapSize,directionalLightShadow.shadowBias,directionalLightShadow.shadowRadius,vDirectionalShadowCoord[i]+vec4(vec2(0.0,2.0)/directionalLightShadow.shadowMapSize*vDirectionalShadowCoord[i].w,0.0,0.0))+
+            getShadow(directionalShadowMap[i],directionalLightShadow.shadowMapSize,directionalLightShadow.shadowBias,directionalLightShadow.shadowRadius,vDirectionalShadowCoord[i]+vec4(vec2(0.0,-2.0)/directionalLightShadow.shadowMapSize*vDirectionalShadowCoord[i].w,0.0,0.0)));
+          kIlluminance+=dot(directionalLight.color,vec3(.2126,.7152,.0722))*(kUVVisibility-kHardVisibility)*max(dot(kEffectNormal,directLight.direction),0.0);
+        }
+        #endif
         #if UNROLLED_LOOP_INDEX == 0
-          kUVExposure += uBlackLight*kUVVisibility*max(dot(geometryNormal,directLight.direction),0.0);
+          kUVExposure += uBlackLight*kUVVisibility*max(dot(kEffectNormal,directLight.direction),0.0);
         #endif
         RE_Direct( directLight,`);
     lightingChunk=lightingChunk.slice(0,dirStart)+directional+lightingChunk.slice(dirEnd);
-    lightingChunk=lightingChunk.replaceAll('RE_Direct( directLight,','kIlluminance += dot(directLight.color,vec3(.2126,.7152,.0722))*max(dot(geometryNormal,directLight.direction),0.0); RE_Direct( directLight,');
+    lightingChunk=lightingChunk.replaceAll('RE_Direct( directLight,','kIlluminance += dot(directLight.color,vec3(.2126,.7152,.0722))*max(dot(kEffectNormal,directLight.direction),0.0); RE_Direct( directLight,');
     sh.fragmentShader=sh.fragmentShader.replace('#include <lights_fragment_begin>',lightingChunk);
     sh.fragmentShader='uniform mat3 uLightEnvRotation; uniform float uLightEnvPower;\n'+sh.fragmentShader.replace('#include <envmap_physical_pars_fragment>',environmentChunk);
     sh.vertexShader = VERT_HEAD + sh.vertexShader;
@@ -417,13 +437,14 @@ function patchFabricMaterial(mat){
     sh.vertexShader = sh.vertexShader.replace('#include <begin_vertex>',
       '#include <begin_vertex>\n transformed += gDisp;');
     sh.fragmentShader = FRAG_HEAD + '\n' + sh.fragmentShader;
+    sh.fragmentShader=sh.fragmentShader.replace('#include <normal_fragment_maps>','kEffectNormal=normal;\n#include <normal_fragment_maps>');
     sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>',
       '#include <map_fragment>\n' + FRAG_PRINT);
     sh.fragmentShader=sh.fragmentShader.replace('#include <aomap_fragment>','#include <aomap_fragment>\n'+FRAG_EMISSION);
     sh.fragmentShader = sh.fragmentShader.replace('#include <roughnessmap_fragment>',
       '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, clamp(uArtRough, 0.02, 1.0), clamp(kArtworkMask, 0.0, 1.0));');
   };
-  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v19-uv-incident';
+  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v21-soft-emission';
   mat.needsUpdate=true;
   return mat;
 }
@@ -1810,6 +1831,7 @@ function requestArtworkRender(layer=null){
 function getArtworkMap(meshId){
   if(!artworkMaps.has(meshId))artworkMaps.set(meshId,{
     map:{value:null},has:{value:0},effects:{value:null},hasEffects:{value:0},effectTarget:null,target:null,layoutKey:'',geometry:null,
+    spillGlow:{value:null},spillUV:{value:null},spillTargets:null,
     tiles:new Map(),scenes:new Map(),quads:new Map(),camera:new THREE.OrthographicCamera(0,1,1,0,-1,1)
   });
   return artworkMaps.get(meshId);
@@ -1817,7 +1839,7 @@ function getArtworkMap(meshId){
 function resetArtworkMaps(){
   for(const map of artworkMaps.values()){
     map.target?.dispose();map.target=null;map.map.value=null;map.has.value=0;
-    map.effectTarget?.dispose();map.effectTarget=null;map.effects.value=null;map.hasEffects.value=0;
+    map.effectTarget?.dispose();map.effectTarget=null;map.effects.value=null;map.hasEffects.value=0;disposeArtworkSpill(map);
     for(const mesh of map.quads.values()){mesh.removeFromParent();mesh.material.dispose();}
     map.quads.clear();map.scenes.clear();map.tiles.clear();map.layoutKey='';map.geometry=null;
   }
@@ -1922,7 +1944,7 @@ function updateArtworkQuad(map,layer,index,total){
 function prepareEffectMap(map,layers){
   const enabled=layers.some(l=>l.visible&&(l.glow||l.uvReactive));
   map.hasEffects.value=enabled?1:0;
-  if(!enabled){map.effectTarget?.dispose();map.effectTarget=null;map.effects.value=null;return false;}
+  if(!enabled){map.effectTarget?.dispose();map.effectTarget=null;map.effects.value=null;disposeArtworkSpill(map);return false;}
   // Only allocate when needed. A quarter-resolution linear mask preserves the
   // existing full-resolution color atlas and caps extra storage at 16 MiB.
   const w=map.target.width/4,h=map.target.height/4;
@@ -1944,6 +1966,65 @@ function renderEffectPanels(map,dirty){
     for(const quad of panel.children)quad.material.uniforms.uEffectsPass.value=0;
   }
 }
+// Cache a compact, panel-bounded color spread only when artwork is edited.
+// Seven Gaussian taps span 5.4 mm per axis (under 8 mm diagonally). No blur
+// touches the print itself, and separate targets prevent UV/glow color mixing.
+const spillUniforms={uArt:{value:null},uEffects:{value:null},uSource:{value:null},uDirection:{value:new THREE.Vector2()},uBounds:{value:new THREE.Vector4()},uStage:{value:0},uKind:{value:0}};
+const spillScene=new THREE.Scene(),spillCamera=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+const spillMaterial=new THREE.ShaderMaterial({uniforms:spillUniforms,depthTest:false,depthWrite:false,toneMapped:false,
+  vertexShader:'varying vec2 v; void main(){v=uv;gl_Position=vec4(position.xy,0.,1.);}',
+  fragmentShader:`uniform sampler2D uArt,uEffects,uSource;uniform vec2 uDirection;uniform vec4 uBounds;uniform float uStage,uKind;varying vec2 v;
+  void main(){
+    vec3 result=vec3(0.0);
+    for(int i=-3;i<=3;i++){
+      vec2 q=v+float(i)*uDirection;
+      if(q.x<uBounds.x||q.y<uBounds.y||q.x>uBounds.z||q.y>uBounds.w)continue;
+      float weight=exp(-.5*float(i*i))/2.50594988;
+      vec3 color;
+      if(uStage<.5){
+        vec4 art=texture2D(uArt,q),effect=texture2D(uEffects,q);
+        float strength=mix(effect.r,effect.g,uKind)/max(effect.a,.0001);
+        color=art.rgb*strength;
+      }else color=texture2D(uSource,q).rgb;
+      result+=color*weight;
+    }
+    gl_FragColor=vec4(result,1.0);
+  }`});
+spillScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),spillMaterial));
+function disposeArtworkSpill(map){
+  for(const target of map.spillTargets||[])target.dispose();
+  map.spillTargets=null;map.spillGlow.value=null;map.spillUV.value=null;
+}
+function renderArtworkSpill(map,dirty){
+  if(!map.hasEffects.value||!map.target)return;
+  const w=map.target.width/8,h=map.target.height/8;
+  if(!map.spillTargets||map.spillTargets[0].width!==w||map.spillTargets[0].height!==h){
+    disposeArtworkSpill(map);
+    map.spillTargets=Array.from({length:3},()=>new THREE.WebGLRenderTarget(w,h,{depthBuffer:false,stencilBuffer:false,minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter}));
+    map.spillGlow.value=map.spillTargets[1].texture;map.spillUV.value=map.spillTargets[2].texture;
+    dirty=[...map.tiles.keys()];
+  }
+  if(!dirty.length)return;
+  spillUniforms.uArt.value=map.target.texture;spillUniforms.uEffects.value=map.effectTarget.texture;
+  const work=map.spillTargets[0];spillUniforms.uSource.value=work.texture;
+  for(const id of dirty){
+    const t=map.tiles.get(id),width=map.target.width,height=map.target.height;
+    spillUniforms.uBounds.value.set((t.left+4)/width,(t.top+4)/height,(t.left+t.size-4)/width,(t.top+t.size-4)/height);
+    for(let kind=0;kind<2;kind++){
+      spillUniforms.uKind.value=kind;
+      for(let pass=0;pass<2;pass++){
+        const target=pass?map.spillTargets[kind+1]:work;
+        spillUniforms.uStage.value=pass;
+        spillUniforms.uDirection.value.set(pass?0:.0018*t.density/width,pass?.0018*t.density/height:0);
+        // Avoid binding the active framebuffer as any sampler, even when the
+        // corresponding dynamic shader branch will not use that sampler.
+        spillUniforms.uSource.value=pass?work.texture:map.target.texture;
+        target.scissorTest=true;target.scissor.set(t.left/8,t.top/8,t.size/8,t.size/8);
+        renderer.setRenderTarget(target);renderer.clear(true,false,false);renderer.render(spillScene,spillCamera);
+      }
+    }
+  }
+}
 function flushArtwork(){
   if(!artworkDirty||!current)return;
   const all=artworkDirtyAll,oldTarget=renderer.getRenderTarget(),oldAutoClear=renderer.autoClear,oldAlpha=renderer.getClearAlpha();
@@ -1960,7 +2041,7 @@ function flushArtwork(){
       for(const [id,quad] of map.quads)if(!ids.has(id)){quad.removeFromParent();quad.material.dispose();map.quads.delete(id);}
       for(const [id,scene] of map.scenes)if(!map.tiles.has(id)){scene.clear();map.scenes.delete(id);}
       map.has.value=layers.some(layer=>layer.visible)?1:0;
-      if(!map.target){map.effectTarget?.dispose();map.effectTarget=null;map.effects.value=null;map.hasEffects.value=0;return;}
+      if(!map.target){map.effectTarget?.dispose();map.effectTarget=null;map.effects.value=null;map.hasEffects.value=0;disposeArtworkSpill(map);return;}
       const effectsChanged=prepareEffectMap(map,layers);
       const dirty=panels.filter(id=>all||changed||effectsChanged||artworkDirtyPanels.has(`${meshId}:${id}`));
       layers.forEach((layer,i)=>{if(dirty.includes(layerProfile(layer).island))updateArtworkQuad(map,layer,i,layers.length);});
@@ -1975,6 +2056,7 @@ function flushArtwork(){
         const scene=map.scenes.get(id);if(scene)renderer.render(scene,map.camera);
       }
       renderEffectPanels(map,dirty);
+      renderArtworkSpill(map,dirty);
     });
     artworkDirty=false;artworkDirtyAll=false;artworkDirtyPanels.clear();
   }finally{
