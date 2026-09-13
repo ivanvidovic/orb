@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>ORB Garment Studio</title>
 <script src="./assets/js/brand.js"></script>
-<link rel="stylesheet" href="./assets/css/studio.css?v=18">
+<link rel="stylesheet" href="./assets/css/studio.css?v=19">
 </head>
 <body data-theme="light">
 <script>(()=>{const theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.body.dataset.theme=theme;document.documentElement.dataset.theme=theme;document.documentElement.style.colorScheme=theme;})();</script>
@@ -260,7 +260,7 @@
   </aside>
 </main>
 
-<dialog id="placementDialog" aria-labelledby="placementTitle"><div class="placement-head"><div><span class="lbl">Artwork</span><h2 id="placementTitle">Choose a placement</h2></div><button id="placementCancel" type="button" aria-label="Cancel placement">×</button></div><div class="placement-file"><img id="placementImage" alt="Artwork preview"><span id="placementFileName"></span></div><div class="placement-tabs" role="tablist" aria-label="Garment surface"><button type="button" role="tab" data-placement-side="outside" aria-selected="true">Outside</button><button type="button" role="tab" data-placement-side="inside" aria-selected="false">Inside</button></div><div class="placement-options"></div><p class="placement-note">Tap a marker or its name. Left and right refer to the wearer. Each image is a separate layer.</p></dialog>
+<dialog id="placementDialog" aria-labelledby="placementTitle"><div class="placement-head"><div><span class="lbl">Artwork</span><h2 id="placementTitle">Choose a placement</h2></div><button id="placementCancel" type="button" aria-label="Cancel placement">×</button></div><div class="placement-file"><img id="placementImage" alt="Artwork preview"><span id="placementFileName"></span></div><div class="placement-tabs" role="tablist" aria-label="Garment surface"><button type="button" role="tab" id="placement-tab-outside" aria-controls="placementOptions" data-placement-side="outside" aria-selected="true">Outside</button><button type="button" role="tab" id="placement-tab-inside" aria-controls="placementOptions" data-placement-side="inside" aria-selected="false">Inside</button></div><div id="placementOptions" class="placement-options" role="tabpanel" aria-labelledby="placement-tab-outside"></div><p class="placement-note">Left and right refer to the wearer.</p></dialog>
 <dialog id="helpDialog" aria-labelledby="helpTitle">
   <div class="helpHead">
     <div><span class="helpEyebrow">Quick guide</span><h2 id="helpTitle">ORB Garment Studio</h2></div>
@@ -312,6 +312,6 @@
 })();
 </script>
 
-<script type="module" src="./assets/js/studio.js?v=18"></script>
+<script type="module" src="./assets/js/studio.js?v=19"></script>
 </body>
 </html>

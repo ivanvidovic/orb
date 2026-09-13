@@ -16,9 +16,23 @@ export function renderPlacementDiagram(container,{kind,side,available,meta,count
   const groups=inside?[{title:'Inside',view:'Front',pins:[['necktag',150,hoodie?116:90],...(hoodie?[['hoodrightinside',119,49],['hoodleftinside',181,49]]:[])]}]
     :[{title:'Front',view:'Front',pins:[...outsideFront,...(hoodie?[['pocket',150,242],['hoodright',119,49],['hoodleft',181,49]]:[])]},{title:'Back',view:'Back',pins:outsideBack}];
   container.classList.toggle('placement-inside',inside);
+  let index=0;
+  const descriptions=new Map();
   container.innerHTML=groups.map(group=>{
-    const pins=group.pins.filter(([slot])=>available.includes(slot));
-    const button=(slot,extra,content)=>`<button type="button" data-place="${slot}" class="${extra}${slot===suggested?' suggested':''}" aria-label="${meta[slot].label}${counts[slot]?', add another graphic':''}" title="${meta[slot].label}">${content}</button>`;
-    return `<section class="placement-diagram"><h3>${group.title}</h3><div class="garment-drawing">${figure(kind,group.view,inside)}${pins.map(([slot,x,y])=>`<div class="placement-pin" style="left:${x/3}%;top:${y/3.2}%">${button(slot,'pin-button',meta[slot].code)}</div>`).join('')}</div><div class="placement-legend">${pins.map(([slot])=>button(slot,'legend-button',`<b>${meta[slot].code}</b><span>${meta[slot].label}${counts[slot]?`<small>${counts[slot]} added</small>`:''}</span>`)).join('')}</div></section>`;
-  }).join('');
+    // Read each drawing top to bottom, left to right. Codes belong to this
+    // visible diagram rather than exposing the internal placement-key order.
+    const pins=group.pins.filter(([slot])=>available.includes(slot)).sort((a,b)=>Math.round(a[2]/24)-Math.round(b[2]/24)||a[1]-b[1]);
+    return `<section class="placement-diagram"><h3>${group.title}</h3><div class="garment-drawing">${figure(kind,group.view,inside)}${pins.map(([slot,x,y])=>{
+      const code=String.fromCharCode(65+index++),label=meta[slot].label;
+      descriptions.set(slot,`${code} · ${label}${counts[slot]?` · ${counts[slot]} added`:''}`);
+      return `<div class="placement-pin" style="left:${x/3}%;top:${y/3.2}%"><button type="button" data-place="${slot}" class="pin-button${slot===suggested?' suggested':''}" aria-label="${code}: ${label}${counts[slot]?', add another graphic':''}">${code}</button></div>`;
+    }).join('')}</div></section>`;
+  }).join('')+'<p class="placement-caption" aria-live="polite" aria-atomic="true"></p>';
+  const caption=container.querySelector('.placement-caption');
+  const describe=target=>{caption.textContent=descriptions.get(target?.closest?.('[data-place]')?.dataset.place)||'Select a marker to place artwork';};
+  container.onpointerover=event=>describe(event.target);
+  container.onpointerleave=()=>describe(document.activeElement);
+  container.onfocusin=event=>describe(event.target);
+  container.onfocusout=event=>describe(event.relatedTarget);
+  describe(null);
 }

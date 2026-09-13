@@ -401,23 +401,9 @@ body[data-theme="dark"] .quickSeg button[aria-pressed="true"]{color:#181818}
 [hidden]{display:none!important}
 
 #drop{position:fixed;inset:8px;z-index:40;pointer-events:none;border:2px dashed var(--ink);background:color-mix(in srgb,var(--paper) 88%,transparent)}
-#placementDialog{width:min(600px,calc(100vw - 28px));max-height:calc(100dvh - 28px);padding:0;overflow:auto;border:1px solid var(--rule-strong);background:var(--paper);color:var(--ink)}
-#placementDialog::backdrop{background:rgba(0,0,0,.55)}
-.placement-head{display:flex;align-items:center;justify-content:space-between;padding:20px 22px;border-bottom:1px solid var(--rule)}
-.placement-head h2{font-size:20px;font-weight:400;margin:7px 0 0}.placement-head .lbl{font-size:11px}
-#placementCancel{width:40px;height:40px;background:none;color:inherit;font:inherit;font-size:26px;border:1px solid var(--rule);cursor:pointer}
-.placement-file{display:flex;align-items:center;gap:14px;margin:18px 22px;font-size:13px;overflow-wrap:anywhere}
-.placement-file img{width:64px;height:64px;object-fit:contain;flex-shrink:0;border:1px solid var(--rule);background:repeating-conic-gradient(#ddd 0% 25%,#fafafa 0% 50%) 50%/12px 12px}
-.placement-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:0 22px}
-.placement-options h3{font-size:12px;font-weight:400;text-transform:uppercase;letter-spacing:.12em;margin:0 0 9px}
-.placement-options button{display:block;width:100%;min-height:65px;text-align:left;color:inherit;background:transparent;border:1px solid var(--rule-mid);font:inherit;font-size:13px;padding:10px;margin:0 0 8px;cursor:pointer}
-.placement-options button small{display:block;font-size:11px;opacity:.6;margin-top:5px}
-.placement-options button:hover:not(:disabled),.placement-options button:focus-visible{background:var(--ink);color:var(--paper);outline:none;border-color:var(--ink)}
-.placement-options button:disabled{opacity:.35;cursor:default}
-.placement-note{font-size:12px;line-height:1.5;opacity:.7;margin:12px 22px 20px}
 .art-heading{gap:6px}.art-heading>span{margin-right:auto}.art-heading #artUploadAny{padding:0 3px;font-size:11px!important}
 .art-slot-line small{font-size:11px}.art-slot-line b{font-size:12px}
-@media(max-width:600px){.placement-options{grid-template-columns:1fr 1fr;gap:10px}.placement-options section:last-child{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;column-gap:10px}.placement-options section:last-child h3{grid-column:1/-1}.placement-head{padding:16px}.placement-file{margin:14px 16px}.placement-options{padding:0 16px}.placement-note{margin:12px 16px 16px}}
+
 
 #positionHint{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);width:max-content;max-width:calc(100% - 24px);display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--paper);color:var(--ink);border:1px solid var(--rule-strong);border-radius:12px;z-index:6;font-size:13px;box-shadow:0 6px 24px #0002}#positionHint button{border:0;background:transparent;color:inherit;text-decoration:underline;cursor:pointer;min-height:32px}#rowFit{flex-wrap:wrap}.art-editor-head{flex-wrap:wrap}.art-editor-head strong{flex:1}#artPosition{font-size:11px;padding:0 4px}
 body{color-scheme:light}body[data-theme="dark"]{color-scheme:dark}#artWorkspace input{accent-color:var(--accent)}
@@ -593,29 +579,40 @@ select,select option,select optgroup{color:var(--ink);background-color:var(--pap
 .light-lock{display:flex;align-items:center;gap:8px;font-size:12px;min-height:36px;cursor:pointer}
 .light-lock input{width:16px;height:16px;margin:0}
 #lightDescription{font-size:11px;line-height:1.55;color:var(--graphite);margin:0}
-#placementDialog{width:min(780px,calc(100vw - 24px));max-height:92dvh;overflow-y:auto}
-.placement-tabs{display:flex;gap:6px;padding:0 24px 16px}
-.placement-tabs button{min-height:42px;flex:1;max-width:160px;border:1px solid var(--rule-mid);color:var(--ink);background:var(--paper);font:inherit;font-size:12px;cursor:pointer}
+/* Placement picker: one footprint and diagram scale for both surfaces. */
+#placementDialog{box-sizing:border-box;width:min(650px,calc(100vw - 24px));max-height:calc(100dvh - 24px);padding:0;overflow:auto;border:1px solid var(--rule-strong);background:var(--paper);color:var(--ink)}
+#placementDialog::backdrop{background:rgba(0,0,0,.55)}
+.placement-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;border-bottom:1px solid var(--rule)}
+.placement-head h2{font-size:18px;font-weight:400;margin:5px 0 0}.placement-head .lbl{font-size:10px}
+#placementCancel{flex:none;width:32px;height:32px;border:0;background:none;color:inherit;font:inherit;font-size:25px;cursor:pointer}
+.placement-file{display:flex;align-items:center;gap:12px;height:44px;min-width:0;margin:14px 20px;font-size:12px}
+.placement-file img{width:44px;height:44px;object-fit:contain;flex:none;border:1px solid var(--rule);background:repeating-conic-gradient(#ddd 0% 25%,#fafafa 0% 50%) 50%/12px 12px}
+#placementFileName{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.placement-tabs{display:flex;justify-content:center;width:max-content;max-width:100%;margin:0 auto 16px;padding:3px;gap:3px;border:1px solid var(--rule);border-radius:6px;background:var(--wash)}
+.placement-tabs button{width:88px;height:32px;padding:0 12px;border:0;border-radius:3px;background:transparent;color:var(--ink);font:inherit;font-size:12px;cursor:pointer}
 .placement-tabs button[aria-selected=true]{background:var(--ink);color:var(--paper)}
-.placement-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;padding:0 24px}
-.placement-options.placement-inside{grid-template-columns:minmax(0,340px);justify-content:center}
-.placement-options .placement-diagram{display:block!important;grid-column:auto!important}
-.placement-diagram h3{text-align:center;margin:0 0 4px}
-.garment-drawing{position:relative;max-width:290px;margin:0 auto 8px}
-.garment-drawing svg{display:block;width:100%;height:auto;overflow:visible}
+.placement-tabs button:focus-visible,#placementCancel:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+.placement-options{display:flex;flex-wrap:wrap;justify-content:center;align-items:flex-start;gap:0 16px;padding:0 20px}
+.placement-diagram{flex:0 0 calc((100% - 16px)/2);max-width:260px;min-width:0}
+.placement-diagram h3{height:16px;line-height:16px;margin:0 0 8px;text-align:center;font-size:10px;font-weight:400;text-transform:uppercase;letter-spacing:.12em}
+.garment-drawing{position:relative;width:100%;aspect-ratio:300/320;margin:0}
+.garment-drawing svg{display:block;width:100%;height:100%;overflow:visible}
 .garment-outline{fill:var(--wash);stroke:var(--graphite);stroke-width:1.6;stroke-linejoin:round}
 .garment-seams{fill:none;stroke:var(--graphite);stroke-width:1;opacity:.55}
 .tag-outline{stroke-dasharray:2 2}
 .placement-pin{position:absolute;transform:translate(-50%,-50%)}
-.placement-options button.pin-button{padding:0;width:36px;min-height:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:var(--paper);border:1px solid var(--ink);color:var(--ink);font:inherit;font-weight:600;font-size:11px;box-shadow:0 2px 6px #0001;margin:0}
-.placement-options button.pin-button:hover,.placement-options button.pin-button:focus-visible,.placement-options button.pin-button.suggested{background:var(--ink);color:var(--paper)}
-.placement-legend{display:grid;grid-template-columns:1fr 1fr;gap:2px 6px}
-.placement-options button.legend-button{display:flex;align-items:center;gap:8px;border:0;background:transparent;color:var(--ink);padding:6px 2px;min-height:44px;text-align:left;font:inherit;font-size:11px;margin:0}
-.legend-button b{font-size:10px;display:grid;place-items:center;width:22px;height:22px;flex:none;border:1px solid var(--rule-mid);border-radius:50%}
-.legend-button span{line-height:1.45}
-.placement-options button.legend-button:hover,.placement-options button.legend-button:focus-visible{text-decoration:underline;background:var(--wash)}
-.placement-options button.legend-button small{display:block;font-size:10px;opacity:.65}
-@media(max-width:600px){.placement-options{grid-template-columns:1fr;gap:20px;padding:0 16px}.placement-tabs{padding:0 16px 14px}.garment-drawing{max-width:270px}.placement-options.placement-inside{grid-template-columns:1fr}.placement-legend{gap:3px 12px}}
+.placement-options .pin-button{padding:0;width:28px;min-height:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:var(--paper);border:1px solid var(--ink);color:var(--ink);font:inherit;font-weight:500;font-size:10px;margin:0;cursor:pointer}
+.placement-options .pin-button:hover,.placement-options .pin-button:focus-visible,.placement-options .pin-button.suggested{background:var(--ink);color:var(--paper)}
+.placement-options .pin-button:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+.placement-caption{flex:0 0 100%;box-sizing:border-box;height:40px;display:flex;align-items:center;justify-content:center;text-align:center;margin:8px 0 0;font-size:12px;line-height:16px;color:var(--ink)}
+.placement-note{margin:0 20px 16px;font-size:11px;line-height:16px;text-align:center;color:var(--graphite)}
+@media(max-width:600px){
+  .placement-head{padding:14px 16px}.placement-file{margin:12px 16px}
+  .placement-options{padding:0 12px;column-gap:12px}.placement-diagram{flex-basis:calc((100% - 12px)/2)}
+  .placement-tabs{margin-bottom:14px}.placement-tabs button{height:34px;width:82px}
+  .placement-options .pin-button{width:26px;min-height:26px;height:26px;font-size:10px}
+  .placement-note{margin:0 16px 14px;font-size:10px}.placement-caption{font-size:11px}
+}
 
 #lightPower,#lightLock{accent-color:var(--ink)}
 

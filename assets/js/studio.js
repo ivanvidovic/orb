@@ -1,6 +1,6 @@
-import {renderPlacementDiagram} from './placement-diagrams.js';
-import {installColorPicker} from './color-picker.js?v=18';
-import {installSliderControls} from './controls.js?v=18';
+import {renderPlacementDiagram} from './placement-diagrams.js?v=19';
+import {installColorPicker} from './color-picker.js?v=19';
+import {installSliderControls} from './controls.js?v=19';
 
 const BRAND=window.BRAND;
 document.title=BRAND.title;
@@ -165,11 +165,11 @@ const LIGHT_PRESETS={
     key:1.65,keyColor:NIGHT_DEFAULTS.green,keyPos:[-1.7,1.3,1.4],
     fill:.48,fillColor:NIGHT_DEFAULTS.magenta,fillPos:[1.5,.6,.95],
     rim:1.15,rimColor:NIGHT_DEFAULTS.magenta,rimPos:[.8,1.1,-1.6]},
-  uv:{label:'Black light',description:'Dark violet room with a little neutral fill. UV-reactive materials fluoresce; glow-in-the-dark materials remain luminous.',
+  uv:{label:'Black light',description:'Directional black light with subtle neutral fill. UV-reactive ink and fabric fluoresce where the black light reaches them.',
     exposure:1,hemi:.035,hemiSky:'#77718f',hemiGround:'#252030',
-    key:.28,keyColor:'#a5a1bc',keyPos:[-1.65,1.85,1.35],
-    fill:.07,fillColor:'#9a78fa',fillPos:[1.55,.45,1],
-    rim:.35,rimColor:'#6633ef',rimPos:[.45,1.1,-1.8]}
+    key:.18,keyColor:'#824bff',keyPos:[-1.65,1.85,1.35],
+    fill:.07,fillColor:'#c1c3d2',fillPos:[1.55,.45,1],
+    rim:.18,rimColor:'#6633ef',rimPos:[.45,1.1,-1.8]}
 };
 function applyLightingPreset(){
   const p=LIGHT_PRESETS[state.light]||LIGHT_PRESETS.studio,power=state.lightPower/100;
@@ -314,7 +314,7 @@ const FRAG_HEAD=`
 uniform float uArtRough,uHasArtwork;
 uniform sampler2D uArtwork,uArtworkEffects;
 uniform float uHasEffects,uBlackLight,uFabricUV,uFabricReactive,uGlowSceneLevel;
-float kIlluminance=0.0;
+float kIlluminance=0.0,kUVExposure=0.0,kUVVisibility=1.0;
 vec3 kFabricColor=vec3(0.0),kArtColor=vec3(0.0);
 vec2 kArtEffects=vec2(0.0);
 varying vec2 vArtworkUv;
@@ -325,7 +325,12 @@ if(gl_FrontFacing&&uHasArtwork>0.5&&vArtworkUv.x>=0.0&&vArtworkUv.y>=0.0){
   vec4 art=texture2D(uArtwork,vArtworkUv);
   diffuseColor.rgb=diffuseColor.rgb*(1.0-art.a)+art.rgb;
   kArtworkMask=art.a;kArtColor=art.rgb/max(art.a,.0001);
-  if(uHasEffects>.5)kArtEffects=texture2D(uArtworkEffects,vArtworkUv).rg*4.0;
+  if(uHasEffects>.5){
+    vec4 effects=texture2D(uArtworkEffects,vArtworkUv);
+    // The low-resolution map stores premultiplied effect strength. Restore
+    // strength, then apply the full-resolution print coverage exactly once.
+    kArtEffects=effects.rg/max(effects.a,.0001)*4.0*art.a;
+  }
 }
 if(!gl_FrontFacing)diffuseColor.rgb*=0.60;
 }`;
@@ -333,15 +338,15 @@ if(!gl_FrontFacing)diffuseColor.rgb*=0.60;
 // This is an appearance preview: emission brightens the surface, without
 // adding costly per-layer lights or bloom that would blur the print edges.
 const FRAG_EMISSION=`
-vec3 kIncident=(reflectedLight.directDiffuse+reflectedLight.indirectDiffuse)/max(diffuseColor.rgb,vec3(.025));
-float kLight=dot(kIncident,vec3(.2126,.7152,.0722));
-// Raw incident light includes direct shadows, hemisphere and environment.
-// Unlike diffuse/albedo division it does not mistake dark ink for darkness.
+// Visible irradiance is independent of ink color and already shadow masked.
 float kAmbient=dot(irradiance+iblIrradiance,vec3(.2126,.7152,.0722));
-float kDark=(1.0-smoothstep(.035,.28,kIlluminance+kAmbient))/(1.0+4.0*uGlowSceneLevel*uGlowSceneLevel);
-// Virtual UV excitation uses the shadowed direct light, so recessed fabric
-// does not become a uniformly luminous silhouette under black light.
-float kUV=uBlackLight*clamp(dot(reflectedLight.directDiffuse/max(diffuseColor.rgb,vec3(.025)),vec3(.2126,.7152,.0722))*14.0,.015,1.0);
+float kVisible=max(0.0,kIlluminance+kAmbient);
+float kDark=(1.0-smoothstep(.035,.28,kVisible))/(1.0+4.0*uGlowSceneLevel*uGlowSceneLevel);
+// UV is a separate excitation signal from the shadowed key fixture. Neither
+// white fill nor the ink's RGB channels can create UV energy or an edge halo.
+// More visible light reduces fluorescent contrast, without imposing a floor
+// in UV shadows. No UV source means no fluorescence, even in total darkness.
+float kUV=2.5*(1.0-exp(-1.8*kUVExposure))/(1.0+3.0*kVisible+2.0*uGlowSceneLevel*uGlowSceneLevel);
 float kGlow=kArtEffects.r*kDark+kArtEffects.g*kUV;
 float kFabric=uFabricUV*kUV*uFabricReactive;
 totalEmissiveRadiance+=kArtColor*kGlow+kFabricColor*kFabric*(1.0-kArtworkMask);
@@ -372,7 +377,21 @@ function patchFabricMaterial(mat){
       .replace('inverseTransformDirection( normal, viewMatrix );','uLightEnvRotation * inverseTransformDirection( normal, viewMatrix );')
       .replace('inverseTransformDirection( reflectVec, viewMatrix );','uLightEnvRotation * inverseTransformDirection( reflectVec, viewMatrix );')
       .replaceAll('* envMapIntensity','* envMapIntensity * uLightEnvPower');
-    const lightingChunk=THREE.ShaderChunk.lights_fragment_begin.replaceAll('RE_Direct( directLight,','kIlluminance += dot(directLight.color,vec3(.2126,.7152,.0722))*max(dot(geometryNormal,directLight.direction),0.0); RE_Direct( directLight,');
+    let lightingChunk=THREE.ShaderChunk.lights_fragment_begin;
+    // The existing shadow-casting key is first in Three's directional-light
+    // list. Reuse its actual shadow sample for UV; no extra light or map pass.
+    const dirStart=lightingChunk.indexOf('#if ( NUM_DIR_LIGHTS > 0 )');
+    const dirEnd=lightingChunk.indexOf('#if ( NUM_RECT_AREA_LIGHTS > 0 )',dirStart);
+    let directional=lightingChunk.slice(dirStart,dirEnd)
+      .replace('getDirectionalLightInfo( directionalLight, directLight );','getDirectionalLightInfo( directionalLight, directLight );\n kUVVisibility=1.0;')
+      .replace('directLight.color *= ( directLight.visible && receiveShadow ) ? getShadow(', 'kUVVisibility = ( directLight.visible && receiveShadow ) ? getShadow(')
+      .replace('\n\t\tRE_Direct( directLight,',`\n        directLight.color *= kUVVisibility;
+        #if UNROLLED_LOOP_INDEX == 0
+          kUVExposure += uBlackLight*kUVVisibility*max(dot(geometryNormal,directLight.direction),0.0);
+        #endif
+        RE_Direct( directLight,`);
+    lightingChunk=lightingChunk.slice(0,dirStart)+directional+lightingChunk.slice(dirEnd);
+    lightingChunk=lightingChunk.replaceAll('RE_Direct( directLight,','kIlluminance += dot(directLight.color,vec3(.2126,.7152,.0722))*max(dot(geometryNormal,directLight.direction),0.0); RE_Direct( directLight,');
     sh.fragmentShader=sh.fragmentShader.replace('#include <lights_fragment_begin>',lightingChunk);
     sh.fragmentShader='uniform mat3 uLightEnvRotation; uniform float uLightEnvPower;\n'+sh.fragmentShader.replace('#include <envmap_physical_pars_fragment>',environmentChunk);
     sh.vertexShader = VERT_HEAD + sh.vertexShader;
@@ -404,7 +423,7 @@ function patchFabricMaterial(mat){
     sh.fragmentShader = sh.fragmentShader.replace('#include <roughnessmap_fragment>',
       '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, clamp(uArtRough, 0.02, 1.0), clamp(kArtworkMask, 0.0, 1.0));');
   };
-  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v18-material-frame';
+  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v19-uv-incident';
   mat.needsUpdate=true;
   return mat;
 }
@@ -2432,9 +2451,19 @@ function renderPlacements(){
     kind,side:placementMode,available,meta:ART_META,suggested:placementSuggested,
     counts:Object.fromEntries(available.map(slot=>[slot,artLayers.filter(layer=>layer.slot===slot).length]))
   });
-  for(const button of placementDialog.querySelectorAll('[data-placement-side]'))button.setAttribute('aria-selected',String(button.dataset.placementSide===placementMode));
+  for(const button of placementDialog.querySelectorAll('[data-placement-side]')){
+    const active=button.dataset.placementSide===placementMode;
+    button.setAttribute('aria-selected',String(active));button.tabIndex=active?0:-1;
+  }
+  placementDialog.querySelector('.placement-options').setAttribute('aria-labelledby','placement-tab-'+placementMode);
 }
 for(const button of placementDialog.querySelectorAll('[data-placement-side]'))button.onclick=()=>{placementMode=button.dataset.placementSide;renderPlacements();};
+placementDialog.querySelector('.placement-tabs').addEventListener('keydown',event=>{
+  if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+  event.preventDefault();
+  const next=event.key==='Home'?'outside':event.key==='End'?'inside':placementMode==='outside'?'inside':'outside';
+  const button=placementDialog.querySelector(`[data-placement-side="${next}"]`);button.click();button.focus();
+});
 let placementFiles=[],placementThumbUrl=null,placementReturnFocus=null;
 function openPlacementPicker(files,suggested=activeArtSlot){
   if(artLoading)return;
@@ -2450,6 +2479,9 @@ function openPlacementPicker(files,suggested=activeArtSlot){
 }
 function closePlacementPicker(){placementDialog.close();}
 placementDialog.addEventListener('close',()=>{
+  // A queued close event can arrive after a new picker has already opened.
+  // It must not revoke that new artwork preview or clear its pending files.
+  if(placementDialog.open)return;
   placementFiles=[];
   if(placementThumbUrl)URL.revokeObjectURL(placementThumbUrl);
   placementThumbUrl=null;document.getElementById('placementImage').removeAttribute('src');
