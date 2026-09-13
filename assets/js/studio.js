@@ -720,6 +720,17 @@ async function getCatalogBytes(item){
       const url=new URL(path,import.meta.url);url.searchParams.set('v','18');
       const response=await fetch(url);
       if(!response.ok)throw new Error('Garment asset could not load.');
+      if(index===0&&window.ORBStartup?.active){
+        const reader=response.body?.getReader(),total=Number(response.headers.get('Content-Length'));
+        if(reader){
+          const chunks=[];let loaded=0;
+          try{for(;;){const {done,value}=await reader.read();if(done)break;chunks.push(value);loaded+=value.byteLength;
+            if(total>0)window.ORBStartup.progress(.06+.74*Math.min(1,loaded/total),'Loading garment');
+          }}finally{reader.releaseLock();}
+          const bytes=new Uint8Array(loaded);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
+          return bytes.buffer;
+        }
+      }
       return index===1?response.json():response.arrayBuffer();
     }));
   })();
@@ -735,7 +746,7 @@ function trimCatalogCache(){
 }
 let placementCalibrationPromise=null;
 function getPlacementCalibration(){
-  if(!placementCalibrationPromise)placementCalibrationPromise=fetch(new URL('../calibration/placements-23.json',import.meta.url)).then(response=>{
+  if(!placementCalibrationPromise)placementCalibrationPromise=fetch(new URL('../calibration/placements-24.json',import.meta.url)).then(response=>{
     if(!response.ok)throw new Error('Placement calibration could not load.');return response.json();
   }).catch(error=>{placementCalibrationPromise=null;throw error;});
   return placementCalibrationPromise;
@@ -749,6 +760,10 @@ async function prepareCatalog(item){
     let imported=null,res=null;
     try{
       const [bytes,meta,data]=await getCatalogBytes(item);
+      if(window.ORBStartup?.active){
+        window.ORBStartup.preparing();
+        await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+      }
       const gltf=await gltfLoader.parseAsync(bytes,new URL('../garments/',import.meta.url).href);
       imported=gltf.scene;res=adopt(imported);
       await applyCalibration(res.group,item,[meta,data]);
@@ -1122,19 +1137,23 @@ const artControlElements=Object.fromEntries(['x','y','scale','rot'].map(prop=>[p
 }]));
 function artControlPair(slot,prop){return artControlElements[prop];}
 
-function normalizeArtValue(slotForNormalize, prop, raw){
-  const meta=ART_INPUT_META[prop];
+function artScaleMax(entry){
+  // Retain an enlarged sleeve value when switching to a short-sleeved garment.
+  return ART_META[entry?.slot]?.side==='Sleeve'&&entry?.sleevePreset==='full'?600:200;
+}
+function normalizeArtValue(slotForNormalize,prop,raw,entry=artEntry()){
+  const meta=ART_INPUT_META[prop],max=prop==='scale'?artScaleMax(entry):meta.max;
   let v=Number(raw);
   if(!Number.isFinite(v)) v=artDefault(slotForNormalize, prop);
   v=Math.round(v/meta.step)*meta.step;
-  v=clamp(v, meta.min, meta.max);
+  v=clamp(v, meta.min, max);
   if(prop!=='scale' && Math.abs(v)<meta.step) v=0;
   return v;
 }
 
 function applyArtValue(id,prop,raw){
   const entry=artEntry(id);if(!entry)return;
-  const v=normalizeArtValue(entry.slot,prop,raw),A=entry.placement;
+  const v=normalizeArtValue(entry.slot,prop,raw,entry),A=entry.placement;
   if(prop==='x'||prop==='y')A[prop]=v*.0018;
   else if(prop==='scale')A.scale=v/100;
   else A.rot=v;
@@ -1931,9 +1950,9 @@ function updateArtworkQuad(map,layer,index,total){
   mesh.visible=layer.visible;mesh.renderOrder=total-index;
   if(!layer.visible)return;
   const image=artworkSource(layer),A=layer.placement,meta=ART_META[layer.slot],aspect=image.height/image.width;
-  // Fit the source proportionally within the calibrated outer sleeve, above the cuff.
+  // Full sleeve fits length, with proportional width. Its outer panel clips overflow.
   const full=hasFullSleeve(layer)&&layer.sleevePreset==='full',limits=UV_PROFILES[layer.slot]?.full;
-  const width=full?Math.min(limits.printWidth,limits.printLength/aspect)*A.scale:
+  const width=full?limits.printLength/aspect*A.scale:
     meta.w*A.scale*(q.printScale||1)/(!isCustom&&meta.side==='Sleeve'?Math.max(1,aspect):1);
   const height=width*aspect;
   const [a,b,d,e]=q.basis,c=Math.cos(A.rot*Math.PI/180),s=Math.sin(A.rot*Math.PI/180),k=tile.density;
@@ -2084,6 +2103,7 @@ const layerProfile=layer=>layer.anchor||(hasFullSleeve(layer)&&layer.sleevePrese
 function setSleevePreset(preset){
   const entry=artEntry();if(artLoading||!hasFullSleeve(entry)||!['patch','full'].includes(preset)||entry.sleevePreset===preset)return;
   recordArtUndo();cancelAnchorPick();entry.sleevePreset=preset;entry.anchor=null;
+  if(preset==='full')entry.fit=true;
   entry.placement={x:0,y:0,scale:preset==='full'?1:ART_META[entry.slot].scale/100,rot:0};
   requestArtworkRender(entry);syncArtworkUi();
 }
@@ -2166,6 +2186,9 @@ function syncArtControls(){
   document.getElementById('artEmissionControl').hidden=!(entry.glow||entry.uvReactive);
   document.getElementById('artEmission').value=entry.emission??100;
   document.getElementById('artEmissionValue').value=entry.emission??100;
+  const full=hasFullSleeve(entry)&&entry.sleevePreset==='full',scaleControl=artControlPair(entry.slot,'scale');
+  for(const input of [scaleControl.range,scaleControl.num])input.max=String(artScaleMax(entry));
+  scaleControl.range.title=full?'100% fits the sleeve length; enlarge up to 600%':'Artwork scale';
   const A=entry.placement,vals={x:A.x/.0018,y:A.y/.0018,scale:A.scale*100,rot:A.rot};
   for(const prop of ['x','y','scale','rot']){
     const pair=artControlPair(entry.slot,prop),value=Math.round(vals[prop]);
@@ -2328,11 +2351,11 @@ async function loadArtFiles(slot,files,action='add',targetId=null){
     const names=new Set(artLayers.filter(e=>action!=='replace'||e!==target).map(e=>e.name.toLocaleLowerCase()));
     added=entries.map(e=>{
       const layer=initializeLayer(e,slot,anchor,names);layer.sleevePreset=target?.sleevePreset||'patch';
-      if(hasFullSleeve(layer)&&layer.sleevePreset==='full')layer.placement.scale=1;
+      if(hasFullSleeve(layer)&&layer.sleevePreset==='full'){layer.placement.scale=1;layer.fit=target?.fit??true;}
       return layer;
     });
     if(action==='replace'&&target){
-      added[0].id=target.id;added[0].placement={...target.placement};added[0].visible=target.visible;
+      added[0].id=target.id;added[0].placement={...target.placement};added[0].visible=target.visible;added[0].fit=target.fit;
       if(target.nameEdited){added[0].name=target.name;added[0].nameEdited=true;}
       artLayers.splice(index,1,...added);
     }else artLayers.splice(index<0?0:index,0,...added);
@@ -3039,7 +3062,15 @@ await Promise.all([loadSvg(BRAND.wordmark,4096),loadSvg(BRAND.emblem,2048)]).the
   if(REDUCED||anchorPickId){ uni.uWind.value=0; uni.uTwist.value=0; }
   resize(); setView('angle');
   tick();
-  await loadCatalog(selectedCatalogId);
-  requestAnimationFrame(()=>document.body.classList.add('ready'));
+  if(!await loadCatalog(selectedCatalogId))throw new Error('Initial garment could not load.');
+  window.ORBStartup?.progress(.94,'Preparing preview');
+  // Upload textures, compose artwork, and draw the first garment before the handoff.
+  resize();draw();
+  await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  document.body.classList.add('ready');
+  await window.ORBStartup?.complete();
   preloadCatalog();
-}).catch(err=>{ console.error(err); bootMsg.textContent='Preview could not initialize. Reload to try again.'; });
+}).catch(err=>{
+  console.error(err);bootMsg.textContent='Preview could not initialize. Reload to try again.';
+  window.ORBStartup?.fail('The preview could not load. Check your connection and try again.');
+});

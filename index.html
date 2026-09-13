@@ -1,14 +1,39 @@
 <!DOCTYPE html>
 <html lang="en">
-<!-- Release 23: calibrated sleeve patches and full sleeve artwork. Deploy index.html with the assets folder. Source: orb-tee-11.html. -->
+<!-- Release 24: ORB startup and sleeve length sizing. Deploy index.html with the assets folder. Source: orb-tee-11.html. -->
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>ORB Garment Studio</title>
+<style>
+/* Critical startup styles paint before the 3D modules arrive. */
+#startup{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;background:#1c1c1c;color:#fff;opacity:1;transition:opacity .38s ease;isolation:isolate}
+#startup[hidden]{display:none}#startup.is-leaving{opacity:0}
+.startup-lock{overflow:hidden}
+.startup-content{display:flex;align-items:center;flex-direction:column;text-align:center;padding:30px;transform:translateY(-12px)}
+.startup-emblem{display:block;width:148px;height:148px;overflow:visible}
+.startup-emblem [stroke]{stroke:#fff;stroke-width:9;opacity:.48}
+.startup-emblem>circle:first-child{opacity:.16}
+.startup-emblem .startup-progress{stroke-width:10;opacity:1;stroke-dasharray:100;stroke-dashoffset:94;transition:stroke-dashoffset .2s linear}
+.startup-wordmark{width:72px;height:auto;margin-top:30px}
+.startup-wordmark [stroke]{stroke:#fff;stroke-width:24}
+#startupStatus{margin:26px 0 0;font:10px/1.6 Rubik,Arial,sans-serif;letter-spacing:.1em;color:rgba(255,255,255,.6);min-height:16px}
+#startupRetry{margin-top:18px;padding:8px 16px;border:1px solid #ffffff50;background:none;color:#fff;font:11px/1.4 Rubik,Arial,sans-serif;cursor:pointer}
+#startupRetry[hidden]{display:none}#startupRetry:focus-visible{outline:2px solid white;outline-offset:4px}
+#startup.is-indeterminate .startup-progress{stroke-dasharray:18 82;stroke-dashoffset:0;transform-origin:499.8461609px 500px;animation:startup-orbit 2.8s linear infinite;will-change:transform}
+#startup.is-preparing .startup-emblem{animation:startup-breathe 2.6s ease-in-out infinite}
+#startup.is-error .startup-progress{opacity:.35;animation:none}
+@keyframes startup-orbit{from{transform:rotate(-90deg)}to{transform:rotate(270deg)}}
+@keyframes startup-breathe{50%{opacity:.62}}
+@media(prefers-reduced-motion:reduce){#startup,#startup .startup-progress{transition:none}#startup.is-indeterminate .startup-progress,#startup.is-preparing .startup-emblem{animation:none}}
+</style>
 <script src="./assets/js/brand.js"></script>
-<link rel="stylesheet" href="./assets/css/studio.css?v=23">
+<link rel="stylesheet" href="./assets/css/studio.css?v=24">
 </head>
-<body data-theme="light">
+<body data-theme="light" class="startup-lock">
+<div id="startup" class="is-indeterminate" aria-label="Loading ORB Garment Studio"><div class="startup-content"><div id="startupProgress" role="progressbar" aria-label="Preparing garment preview" aria-valuemin="0" aria-valuemax="100"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" class="startup-emblem" aria-hidden="true"> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="500" r="460"/> <g> <path fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" d=" M674.6182861,925.295166V674.7720947C674.6182861,578.2481689,596.3701172,500,499.8461609,500 s-174.7721252,78.2481689-174.7721252,174.7720947V925.295166"/> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="325.2278748" r="174.7721252"/> </g> <g> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="616.5148926" r="116.5148926"/> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="383.4851074" r="116.5148926"/> </g> <circle class="startup-progress" pathLength="100" transform="rotate(-90 499.8461609 500)" fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="500" r="460"/></svg></div><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2070 1000" class="startup-wordmark" aria-hidden="true"> <circle fill="none" stroke="#000000" stroke-width="80" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="500" r="460"/> <g> <circle fill="none" stroke="#000000" stroke-width="80" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="1799.8461914" cy="730" r="230"/> <circle fill="none" stroke="#000000" stroke-width="80" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="1799.8461914" cy="270" r="230"/> </g> <g> <path fill="none" stroke="#000000" stroke-width="80" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" d=" M1479.8461914,960V730c0-127.0255127-102.9744873-230-230-230s-230.000061,102.9744873-230.000061,230v230"/> <circle fill="none" stroke="#000000" stroke-width="80" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="1249.8461914" cy="270" r="230"/> </g> </svg><p id="startupStatus" role="status" aria-live="polite">Preparing studio</p><button id="startupRetry" type="button" hidden>Try again</button></div></div>
+<script src="./assets/js/startup.js?v=24"></script>
+<noscript><style>#startup{display:none}.startup-lock{overflow:auto}</style><p>JavaScript is required to use ORB Garment Studio.</p></noscript>
 <script>(()=>{const theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.body.dataset.theme=theme;document.documentElement.dataset.theme=theme;document.documentElement.style.colorScheme=theme;})();</script>
 
 <canvas id="bgPattern" aria-hidden="true"></canvas>
@@ -106,7 +131,7 @@
 <div id="artEditorParking" hidden>
 <section id="artEditor" hidden aria-label="Selected artwork controls">
   <div class="art-editor-head"><strong id="artEditorName" class="sr-only">Artwork placement</strong><button id="artAdd" type="button" title="Add separate layers at this placement">+ Add here</button><button id="artReplace" type="button" title="Replace image" aria-label="Replace image">Replace</button><button id="artPosition" type="button" title="Set position" aria-label="Set position" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="5"/><path d="M10 1v5m0 8v5M1 10h5m8 0h5"/></svg></button><button id="artView" type="button" title="View on garment" aria-label="View on garment">View</button><button id="artClose" type="button" aria-label="Close artwork controls">Done</button></div>
-  <div id="sleevePresetControl" class="sleeve-preset-row" hidden><span>Sleeve print</span><div role="group" aria-label="Sleeve print preset"><button type="button" data-sleeve-preset="patch" aria-pressed="true">Patch</button><button type="button" data-sleeve-preset="full" aria-pressed="false" title="Fit artwork along the sleeve, above the cuff">Full sleeve</button></div></div>
+  <div id="sleevePresetControl" class="sleeve-preset-row" hidden><span>Sleeve print</span><div role="group" aria-label="Sleeve print preset"><button type="button" data-sleeve-preset="patch" aria-pressed="true">Patch</button><button type="button" data-sleeve-preset="full" aria-pressed="false" title="100% fits shoulder to wrist; scale up to 600%">Full sleeve</button></div></div>
   <div class="art-mode-row">
     <label for="artMode">Render as</label>
     <div class="art-mode-choice">
@@ -313,6 +338,6 @@
 })();
 </script>
 
-<script type="module" src="./assets/js/studio.js?v=23"></script>
+<script type="module" src="./assets/js/studio.js?v=24"></script>
 </body>
 </html>
