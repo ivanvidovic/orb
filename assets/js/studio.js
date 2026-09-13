@@ -1,3 +1,4 @@
+import {renderPlacementDiagram} from './placement-diagrams.js';
 import {installColorPicker} from './color-picker.js';
 
 const BRAND=window.BRAND;
@@ -51,6 +52,15 @@ const GARMENTS = [
    converted into its native UV atlas. */
 // Each placement is registered against the garment's authored UV atlas.
 const ART_META={"chest": {"label": "Left chest", "side": "Front", "view": "front", "w": 0.095, "scale": 70, "code": "A"}, "rightchest": {"label": "Right chest", "side": "Front", "view": "front", "w": 0.095, "scale": 70, "code": "B"}, "front": {"label": "Full front", "side": "Front", "view": "front", "w": 0.3, "scale": 100, "code": "C"}, "back": {"label": "Full back", "side": "Back", "view": "back", "w": 0.3, "scale": 100, "code": "D"}, "lowerback": {"label": "Lower back", "side": "Back", "view": "back", "w": 0.22, "scale": 85, "code": "E"}, "leftshoulder": {"label": "Left shoulder", "side": "Sleeve", "view": "left", "w": 0.08, "scale": 85, "code": "F"}, "rightshoulder": {"label": "Right shoulder", "side": "Sleeve", "view": "right", "w": 0.08, "scale": 85, "code": "G"}};
+Object.assign(ART_META,{
+  pocket:{label:'Hoodie pocket',side:'Front',view:'front',w:.14,scale:100,code:'H',hoodie:true},
+  hoodleft:{label:'Left hood · outside',side:'Hood',view:'left',w:.09,scale:100,code:'I',hoodie:true},
+  hoodright:{label:'Right hood · outside',side:'Hood',view:'right',w:.09,scale:100,code:'J',hoodie:true},
+  hoodleftinside:{label:'Left hood · inside',side:'Inside',view:'insideleft',w:.05,scale:100,code:'K',hoodie:true},
+  hoodrightinside:{label:'Right hood · inside',side:'Inside',view:'insideright',w:.05,scale:100,code:'L',hoodie:true},
+  necktag:{label:'Inside neck tag',side:'Inside',view:'neck',w:.045,scale:100,code:'M'}
+});
+const STANDARD_PLACEMENTS=['chest','rightchest','front','back','lowerback','leftshoulder','rightshoulder'];
 const ART_KEYS=Object.keys(ART_META);
 let UV_PROFILES={}, modelKind='catalog';
 const ART_DEFAULTS=Object.fromEntries(ART_KEYS.map(k=>[k,{x:0,y:0,scale:ART_META[k].scale,rot:0}]));
@@ -78,55 +88,68 @@ const scene=new THREE.Scene();
 scene.background=null;
 const camera=new THREE.PerspectiveCamera(34,1,0.05,40);
 
-scene.environment=(()=>{
+// Small HDR environments provide broad reflections as well as direct lights.
+function makeEnvironment(kind){
   const W=256,H=128,data=new Float32Array(W*H*4);
-  const boxes=[[-.8,.65,.45,.5,4.2],[2.25,.3,.22,.65,2.8],[.9,1.2,.8,.22,2.0]];
+  const boxes=kind==='studio'?[[-.8,.65,.45,.5,2.8,[1,1,1]],[2.25,.3,.22,.65,1.8,[1,1,1]],[.9,1.2,.8,.22,1.2,[1,1,1]]]
+    :kind==='day'?[[-.8,.85,.16,.16,5,[1,.91,.75]]]
+    :[[-.9,.4,.22,.6,1.3,[1,.37,.08]],[1.1,.25,.2,.55,1.1,[.10,.65,1]],[2.8,.4,.35,.3,.8,[.5,.16,1]]];
   for(let y=0;y<H;y++)for(let x=0;x<W;x++){
-    const az=x/W*Math.PI*2-Math.PI,el=Math.PI/2-y/H*Math.PI;
-    let value=.10+.16*Math.max(0,Math.sin(el));
-    for(const [a,e,w,h,power] of boxes){
+    const az=x/W*Math.PI*2-Math.PI,el=Math.PI/2-y/H*Math.PI,sky=Math.max(0,Math.sin(el));
+    const base=kind==='studio'?[.08+.12*sky,.08+.12*sky,.08+.12*sky]
+      :kind==='day'?[.14+.31*sky,.15+.43*sky,.17+.65*sky]:[.015+.015*sky,.02+.025*sky,.04+.04*sky];
+    for(const [a,e,w,h,power,color] of boxes){
       const distance=Math.atan2(Math.sin(az-a),Math.cos(az-a));
-      value+=power*Math.exp(-Math.pow(distance/w,6)-Math.pow((el-e)/h,6));
+      const value=power*Math.exp(-Math.pow(distance/w,6)-Math.pow((el-e)/h,6));
+      for(let c=0;c<3;c++)base[c]+=value*color[c];
     }
-    const i=(y*W+x)*4;data[i]=data[i+1]=data[i+2]=value;data[i+3]=1;
+    const i=(y*W+x)*4;data[i]=base[0];data[i+1]=base[1];data[i+2]=base[2];data[i+3]=1;
   }
   const t=new THREE.DataTexture(data,W,H,THREE.RGBAFormat,THREE.FloatType);
   t.mapping=THREE.EquirectangularReflectionMapping;t.needsUpdate=true;
-  const pm=new THREE.PMREMGenerator(renderer);
-  const env=pm.fromEquirectangular(t).texture;pm.dispose();t.dispose();return env;
-})();
-
-const hemi=new THREE.HemisphereLight(0xffffff,0xd9d0c5,0.85); scene.add(hemi);
-const key=new THREE.DirectionalLight(0xfff4e8,2.0); key.position.set(1.3,1.7,1.5); scene.add(key);
-const fil=new THREE.DirectionalLight(0xe4ecf6,0.55); fil.position.set(-1.7,0.5,0.9); scene.add(fil);
-const rim=new THREE.DirectionalLight(0xffffff,0.85); rim.position.set(-0.5,1.0,-1.8); scene.add(rim);
+  const pm=new THREE.PMREMGenerator(renderer),env=pm.fromEquirectangular(t).texture;pm.dispose();t.dispose();return env;
+}
+const environments={studio:makeEnvironment('studio'),day:makeEnvironment('day'),night:makeEnvironment('night')};
+scene.environment=environments.studio;
+const lightRig=new THREE.Group();scene.add(lightRig);
+const hemi=new THREE.HemisphereLight(),key=new THREE.DirectionalLight(),fil=new THREE.DirectionalLight(),rim=new THREE.DirectionalLight();
+lightRig.add(hemi,key,fil,rim,key.target,fil.target,rim.target);
+const lightReference=new THREE.Quaternion(),lightInverse=new THREE.Quaternion();
+const lightEnvironmentRotation={value:new THREE.Matrix3()},lightEnvironmentPower={value:1};
+const lightRotationMatrix=new THREE.Matrix4();
 const LIGHT_PRESETS={
-  soft:{
-    exposure:1.02,hemi:.32,hemiSky:'#ffffff',hemiGround:'#bab7b1',
-    key:2.65,keyColor:'#fff9f3',keyPos:[-1.65,2.0,1.6],
-    fill:.72,fillColor:'#f0f4ff',fillPos:[1.8,.65,1.3],
-    rim:1.4,rimColor:'#ffffff',rimPos:[.9,1.45,-1.7]
-  },
-  key:{
-    exposure:1.00,hemi:.24,hemiSky:'#ffffff',hemiGround:'#c2bdb6',
-    key:3.05,keyColor:'#fff5e9',keyPos:[-1.65,1.85,1.35],
-    fill:.30,fillColor:'#e9f0ff',fillPos:[1.55,.45,1.0],
-    rim:1.25,rimColor:'#ffffff',rimPos:[.45,1.1,-1.8]
-  },
-  rim:{
-    exposure:1.00,hemi:.18,hemiSky:'#ffffff',hemiGround:'#b7bcc5',
-    key:3.0,keyColor:'#fff6ed',keyPos:[-2.0,1.2,.9],
-    fill:.22,fillColor:'#eef3ff',fillPos:[1.4,.6,1.5],
-    rim:2.1,rimColor:'#e5edff',rimPos:[1.4,1.1,-1.5]
-  }
+  studio:{label:'Studio',description:'Soft neutral studio light for judging fabric and print.',
+    exposure:.98,hemi:.32,hemiSky:'#ffffff',hemiGround:'#c2bdb6',
+    key:2.05,keyColor:'#fff5e9',keyPos:[-1.65,1.85,1.35],
+    fill:.48,fillColor:'#eef3fb',fillPos:[1.55,.45,1.0],
+    rim:.85,rimColor:'#ffffff',rimPos:[.45,1.1,-1.8]},
+  day:{label:'Outdoor day',description:'Warm daylight, cool sky fill and broad outdoor reflections.',
+    exposure:.96,hemi:.65,hemiSky:'#cfddff',hemiGround:'#b3a389',
+    key:2.25,keyColor:'#fff1d7',keyPos:[1.5,2.4,1.3],
+    fill:.30,fillColor:'#c2d8ff',fillPos:[-1.5,1.2,1.0],
+    rim:.62,rimColor:'#e0eaff',rimPos:[-.7,1.5,-1.8]},
+  night:{label:'City night',description:'Amber street light with cyan and violet city reflections.',
+    exposure:1.02,hemi:.20,hemiSky:'#a5b9ed',hemiGround:'#433952',
+    key:1.75,keyColor:'#ffc078',keyPos:[-1.7,1.3,1.4],
+    fill:1.20,fillColor:'#5bccff',fillPos:[1.5,.6,.95],
+    rim:1.80,rimColor:'#b293ff',rimPos:[.8,1.1,-1.6]}
 };
 function applyLightingPreset(){
-  const p=LIGHT_PRESETS[state.light]||LIGHT_PRESETS.soft;
-  renderer.toneMappingExposure=p.exposure;
-  hemi.color.set(p.hemiSky); hemi.groundColor.set(p.hemiGround); hemi.intensity=p.hemi;
-  key.color.set(p.keyColor); key.intensity=p.key; key.position.set(...p.keyPos);
-  fil.color.set(p.fillColor); fil.intensity=p.fill; fil.position.set(...p.fillPos);
-  rim.color.set(p.rimColor); rim.intensity=p.rim; rim.position.set(...p.rimPos);
+  const p=LIGHT_PRESETS[state.light]||LIGHT_PRESETS.studio,power=state.lightPower/100;
+  renderer.toneMappingExposure=p.exposure;scene.environment=environments[state.light]||environments.studio;
+  lightEnvironmentPower.value=power;
+  hemi.color.set(p.hemiSky);hemi.groundColor.set(p.hemiGround);hemi.intensity=p.hemi*power;
+  key.color.set(p.keyColor);key.intensity=p.key*power;key.position.set(...p.keyPos);
+  fil.color.set(p.fillColor);fil.intensity=p.fill*power;fil.position.set(...p.fillPos);
+  rim.color.set(p.rimColor);rim.intensity=p.rim*power;rim.position.set(...p.rimPos);
+  document.getElementById('lightDescription').textContent=p.description;
+}
+function updateLightLock(){
+  if(state.lightLocked){
+    lightRig.quaternion.copy(camera.quaternion).multiply(lightInverse.copy(lightReference).invert());
+    lightRotationMatrix.makeRotationFromQuaternion(lightInverse.copy(lightRig.quaternion).invert());
+    lightEnvironmentRotation.value.setFromMatrix4(lightRotationMatrix);
+  }else{lightRig.quaternion.identity();lightEnvironmentRotation.value.identity();}
 }
 
 // soft studio pools
@@ -259,6 +282,12 @@ function patchFabricMaterial(mat){
     Object.assign(sh.uniforms, uni);
     const artwork=getArtworkMap(mat.userData.orbMeshId||1);
     sh.uniforms.uArtwork=artwork.map;sh.uniforms.uHasArtwork=artwork.has;
+    sh.uniforms.uLightEnvRotation=lightEnvironmentRotation;sh.uniforms.uLightEnvPower=lightEnvironmentPower;
+    const environmentChunk=THREE.ShaderChunk.envmap_physical_pars_fragment
+      .replace('inverseTransformDirection( normal, viewMatrix );','uLightEnvRotation * inverseTransformDirection( normal, viewMatrix );')
+      .replace('inverseTransformDirection( reflectVec, viewMatrix );','uLightEnvRotation * inverseTransformDirection( reflectVec, viewMatrix );')
+      .replaceAll('* envMapIntensity','* envMapIntensity * uLightEnvPower');
+    sh.fragmentShader='uniform mat3 uLightEnvRotation; uniform float uLightEnvPower;\n'+sh.fragmentShader.replace('#include <envmap_physical_pars_fragment>',environmentChunk);
     sh.vertexShader = VERT_HEAD + sh.vertexShader;
     sh.vertexShader = sh.vertexShader.replace('#include <beginnormal_vertex>',
       `#include <beginnormal_vertex>
@@ -287,7 +316,7 @@ function patchFabricMaterial(mat){
     sh.fragmentShader = sh.fragmentShader.replace('#include <roughnessmap_fragment>',
       '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, clamp(uArtRough, 0.02, 1.0), clamp(kArtworkMask, 0.0, 1.0));');
   };
-  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v07-gpu';
+  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v08-light-lock';
   mat.needsUpdate=true;
   return mat;
 }
@@ -504,10 +533,10 @@ function adopt(root){
 
 // Stable asset IDs and authored filenames are separate from the names shown in the Studio.
 const GARMENT_CATALOG=[
-  {id:'mens-tee',label:"Men's T-Shirt",file:'orb-tee-men-03.glb',type:'tee'},
-  {id:'womens-tee',label:"Women's T-Shirt",file:'orb-tee-women-03.glb',type:'tee'},
-  {id:'mens-hoodie',label:"Men's Hoodie",file:'orb-hoodie-men-basic-01.glb',type:'hoodie'},
-  {id:'womens-hoodie',label:"Women's Hoodie",file:'orb-hoodie-women-02.glb',type:'hoodie'},
+  {id:'mens-tee',label:"Men's T-Shirt",file:'orb-tee-men-03.glb',type:'tee',distance:1.55},
+  {id:'womens-tee',label:"Women's T-Shirt",file:'orb-tee-women-03.glb',type:'tee',distance:1.60},
+  {id:'mens-hoodie',label:"Men's Hoodie",file:'orb-hoodie-men-basic-01.glb',type:'hoodie',distance:1.51},
+  {id:'womens-hoodie',label:"Women's Hoodie",file:'orb-hoodie-women-02.glb',type:'hoodie',distance:1.59},
 ];
 const gltfLoader=new GLTFLoader();
 // Draco remains available for user uploads. The four supplied GLBs are uncompressed.
@@ -565,6 +594,13 @@ function trimCatalogCache(){
     catalogReady.delete(id);res.group.userData.catalogCached=false;disposeModel(res.group);
   }
 }
+let placementCalibrationPromise=null;
+function getPlacementCalibration(){
+  if(!placementCalibrationPromise)placementCalibrationPromise=fetch(new URL('../calibration/placements-15.json',import.meta.url)).then(response=>{
+    if(!response.ok)throw new Error('Placement calibration could not load.');return response.json();
+  }).catch(error=>{placementCalibrationPromise=null;throw error;});
+  return placementCalibrationPromise;
+}
 async function prepareCatalog(item){
   if(catalogReady.has(item.id)){
     const res=catalogReady.get(item.id);catalogReady.delete(item.id);catalogReady.set(item.id,res);return res;
@@ -577,7 +613,9 @@ async function prepareCatalog(item){
       const gltf=await gltfLoader.parseAsync(bytes,new URL('../garments/',import.meta.url).href);
       imported=gltf.scene;res=adopt(imported);
       await applyCalibration(res.group,item,[meta,data]);
-      res.profiles=calibratePlacements(res.group,item.type);
+      const extra=(await getPlacementCalibration())[item.id];
+      if(!extra?.necktag)throw new Error('Additional garment placements are missing.');
+      res.profiles={...calibratePlacements(res.group,item.type),...extra};
       if(item.type==='hoodie')res.group.traverse(mesh=>{
         if(!mesh.isMesh)return;
         for(const mat of Array.isArray(mesh.material)?mesh.material:[mesh.material]){
@@ -673,7 +711,7 @@ function calibratePlacements(group,kind){
     }
   }
   if(hoodie)for(const slot of ['front','back','lowerback'])if(profiles[slot])profiles[slot].printScale=.78;
-  const missing=ART_KEYS.filter(k=>!profiles[k]);
+  const missing=STANDARD_PLACEMENTS.filter(k=>!profiles[k]);
   if(missing.length)throw new Error('Could not calibrate garment placements: '+missing.join(', '));
   return profiles;
 }
@@ -691,6 +729,7 @@ async function loadCatalog(id){
     UV_PROFILES=res.profiles;modelKind='catalog';
     setGarment(res.group,false);trimCatalogCache();
     selectedCatalogId=id;activeGarmentId=id;
+    state.tr=item.distance;state.focusTarget.set(0,.02,0);
     garmentSelect.querySelector('option[value="custom"]')?.remove();
     garmentSelect.value=id;
     document.getElementById('modelName').textContent=item.label;
@@ -756,9 +795,9 @@ const THEMES={
   dark:{bg:BRAND.dark.paper},
 };
 const systemColorScheme=matchMedia('(prefers-color-scheme: dark)');
-const state={ themeMode:'system', theme:'light', blank:0, garmentCustom:'#D8D8D8', artRoughness:97, shirtColorsCustomized:false, bg:THEMES.light.bg, dotGrid:true, gridType:'square', gridColor:BRAND.light.grid, gridColorCustom:false, gridStroke:0.5, gridScale:35, gridCharSize:45, light:'key', wind:1, view:'angle',
+const state={ themeMode:'system', theme:'light', blank:0, garmentCustom:'#D8D8D8', artRoughness:97, shirtColorsCustomized:false, bg:THEMES.light.bg, dotGrid:true, gridType:'square', gridColor:BRAND.light.grid, gridColorCustom:false, gridStroke:0.5, gridScale:35, gridCharSize:45, light:'studio', lightPower:100, lightLocked:false, wind:1, view:'angle',
   inertia:{enabled:true,strength:15,ramp:100,settle:0.5,elasticity:60,overshoot:70,release:70,sensitivity:50,bias:25,sleeve:100,arc:100},
-  az:0.62, el:1.30, r:1.55, taz:0.62, tel:1.30, tr:1.55, present:false };
+  focus:new THREE.Vector3(0,.02,0),focusTarget:new THREE.Vector3(0,.02,0),az:0.62, el:1.30, r:1.55, taz:0.62, tel:1.30, tr:1.55, present:false };
 const WIND_LEVELS=[0,0.011,0.024];
 
 function currentGarment(){
@@ -1075,7 +1114,7 @@ addEventListener('pointercancel',endOrbitDrag);
 canvas.addEventListener('wheel',e=>{
   e.preventDefault();
   if(state.present && isMobilePresent()) return;
-  state.tr=clamp(state.tr+e.deltaY*0.0012,0.72,2.6);
+  state.tr=clamp(state.tr+e.deltaY*0.0012,state.focusTarget.y>.1?.3:.72,2.6);
 },{passive:false});
 canvas.addEventListener('touchmove',e=>{
   if(e.touches.length!==2) return;
@@ -1090,7 +1129,7 @@ canvas.addEventListener('touchmove',e=>{
 
   const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,
                      e.touches[0].clientY-e.touches[1].clientY);
-  if(pinch) state.tr=clamp(state.tr+(pinch-d)*0.004,0.72,2.6);
+  if(pinch) state.tr=clamp(state.tr+(pinch-d)*0.004,state.focusTarget.y>.1?.3:.72,2.6);
   pinch=d;
 },{passive:false});
 canvas.addEventListener('touchend',()=>{pinch=0;});
@@ -1104,13 +1143,23 @@ canvas.addEventListener('keydown',e=>{
 });
 
 const VIEWS={front:[0,1.45],angle:[0.62,1.30],back:[Math.PI,1.45]};
-function viewArtwork(slot){setView(ART_META[slot].view);}
+function viewArtwork(slot){
+  const meta=ART_META[slot],q=UV_PROFILES[slot];
+  setView(meta.view);
+  if(q&&['Hood','Inside'].includes(meta.side)){
+    state.focusTarget.fromArray(q.point);state.focusTarget.y-=.350;
+    state.tr=meta.side==='Inside'?.48:.68;
+  }
+}
 function setView(v){
   state.view=v;
   document.querySelectorAll('#segView button')
     .forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===v)));
   if(!v) return;
-  const [az,el]=v==='left'?[Math.PI/2,1.3]:v==='right'?[-Math.PI/2,1.3]:VIEWS[v];
+  state.focusTarget.set(0,.02,0);
+  state.tr=GARMENT_CATALOG.find(g=>g.id===activeGarmentId)?.distance||1.55;
+  const special={insideleft:[-.1,1.45],insideright:[.1,1.45],neck:[0,1.12]};
+  const [az,el]=special[v]||(v==='left'?[Math.PI/2,1.3]:v==='right'?[-Math.PI/2,1.3]:VIEWS[v]);
   state.taz=az+Math.round((state.taz-az)/(Math.PI*2))*Math.PI*2;
   state.tel=el;
 }
@@ -1369,6 +1418,12 @@ inkColorInput.addEventListener('blur',()=>{inkEditingEntry=null;syncInkUi();});
 
 segment('segWind',v=>{state.wind=+v;});
 segment('segLight',v=>{state.light=v; applyLightingPreset();});
+document.getElementById('lightPower').addEventListener('input',event=>{
+  state.lightPower=Number(event.target.value);document.getElementById('lightPowerValue').textContent=state.lightPower+'%';applyLightingPreset();
+});
+document.getElementById('lightLock').addEventListener('change',event=>{
+  state.lightLocked=event.target.checked;lightReference.copy(camera.quaternion);updateLightLock();
+});
 segment('segView',v=>setView(v));
 function setColorMode(mode){
   if(!['light','system','dark'].includes(mode))return;
@@ -1871,7 +1926,7 @@ function syncArtworkUi(){
     row.querySelector('.art-name-source').textContent='Source: '+sourceName;
     row.querySelector('.art-rename').setAttribute('aria-label',`Rename ${layer.name}`);
     row.querySelector('.art-name-input').disabled=artLoading;
-    row.querySelector('.art-layer-placement').textContent=label+(isCustom&&!layer.anchor?' · Set position':'');
+    row.querySelector('.art-layer-placement').textContent=label+(isCustom&&!layer.anchor?' · Set position':!isCustom&&!UV_PROFILES[layer.slot]?' · Hoodie only':'');
     const img=row.querySelector('img');if(img.getAttribute('src')!==layer.thumb)img.src=layer.thumb;
     for(const button of row.querySelectorAll('button'))button.disabled=artLoading;
     for(const button of row.querySelectorAll('.art-select,.art-thumb')){
@@ -2181,6 +2236,17 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&anchorPickId){cance
 
 // Global image drop and manual Add artwork share the same placement chooser.
 const placementDialog=document.getElementById('placementDialog');
+let placementMode='outside',placementSuggested='front';
+function renderPlacements(){
+  const kind=GARMENT_CATALOG.find(g=>g.id===activeGarmentId)?.type||'tee';
+  const available=isCustom?ART_KEYS.filter(k=>!ART_META[k].hoodie||kind==='hoodie'):Object.keys(UV_PROFILES);
+  renderPlacementDiagram(placementDialog.querySelector('.placement-options'),{
+    kind,side:placementMode,available,meta:ART_META,suggested:placementSuggested,
+    counts:Object.fromEntries(available.map(slot=>[slot,artLayers.filter(layer=>layer.slot===slot).length]))
+  });
+  for(const button of placementDialog.querySelectorAll('[data-placement-side]'))button.setAttribute('aria-selected',String(button.dataset.placementSide===placementMode));
+}
+for(const button of placementDialog.querySelectorAll('[data-placement-side]'))button.onclick=()=>{placementMode=button.dataset.placementSide;renderPlacements();};
 let placementFiles=[],placementThumbUrl=null,placementReturnFocus=null;
 function openPlacementPicker(files,suggested=activeArtSlot){
   if(artLoading)return;
@@ -2191,12 +2257,7 @@ function openPlacementPicker(files,suggested=activeArtSlot){
   placementThumbUrl=URL.createObjectURL(images[0]);
   document.getElementById('placementImage').src=placementThumbUrl;
   document.getElementById('placementFileName').textContent=images.length===1?images[0].name:`${images.length} images`;
-  for(const button of placementDialog.querySelectorAll('[data-place]')){
-    const key=button.dataset.place,count=artLayers.filter(layer=>layer.slot===key).length;
-    button.classList.toggle('suggested',key===suggested);
-    button.disabled=false;
-    button.querySelector('small').textContent=isCustom&&!artLayers.some(layer=>layer.slot===key&&layer.anchor)?'Choose position on model':count?`${count} layer${count===1?'':'s'} · Add another`:'Add graphic';
-  }
+  placementSuggested=suggested;placementMode=ART_META[suggested]?.side==='Inside'?'inside':'outside';renderPlacements();
   if(!placementDialog.open)placementDialog.showModal();
 }
 function closePlacementPicker(){placementDialog.close();}
@@ -2208,11 +2269,12 @@ placementDialog.addEventListener('close',()=>{
 });
 document.getElementById('placementCancel').onclick=closePlacementPicker;
 placementDialog.addEventListener('click',e=>{if(e.target===placementDialog)closePlacementPicker();});
-for(const button of placementDialog.querySelectorAll('[data-place]'))button.onclick=async()=>{
+placementDialog.querySelector('.placement-options').addEventListener('click',async event=>{
+  const button=event.target.closest('[data-place]');if(!button||button.disabled)return;
   const files=placementFiles.slice(),slot=button.dataset.place;
   closePlacementPicker();const added=await loadArtFiles(slot,files,'add');
   if(added.length){viewArtwork(slot);if(isCustom&&!added[0].anchor)beginAnchorPick(added[0].id);}
-};
+});
 document.getElementById('artUploadAny').onclick=()=>{
   if(artLoading)return;
   pendingUploadAction='choose';fileInput.value='';fileInput.click();
@@ -2241,6 +2303,7 @@ const mobilePresentQuery=window.matchMedia('(max-width:820px)');
 const isMobilePresent=()=>mobilePresentQuery.matches;
 function enterPresent(){
   if(state.present || !current) return;
+  if(state.focusTarget.y>.1)setView('angle');
 
   // Clone is already cached. Make it visible and mark Present active in the
   // same frame so the animation loop cannot immediately hide it again.
@@ -2479,12 +2542,14 @@ function draw(){
 
   camera.aspect=activeAspect;
   camera.updateProjectionMatrix();
+  state.focus.lerp(state.focusTarget,.22);
   camera.position.set(
-    viewR*Math.sin(state.el)*Math.sin(state.az),
-    viewR*Math.cos(state.el)+0.04,
-    viewR*Math.sin(state.el)*Math.cos(state.az));
-  camera.lookAt(0,0.02,0);
+    state.focus.x+viewR*Math.sin(state.el)*Math.sin(state.az),
+    viewR*Math.cos(state.el)+state.focus.y+0.02,
+    state.focus.z+viewR*Math.sin(state.el)*Math.cos(state.az));
+  camera.lookAt(state.focus);
   camera.updateMatrixWorld();
+  updateLightLock();
 
   presentScreenRight.set(1,0,0).applyQuaternion(camera.quaternion);
 
