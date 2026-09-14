@@ -1,7 +1,7 @@
 import {renderPlacementDiagram} from './placement-diagrams.js?v=23';
-import {installColorPicker} from './color-picker.js?v=31';
-import {installSliderControls,RESET_ICON} from './controls.js?v=31';
-import {installColorActions} from './color-actions.js?v=31';
+import {installColorPicker} from './color-picker.js?v=33';
+import {installSliderControls,RESET_ICON} from './controls.js?v=33';
+import {installColorActions} from './color-actions.js?v=33';
 let colorPicker=null,colorActions=null;
 
 const BRAND=window.BRAND;
@@ -164,7 +164,7 @@ const LIGHT_PRESETS={
     key:1.65,keyColor:NIGHT_DEFAULTS.green,keyPos:[-1.7,1.3,1.4],
     fill:.48,fillColor:NIGHT_DEFAULTS.magenta,fillPos:[1.5,.6,.95],
     rim:1.15,rimColor:NIGHT_DEFAULTS.magenta,rimPos:[.8,1.1,-1.6]},
-  uv:{label:'Black light',description:'Deep blue-violet light with subtle fabric highlights. UV-reactive artwork responds to the black lights.',
+  uv:{label:'Black light',description:'Black light with subtle fabric highlights and a gentle glow on pale fabric. Enter higher intensity values to extend the slider range.',
     exposure:1,hemi:.035,hemiSky:'#77718f',hemiGround:'#252030',
     key:.18,keyColor:'#824bff',keyPos:[-1.65,1.85,1.35],
     fill:.07,fillColor:'#c1c3d2',fillPos:[1.55,.45,1],
@@ -368,14 +368,21 @@ float kUV=1.25*(1.0-exp(-1.8*(.14*uBlackLight+.86*kUVExposure)))/(1.0+4.0*kVisib
 float kGlow=kArtEffects.r*kDark+kArtEffects.g*kUV;
 totalEmissiveRadiance+=kArtColor*kGlow;
 // Preserve v27's actual black-light reflections and shadowing. Fabric color
-// controls only the retained pale-fabric brightness lift. Fabric never emits light.
+// controls the UV-only pale-fabric lift and a small existing-reflection gain.
 float kFabricLuma=dot(kFabricColor,vec3(.2126,.7152,.0722));
 float kFabricLight=smoothstep(.015,.55,kFabricLuma);
 float kFabricUVGain=clamp(uBlackLight*100.0,0.0,1.0)*uFabricReactive*(1.0-kArtworkMask);
 // Pale cloth is slightly lighter. Dark cloth receives no diffuse lift.
 reflectedLight.directDiffuse*=1.0+.16*kFabricLight*kFabricUVGain;
 reflectedLight.indirectDiffuse*=1.0+.12*kFabricLight*kFabricUVGain;
-// Specular reflections use the original v27 material response without gains.
+// Keep the original rough material response: only its amplitude changes.
+// No added highlight lobe, altered roughness, or dark-fabric diffuse lift.
+float kUVReflection=1.0+mix(.18,.14,kFabricLight)*kFabricUVGain;
+reflectedLight.directSpecular*=kUVReflection;
+reflectedLight.indirectSpecular*=kUVReflection;
+// Very small neutral fluorescence on pale fabric, proportional to actual UV
+// exposure. No ambient emission floor; shadowed folds retain their depth.
+totalEmissiveRadiance+=.008*kFabricColor*kFabricLight*kUVExposure*uFabricReactive*(1.0-kArtworkMask)*(gl_FrontFacing?1.0:.6);
 
 if(gl_FrontFacing&&uHasEffects>.5&&vArtworkUv.x>=0.0&&vArtworkUv.y>=0.0){
   // A short-range surface bounce approximation. Cached colors retain the
@@ -423,7 +430,7 @@ function patchFabricMaterial(mat){
         // Broader shadow filtering is only used by the emission response.
         // The visible cloth and artwork keep the normal shadow definition.
         #if defined(USE_SHADOWMAP) && (UNROLLED_LOOP_INDEX < NUM_DIR_LIGHT_SHADOWS)
-        if(uHasEffects>.5&&receiveShadow){
+        if((uHasEffects>.5||(uBlackLight>0.0&&uFabricReactive>.5))&&receiveShadow){
           kHardVisibility=kUVVisibility;
           kUVVisibility=.25*(
             getShadow(directionalShadowMap[i],directionalLightShadow.shadowMapSize,directionalLightShadow.shadowBias,directionalLightShadow.shadowRadius,vDirectionalShadowCoord[i]+vec4(vec2(2.0,0.0)/directionalLightShadow.shadowMapSize*vDirectionalShadowCoord[i].w,0.0,0.0))+
@@ -471,7 +478,7 @@ function patchFabricMaterial(mat){
     sh.fragmentShader = sh.fragmentShader.replace('#include <roughnessmap_fragment>',
       '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, clamp(uArtRough, 0.02, 1.0), clamp(kArtworkMask, 0.0, 1.0));');
   };
-  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v32-original-specular';
+  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v33-uv-only';
   mat.needsUpdate=true;
   return mat;
 }
@@ -980,7 +987,7 @@ const THEMES={
   dark:{bg:BRAND.dark.paper},
 };
 const systemColorScheme=matchMedia('(prefers-color-scheme: dark)');
-const state={ themeMode:'system', theme:'light', blank:0, garmentCustom:'#D8D8D8', artGlossiness:50, matchFabricToTheme:false, bg:THEMES.light.bg, dotGrid:true, gridType:'square', gridColor:BRAND.light.grid, gridColorCustom:false, gridStroke:0.5, gridScale:35, gridCharSize:45, light:'studio', lightPower:100, lightLocked:true, nightGreen:NIGHT_DEFAULTS.green, nightMagenta:NIGHT_DEFAULTS.magenta, selfShadows:true, wind:1, view:'angle',
+const state={ themeMode:'system', theme:'light', blank:0, garmentCustom:'#D8D8D8', artGlossiness:50, matchFabricToTheme:false, bg:THEMES.light.bg, dotGrid:true, gridType:'square', gridColor:BRAND.light.grid, gridColorCustom:false, gridStroke:0.5, gridScale:35, gridCharSize:45, light:'studio', lightPower:100, blackLightPower:100, regularLightPower:100, lightLocked:true, nightGreen:NIGHT_DEFAULTS.green, nightMagenta:NIGHT_DEFAULTS.magenta, selfShadows:true, wind:1, view:'angle',
   inertia:{enabled:true,strength:15,ramp:100,settle:0.5,elasticity:60,overshoot:70,release:70,sensitivity:50,bias:25,sleeve:100,arc:100},
   focus:new THREE.Vector3(0,.02,0),focusTarget:new THREE.Vector3(0,.02,0),az:0.62, el:1.30, r:1.55, taz:0.62, tel:1.30, tr:1.55, present:false };
 const WIND_LEVELS=[0,0.011,0.024];
@@ -1652,9 +1659,19 @@ for(const button of document.querySelectorAll('[data-art-mode]'))button.onclick=
 for(const button of document.querySelectorAll('[data-art-color]'))button.onclick=()=>setArtworkMode(button.dataset.artColor,true);
 
 segment('segWind',v=>{state.wind=+v;});
-segment('segLight',v=>{state.light=v; applyLightingPreset();});
+function syncLightPowerControl(){
+  const uv=state.light==='uv',range=document.getElementById('lightPower'),number=document.getElementById('lightPowerValue');
+  range.dataset.expandRange=String(uv);range.dataset.baseMax='200';
+  range.max=String(uv?Math.max(200,Math.ceil(state.lightPower/100)*100+100):140);
+  range.value=state.lightPower;number.value=state.lightPower;
+  if(uv)number.removeAttribute('max');else number.max='140';
+}
+segment('segLight',v=>{
+  state.light=v;state.lightPower=v==='uv'?state.blackLightPower:state.regularLightPower;
+  syncLightPowerControl();applyLightingPreset();
+});
 document.getElementById('lightPower').addEventListener('input',event=>{
-  state.lightPower=Number(event.target.value);document.getElementById('lightPowerValue').value=state.lightPower;applyLightingPreset();
+  state.lightPower=Number(event.target.value);state[state.light==='uv'?'blackLightPower':'regularLightPower']=state.lightPower;document.getElementById('lightPowerValue').value=state.lightPower;applyLightingPreset();
 });
 document.getElementById('lightLock').addEventListener('change',event=>{
   state.lightLocked=!event.target.checked;
@@ -3132,6 +3149,7 @@ function installGroupResets(){
       colorPicker?.close();colorActions?.cancel();
       switch(button.dataset.resetGroup){
         case 'lighting':
+          state.blackLightPower=100;state.regularLightPower=100;
           document.querySelector('#segLight [data-v="studio"]').click();setStudioInput('lightPower',100);
           setStudioInput('lightLock',false,'change');setStudioInput('selfShadows',true,'change');
           resetStudioColor('nightGreen');resetStudioColor('nightMagenta');break;
