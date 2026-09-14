@@ -164,7 +164,7 @@ const LIGHT_PRESETS={
     key:1.65,keyColor:NIGHT_DEFAULTS.green,keyPos:[-1.7,1.3,1.4],
     fill:.48,fillColor:NIGHT_DEFAULTS.magenta,fillPos:[1.5,.6,.95],
     rim:1.15,rimColor:NIGHT_DEFAULTS.magenta,rimPos:[.8,1.1,-1.6]},
-  uv:{label:'Black light',description:'Pale fabric fluoresces blue automatically. Dark fabric retains subtle violet highlights; reactive ink responds to UV exposure.',
+  uv:{label:'Black light',description:'Dim violet light with localized fluorescence on exposed fabric and subtle cyan at the strongest highlights.',
     exposure:1,hemi:.035,hemiSky:'#77718f',hemiGround:'#252030',
     key:.18,keyColor:'#824bff',keyPos:[-1.65,1.85,1.35],
     fill:.07,fillColor:'#c1c3d2',fillPos:[1.55,.45,1],
@@ -349,23 +349,27 @@ float kDark=exp(-kVisible/.055)*(1.0-smoothstep(.18,.45,kVisible))/(1.0+4.0*uGlo
 float kUV=1.25*(1.0-exp(-1.8*(.14*uBlackLight+.86*kUVExposure)))/(1.0+4.0*kVisible*kVisible+2.0*uGlowSceneLevel*uGlowSceneLevel);
 float kGlow=kArtEffects.r*kDark+kArtEffects.g*kUV;
 totalEmissiveRadiance+=kArtColor*kGlow;
-// Automatic brightener approximation: pale, neutral cloth fluoresces blue.
+// Automatic brightener approximation: dim violet with localized fluorescence.
 // Evaluate the underlying fabric before compositing ink, then mask by print coverage.
 float kFabricLuma=dot(kFabricColor,vec3(.2126,.7152,.0722));
 float kFabricMax=max(max(kFabricColor.r,kFabricColor.g),kFabricColor.b);
 float kFabricMin=min(min(kFabricColor.r,kFabricColor.g),kFabricColor.b);
 float kNeutral=1.0-(kFabricMax-kFabricMin)/max(kFabricMax,.001);
 float kBrightener=smoothstep(.035,.70,kFabricLuma)*mix(.12,1.0,kNeutral*kNeutral);
-float kFabricUV=1.0-exp(-1.7*(.07*uBlackLight+kFabricUVExposure));
+// No room-wide fluorescent floor. Smooth angular lobes concentrate the
+// response on directly exposed folds; shadowed cloth keeps its reflected light.
+float kFabricUV=1.0-exp(-1.6*kFabricUVExposure);
+float kFabricHot=smoothstep(.38,.85,kFabricUVExposure/max(uBlackLight,.0001));
 float kFabricCoverage=uFabricReactive*(1.0-kArtworkMask)*(gl_FrontFacing?1.0:.60);
-vec3 kFluorColor=mix(vec3(.035,.18,.65),vec3(.035,.26,1.0),kNeutral);
+vec3 kFluorColor=mix(vec3(.22,.025,.48),vec3(.12,.48,.68),kFabricHot*kNeutral);
 // Retain fine weave relief without letting it create crunchy excitation edges.
 float kWeave=clamp(.8+.2*dot(normal,kEffectNormal),.6,1.0);
-totalEmissiveRadiance+=kFluorColor*(1.35*kBrightener*kFabricUV*kWeave*kFabricCoverage);
+totalEmissiveRadiance+=kFluorColor*(1.05*kBrightener*kFabricUV*kWeave*kFabricCoverage);
 // Very weak blue-violet reflected fill keeps dark folds legible. It disappears
 // with the UV rig and never produces fluorescent emission on black cloth.
 float kDarkCloth=1.0-smoothstep(.015,.15,kFabricLuma);
-reflectedLight.directDiffuse+=vec3(.30,.26,.70)*(.10*kDarkCloth*kFabricUV*kFabricCoverage);
+float kFabricShape=1.0-exp(-1.7*(.045*uBlackLight+.78*kUVExposure));
+reflectedLight.directDiffuse+=vec3(.30,.12,.55)*(.10*kDarkCloth*kFabricShape*kFabricCoverage);
 
 if(gl_FrontFacing&&uHasEffects>.5&&vArtworkUv.x>=0.0&&vArtworkUv.y>=0.0){
   // A short-range surface bounce approximation. Cached colors retain the
@@ -425,9 +429,9 @@ function patchFabricMaterial(mat){
         #endif
         #if UNROLLED_LOOP_INDEX == 0
           kUVExposure += uBlackLight*kUVVisibility*max(dot(kEffectNormal,directLight.direction),0.0);
-          kFabricUVExposure += .78*uBlackLight*mix(.20,1.0,kUVVisibility)*max(dot(kEffectNormal,directLight.direction),0.0);
+          kFabricUVExposure += .85*uBlackLight*kUVVisibility*pow(max(dot(kEffectNormal,directLight.direction),0.0),5.0);
         #elif UNROLLED_LOOP_INDEX == 2
-          kFabricUVExposure += .22*uBlackLight*max(dot(kEffectNormal,directLight.direction),0.0);
+          kFabricUVExposure += .15*uBlackLight*pow(max(dot(kEffectNormal,directLight.direction),0.0),5.0);
         #endif
         RE_Direct( directLight,`);
     lightingChunk=lightingChunk.slice(0,dirStart)+directional+lightingChunk.slice(dirEnd);
@@ -464,7 +468,7 @@ function patchFabricMaterial(mat){
     sh.fragmentShader = sh.fragmentShader.replace('#include <roughnessmap_fragment>',
       '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, clamp(uArtRough, 0.02, 1.0), clamp(kArtworkMask, 0.0, 1.0));');
   };
-  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v28-auto-fabric';
+  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v29-local-fabric';
   mat.needsUpdate=true;
   return mat;
 }
