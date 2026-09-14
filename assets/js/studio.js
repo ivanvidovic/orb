@@ -1,7 +1,7 @@
 import {renderPlacementDiagram} from './placement-diagrams.js?v=23';
-import {installColorPicker} from './color-picker.js?v=28';
-import {installSliderControls,RESET_ICON} from './controls.js?v=28';
-import {installColorActions} from './color-actions.js?v=28';
+import {installColorPicker} from './color-picker.js?v=31';
+import {installSliderControls,RESET_ICON} from './controls.js?v=31';
+import {installColorActions} from './color-actions.js?v=31';
 let colorPicker=null,colorActions=null;
 
 const BRAND=window.BRAND;
@@ -164,13 +164,31 @@ const LIGHT_PRESETS={
     key:1.65,keyColor:NIGHT_DEFAULTS.green,keyPos:[-1.7,1.3,1.4],
     fill:.48,fillColor:NIGHT_DEFAULTS.magenta,fillPos:[1.5,.6,.95],
     rim:1.15,rimColor:NIGHT_DEFAULTS.magenta,rimPos:[.8,1.1,-1.6]},
-  uv:{label:'Black light',description:'Black light with subtle shape fill. Fabric color automatically balances brightness and highlights; reactive artwork responds to UV.',
+  uv:{label:'Black light',description:'Deep blue-violet light with subtle fabric highlights. UV-reactive artwork responds to the black lights.',
     exposure:1,hemi:.035,hemiSky:'#77718f',hemiGround:'#252030',
     key:.18,keyColor:'#824bff',keyPos:[-1.65,1.85,1.35],
     fill:.07,fillColor:'#c1c3d2',fillPos:[1.55,.45,1],
     rim:.18,rimColor:'#6633ef',rimPos:[.45,1.1,-1.8]}
 };
+const UV_BACKDROP={bg:'#000000',gridColor:'#101010'};
+let regularBackdrop=null;
+function syncLightingBackdrop(){
+  if(state.light==='uv'){
+    if(regularBackdrop)return;
+    regularBackdrop={bg:state.bg,gridColor:state.gridColor,gridColorCustom:state.gridColorCustom};
+    Object.assign(state,UV_BACKDROP,{gridColorCustom:false});
+  }else{
+    if(!regularBackdrop)return;
+    Object.assign(state,regularBackdrop);regularBackdrop=null;
+  }
+  colorPicker?.close();
+  document.getElementById('bgCustom').value=state.bg;
+  document.getElementById('bgColorChip').style.background=state.bg;
+  document.getElementById('gridColor').value=state.gridColor;
+  applyBackground();
+}
 function applyLightingPreset(){
+  syncLightingBackdrop();
   const p=LIGHT_PRESETS[state.light]||LIGHT_PRESETS.studio,power=state.lightPower/100;
   renderer.toneMappingExposure=p.exposure;scene.environment=environments[state.light]||environments.studio;
   lightEnvironmentPower.value=power*(state.light==='studio'?.55:state.light==='day'?.65:.45);
@@ -350,13 +368,10 @@ float kUV=1.25*(1.0-exp(-1.8*(.14*uBlackLight+.86*kUVExposure)))/(1.0+4.0*kVisib
 float kGlow=kArtEffects.r*kDark+kArtEffects.g*kUV;
 totalEmissiveRadiance+=kArtColor*kGlow;
 // Preserve v27's actual black-light reflections and shadowing. Fabric color
-// controls the former manual fabric response and modest reflection gains.
+// controls reflected brightness and highlights only. Fabric never emits light.
 float kFabricLuma=dot(kFabricColor,vec3(.2126,.7152,.0722));
 float kFabricLight=smoothstep(.015,.55,kFabricLuma);
 float kFabricUVGain=clamp(uBlackLight*100.0,0.0,1.0)*uFabricReactive*(1.0-kArtworkMask);
-// V27's color-preserving fabric UV term, now driven by lightness rather than
-// a checkbox. No blue/violet replacement hue is added to the fabric.
-totalEmissiveRadiance+=kFabricColor*(1.08*kFabricLight*kUV*uFabricReactive)*(1.0-kArtworkMask);
 // Pale cloth is slightly lighter. Dark cloth receives no diffuse lift.
 reflectedLight.directDiffuse*=1.0+.16*kFabricLight*kFabricUVGain;
 reflectedLight.indirectDiffuse*=1.0+.12*kFabricLight*kFabricUVGain;
@@ -415,7 +430,7 @@ function patchFabricMaterial(mat){
         // Broader shadow filtering is only used by the emission response.
         // The visible cloth and artwork keep the normal shadow definition.
         #if defined(USE_SHADOWMAP) && (UNROLLED_LOOP_INDEX < NUM_DIR_LIGHT_SHADOWS)
-        if((uHasEffects>.5||(uBlackLight>0.0&&uFabricReactive>.5))&&receiveShadow){
+        if(uHasEffects>.5&&receiveShadow){
           kHardVisibility=kUVVisibility;
           kUVVisibility=.25*(
             getShadow(directionalShadowMap[i],directionalLightShadow.shadowMapSize,directionalLightShadow.shadowBias,directionalLightShadow.shadowRadius,vDirectionalShadowCoord[i]+vec4(vec2(2.0,0.0)/directionalLightShadow.shadowMapSize*vDirectionalShadowCoord[i].w,0.0,0.0))+
@@ -467,7 +482,7 @@ function patchFabricMaterial(mat){
     sh.fragmentShader = sh.fragmentShader.replace('#include <roughnessmap_fragment>',
       '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, clamp(uArtRough, 0.02, 1.0), clamp(kArtworkMask, 0.0, 1.0));');
   };
-  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v30-v27-lighting';
+  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v31-no-fabric-emission';
   mat.needsUpdate=true;
   return mat;
 }
@@ -1001,11 +1016,11 @@ function applyTheme(resetStage=true){
   document.documentElement.style.colorScheme=state.theme;
   const palette=BRAND[state.theme];
   for(const [property,value] of Object.entries({paper:palette.paper,wash:palette.paper,ink:palette.ink,accent:palette.accent}))document.body.style.setProperty('--'+property,value);
-  if(!state.gridColorCustom){state.gridColor=palette.grid;document.getElementById('gridColor').value=state.gridColor;}
+  if(state.light!=='uv'&&!state.gridColorCustom){state.gridColor=palette.grid;document.getElementById('gridColor').value=state.gridColor;}
   document.querySelectorAll('[data-theme-mode]').forEach(button=>{
     button.setAttribute('aria-pressed',String(button.dataset.themeMode===state.themeMode));
   });
-  if(resetStage){
+  if(resetStage&&state.light!=='uv'){
     state.bg=THEMES[state.theme].bg;
     document.getElementById('bgCustom').value=state.bg;
     document.getElementById('bgColorChip').style.background=state.bg;
@@ -3115,8 +3130,8 @@ function resetStudioColor(id,keepOpen=false){
     document.getElementById(id).value=state.garmentCustom;document.querySelector('#swatches .custom i').style.background=state.garmentCustom;
     syncGarmentSwatches();applyLook();
   }else if(id==='gridColor'){
-    state.gridColorCustom=false;state.gridColor=BRAND[state.theme].grid;document.getElementById(id).value=state.gridColor;drawPatternBackground();
-  }else if(id==='bgCustom')setStudioInput(id,THEMES[state.theme].bg);
+    state.gridColorCustom=false;state.gridColor=state.light==='uv'?UV_BACKDROP.gridColor:BRAND[state.theme].grid;document.getElementById(id).value=state.gridColor;drawPatternBackground();
+  }else if(id==='bgCustom')setStudioInput(id,state.light==='uv'?UV_BACKDROP.bg:THEMES[state.theme].bg);
   else if(id==='nightGreen')setStudioInput(id,NIGHT_DEFAULTS.green);
   else if(id==='nightMagenta')setStudioInput(id,NIGHT_DEFAULTS.magenta);
   if(keepOpen)colorPicker?.refresh();
