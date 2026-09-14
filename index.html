@@ -26,11 +26,11 @@
 @media(prefers-reduced-motion:reduce){#startup,#startup .startup-progress{transition:none}#startup.is-indeterminate .startup-progress,#startup.is-preparing .startup-emblem{animation:none}}
 </style>
 <script src="./assets/js/brand.js"></script>
-<link rel="stylesheet" href="./assets/css/studio.css?v=28">
+<link rel="stylesheet" href="./assets/css/studio.css?v=27">
 </head>
 <body data-theme="light" class="startup-lock">
 <div id="startup" class="is-indeterminate" aria-label="Loading ORB Garment Studio"><div class="startup-content"><div id="startupProgress" role="progressbar" aria-label="Preparing garment preview" aria-valuemin="0" aria-valuemax="100"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" class="startup-emblem" aria-hidden="true"><defs><clipPath id="startupReveal"><circle cx="499.8461609" cy="500" r="0"/></clipPath></defs> <circle class="startup-track" fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="500" r="0"/> <g clip-path="url(#startupReveal)"> <path fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" d=" M674.6182861,925.295166V674.7720947C674.6182861,578.2481689,596.3701172,500,499.8461609,500 s-174.7721252,78.2481689-174.7721252,174.7720947V925.295166"/> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="325.2278748" r="174.7721252"/> </g> <g clip-path="url(#startupReveal)"> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="616.5148926" r="116.5148926"/> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="383.4851074" r="116.5148926"/> </g> <circle class="startup-progress" pathLength="100" transform="rotate(-90 499.8461609 500)" fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="500" r="0"/></svg></div><p id="startupStatus" role="status" aria-live="polite">Preparing studio</p><button id="startupRetry" type="button" hidden>Try again</button></div></div>
-<script src="./assets/js/startup.js?v=28"></script>
+<script src="./assets/js/startup.js?v=27"></script>
 <noscript><style>#startup{display:none}.startup-lock{overflow:auto}</style><p>JavaScript is required to use ORB Garment Studio.</p></noscript>
 <script>(()=>{const theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.body.dataset.theme=theme;document.documentElement.dataset.theme=theme;document.documentElement.style.colorScheme=theme;})();</script>
 
@@ -108,10 +108,12 @@
 
         <div class="appearanceControls">
           <div class="subsec">
-            <div class="grphd fabric-head"><span class="lbl">Fabric color</span><span class="lbl" id="blankName">Chalk</span></div>
+            <div class="grphd fabric-head"><span class="lbl">Fabric color</span><span class="lbl" id="blankName">Chalk</span><button type="button" class="slider-reset" data-reset-group="fabric" aria-label="Reset fabric appearance" title="Reset fabric appearance"></button></div>
             <div class="swatches" id="swatches" role="radiogroup" aria-label="Garment color"></div>
-            <div class="fabric-options"><label class="check-option" data-tip="Use Chalk in light mode and Washed Black in dark mode. Choosing a fabric color turns this off."><input id="matchFabricToTheme" type="checkbox">Match fabric to theme</label></div>
-
+            <div class="fabric-options"><label class="check-option" data-tip="Use Chalk in light mode and Washed Black in dark mode. Choosing a fabric color turns this off."><input id="matchFabricToTheme" type="checkbox">Match fabric to theme</label><label class="check-option"><input id="fabricUV" type="checkbox">UV reactive</label></div>
+<div class="inline-range" id="fabricEmissionControl" hidden>
+                <label for="fabricEmission">Intensity</label><input id="fabricEmission" type="range" min="0" max="300" step="5" value="100" aria-label="Fabric UV intensity"><input type="number" class="num" id="fabricEmissionValue" value="100" aria-label="fabricEmissionValue">
+            </div>
           </div>
 
 
@@ -301,7 +303,7 @@
       </section></li>
       <li><span class="guideNumber" aria-hidden="true">04</span><section>
         <h3>Preview and export</h3>
-        <p>Drag to rotate; scroll or pinch to zoom. Use camera and wind presets above. In Environment, choose Studio, Outdoor day, City night, or Black light; adjust light intensity and night colors there. Lighting follows your view by default. Check Fix lights in scene to keep the rig stationary while you orbit. Garment self-shadows add depth to overlapping cloth and can be disabled for performance. The middle theme button follows your system’s light or dark appearance. Theme changes affect the interface and background while preserving garment colors and lighting. Enable Match fabric to theme beside the fabric colors for automatic light/dark fabric switching. Choosing a fabric color turns that option off. <strong>Environment</strong> also controls the background and grid. In Black light, fabrics retain dim violet shading with localized fluorescence where UV strikes directly. Switching garments preserves your viewing angle and zoom. In Artwork, Glossiness applies to all layers. Each expanded artwork layer has Glow in the dark and UV reactive controls; enable either to reveal its intensity slider. Glow becomes visible in darkness and shadow; UV reactivity responds to the Black light preset. Emission includes a subtle local color spill onto surrounding fabric. UV has a dim ambient response in the Black light preset. Zoom out from a closeup, or press Done in its artwork controls, to return to the garment center. <strong>Present</strong> hides the interface; <strong>Save Image</strong> exports the current view.</p>
+        <p>Drag to rotate; scroll or pinch to zoom. Use camera and wind presets above. In Environment, choose Studio, Outdoor day, City night, or Black light; adjust light intensity and night colors there. Lighting follows your view by default. Check Fix lights in scene to keep the rig stationary while you orbit. Garment self-shadows add depth to overlapping cloth and can be disabled for performance. The middle theme button follows your system’s light or dark appearance. Theme changes affect the interface and background while preserving garment colors and lighting. Enable Match fabric to theme beside the fabric colors for automatic light/dark fabric switching. Choosing a fabric color turns that option off. <strong>Environment</strong> also controls the background and grid. Under Fabric color, enable UV reactive if desired. In Artwork, Glossiness applies to all layers. Each expanded artwork layer has Glow in the dark and UV reactive controls; enable either to reveal its intensity slider. Glow becomes visible in darkness and shadow; UV reactivity responds to the Black light preset. Emission includes a subtle local color spill onto surrounding fabric. UV has a dim ambient response in the Black light preset. Zoom out from a closeup, or press Done in its artwork controls, to return to the garment center. <strong>Present</strong> hides the interface; <strong>Save Image</strong> exports the current view.</p>
       </section></li>
     </ol>
     <details class="guideAdvanced">
@@ -331,6 +333,6 @@
 })();
 </script>
 
-<script type="module" src="./assets/js/studio.js?v=29"></script>
+<script type="module" src="./assets/js/studio.js?v=27"></script>
 </body>
 </html>
