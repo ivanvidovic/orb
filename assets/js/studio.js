@@ -1,6 +1,8 @@
 import {renderPlacementDiagram} from './placement-diagrams.js?v=23';
-import {installColorPicker} from './color-picker.js?v=19';
-import {installSliderControls} from './controls.js?v=19';
+import {installColorPicker} from './color-picker.js?v=27';
+import {installSliderControls,RESET_ICON} from './controls.js?v=27';
+import {installColorActions} from './color-actions.js?v=27';
+let colorPicker=null,colorActions=null;
 
 const BRAND=window.BRAND;
 document.title=BRAND.title;
@@ -201,8 +203,8 @@ let presentShadow=null;
 {
   const S=256,c=document.createElement('canvas'); c.width=c.height=S;
   const x=c.getContext('2d'), g=x.createRadialGradient(S/2,S/2,0,S/2,S/2,S/2);
-  g.addColorStop(0,'rgba(60,50,42,.42)'); g.addColorStop(.55,'rgba(60,50,42,.13)');
-  g.addColorStop(1,'rgba(60,50,42,0)');
+  g.addColorStop(0,'rgba(0,0,0,.42)'); g.addColorStop(.55,'rgba(0,0,0,.13)');
+  g.addColorStop(1,'rgba(0,0,0,0)');
   x.fillStyle=g; x.fillRect(0,0,S,S);
   const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace;
   const geom=new THREE.PlaneGeometry(0.86,0.40);
@@ -770,6 +772,9 @@ async function prepareCatalog(item){
       const extra=(await getPlacementCalibration())[item.id];
       if(!extra?.necktag)throw new Error('Additional garment placements are missing.');
       res.profiles={...calibratePlacements(res.group,item.type),...extra};
+      // Bake the requested chest corrections into each garment's zero point.
+      const chest=res.profiles.chest,offset=({'mens-hoodie':20,'womens-hoodie':35,'mens-tee':-15,'womens-tee':-10}[item.id]||0)*.0018;
+      if(chest){chest.origin=[chest.origin[0]-chest.basis[1]*offset,chest.origin[1]-chest.basis[3]*offset];}
       if(item.type==='hoodie')res.group.traverse(mesh=>{
         if(!mesh.isMesh)return;
         for(const mat of Array.isArray(mesh.material)?mesh.material:[mesh.material]){
@@ -877,7 +882,7 @@ async function loadCatalog(id){
   modelBusy(true);modelRetry.hidden=true;retryModel=()=>loadCatalog(id);
   modelStatus.textContent='Loading '+item.label+'…';
   bootMsg.textContent='Loading '+item.label+'…';
-  document.getElementById('boot').classList.remove('gone');
+  document.getElementById('boot').classList.toggle('gone',!!current);
   try{
     const res=await prepareCatalog(item);
     UV_PROFILES=res.profiles;modelKind='catalog';
@@ -914,7 +919,7 @@ async function loadModel(file){
   modelBusy(true);modelRetry.hidden=true;
   const url=URL.createObjectURL(file);
   bootMsg.textContent='Reading custom garment…';
-  document.getElementById('boot').classList.remove('gone');
+  document.getElementById('boot').classList.toggle('gone',!!current);
   let imported=null,res=null,committed=false;
   try{
     const gltf=await gltfLoader.loadAsync(url);imported=gltf.scene;
@@ -959,7 +964,8 @@ function currentGarment(){
     ? { name:'Custom', hex:state.garmentCustom, dark:(new THREE.Color(state.garmentCustom).r*0.299 + new THREE.Color(state.garmentCustom).g*0.587 + new THREE.Color(state.garmentCustom).b*0.114) < 0.48 }
     : GARMENTS[state.blank];
 }
-function inkHex(entry){
+function inkHex(entry,mode=entry?.mode){
+  if(mode==='tint')return entry?.tintCustom||'#FFFFFF';
   if(entry?.inkCustom)return entry.inkCustom;
   const color=new THREE.Color(currentGarment().hex);
   const luminance=color.r*.2126+color.g*.7152+color.b*.0722;
@@ -980,6 +986,7 @@ function applyTheme(resetStage=true){
   if(resetStage){
     state.bg=THEMES[state.theme].bg;
     document.getElementById('bgCustom').value=state.bg;
+    document.getElementById('bgColorChip').style.background=state.bg;
   }
   applyBackground();
 }
@@ -1127,7 +1134,11 @@ const ART_INPUT_META={
 };
 function artDefault(slot,prop){
   const entry=artEntry();
-  return prop==='scale'&&entry?.slot===slot&&hasFullSleeve(entry)&&entry.sleevePreset==='full'?100:ART_DEFAULTS[slot][prop];
+  if(prop==='scale'&&entry?.slot===slot){
+    if(hasFullSleeve(entry)&&entry.sleevePreset==='full')return 100;
+    if(entry.defaultSlot===slot)return entry.defaultScale??ART_DEFAULTS[slot].scale;
+  }
+  return ART_DEFAULTS[slot][prop];
 }
 
 let activeArtSlot='back';
@@ -1379,7 +1390,7 @@ function renderGarmentSwatches(){
   custom.setAttribute('aria-checked',String(state.blank==='custom'));
   custom.setAttribute('aria-label','Custom garment colour');
   custom.dataset.tip='Choose a custom garment color.';
-  custom.innerHTML=`<i style="background:${state.garmentCustom}"></i><span class="pickerGlyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m19 3 2 2-8.5 8.5-3-3z"></path><path d="m8.8 11.2-4.3 4.3v4h4l4.3-4.3"></path></svg></span><input type="color" value="${state.garmentCustom}" aria-label="Custom garment colour">`;
+  custom.innerHTML=`<i style="background:${state.garmentCustom}"></i><span class="pickerGlyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m19 3 2 2-8.5 8.5-3-3z"></path><path d="m8.8 11.2-4.3 4.3v4h4l4.3-4.3"></path></svg></span><input id="garmentCustom" type="color" value="${state.garmentCustom}" aria-label="Custom garment color">`;
   const picker=custom.querySelector('input');
   const activateCustom=()=>{
     useManualFabricColor();
@@ -1399,6 +1410,7 @@ function renderGarmentSwatches(){
   picker.addEventListener('change',activateCustom);
   custom.addEventListener('click',activateCustom);
   sw.appendChild(custom);
+  sw.insertAdjacentHTML('beforeend','<button type="button" class="color-sample" data-sample-target="garmentCustom" aria-label="Sample fabric color" title="Sample fabric color"></button><button type="button" class="slider-reset" data-reset-color="garmentCustom" aria-label="Reset fabric color" title="Reset fabric color"></button>');
 }
 renderGarmentSwatches();
 
@@ -1574,31 +1586,44 @@ function segment(id,fn){
 }
 
 function syncInkUi(){
-  const entry=artEntry(),enabled=!!entry&&entry.mode!=='original';
-  const picker=document.getElementById('inkCustom');
-  const choice=document.getElementById('customInkChoice');
-  choice.hidden=!enabled;
-  choice.title=entry?.mode==='ink'&&!entry.inkCustom?'Automatic contrast with the shirt. Choose a color to override.':'Choose artwork color';
-  picker.disabled=artLoading||!enabled;
-  if(!entry)return;
-  const color=inkHex(entry);
-  document.getElementById('inkCustomChip').style.background=color;
-  picker.value=color;
+  const entry=artEntry(),disabled=artLoading||!entry;
+  for(const button of document.querySelectorAll('[data-art-mode]')){
+    button.disabled=disabled;button.setAttribute('aria-pressed',String(entry?.mode===button.dataset.artMode));
+    button.closest('.art-mode-option').classList.toggle('selected',entry?.mode===button.dataset.artMode);
+  }
+  for(const [mode,id] of [['tint','tintCustom'],['ink','inkCustom']]){
+    const input=document.getElementById(id),swatch=document.querySelector(`[data-art-color="${mode}"]`);
+    input.disabled=disabled;swatch.disabled=disabled;
+    const color=inkHex(entry,mode);input.value=color;swatch.style.setProperty('--swatch',color);swatch.dataset.sampleColor=color;
+  }
+  document.getElementById('artEyedropper').disabled=disabled||entry.mode==='original';
+  document.getElementById('artColorReset').disabled=disabled||entry.mode==='original';
+  document.getElementById('artAppearanceReset').disabled=disabled;
 }
-
+function setArtworkMode(mode,openPicker=false){
+  const entry=artEntry();if(artLoading||!entry||!['original','tint','ink'].includes(mode))return;
+  colorPicker?.close();
+  if(entry.mode!==mode){recordArtUndo();entry.mode=mode;requestArtworkRender(entry);}
+  syncArtworkUi();
+  if(openPicker&&mode!=='original')colorPicker?.open(document.getElementById(mode==='tint'?'tintCustom':'inkCustom'),document.querySelector(`[data-art-color="${mode}"]`));
+}
 let inkEditingEntry=null;
-function setCustomArtworkInk(value){
+function setCustomArtworkInk(value,mode){
   const entry=artEntry();
-  if(artLoading||!entry||entry.mode==='original'||!/^#[0-9a-f]{6}$/i.test(value))return;
-  if(entry.inkCustom?.toLowerCase()===value.toLowerCase())return;
+  if(artLoading||!entry||entry.mode!==mode||!/^#[0-9a-f]{6}$/i.test(value))return;
+  const prop=mode==='tint'?'tintCustom':'inkCustom';
+  if(entry[prop]?.toLowerCase()===value.toLowerCase())return;
   if(inkEditingEntry!==entry){recordArtUndo();inkEditingEntry=entry;}
-  entry.inkCustom=value.toUpperCase();
-  requestArtworkRender(entry);syncInkUi();
+  entry[prop]=value.toUpperCase();requestArtworkRender(entry);syncInkUi();
 }
-const inkColorInput=document.getElementById('inkCustom');
-inkColorInput.addEventListener('input',()=>setCustomArtworkInk(inkColorInput.value));
-inkColorInput.addEventListener('change',()=>{setCustomArtworkInk(inkColorInput.value);inkEditingEntry=null;});
-inkColorInput.addEventListener('blur',()=>{inkEditingEntry=null;syncInkUi();});
+for(const [id,mode] of [['inkCustom','ink'],['tintCustom','tint']]){
+  const input=document.getElementById(id);
+  input.addEventListener('input',()=>setCustomArtworkInk(input.value,mode));
+  input.addEventListener('change',()=>{setCustomArtworkInk(input.value,mode);inkEditingEntry=null;});
+  input.addEventListener('blur',()=>{inkEditingEntry=null;syncInkUi();});
+}
+for(const button of document.querySelectorAll('[data-art-mode]'))button.onclick=()=>setArtworkMode(button.dataset.artMode);
+for(const button of document.querySelectorAll('[data-art-color]'))button.onclick=()=>setArtworkMode(button.dataset.artColor,true);
 
 segment('segWind',v=>{state.wind=+v;});
 segment('segLight',v=>{state.light=v; applyLightingPreset();});
@@ -2125,7 +2150,7 @@ function uniqueArtworkName(name,names){
 }
 function initializeLayer(entry,slot,anchor=null,names=new Set(artLayers.map(e=>e.name.toLocaleLowerCase()))){
   const name=uniqueArtworkName(entry.name,names);
-  return {...entry,name,autoName:name,nameEdited:false,id:'art-'+nextArtId++,slot,sleevePreset:'patch',visible:true,glow:false,uvReactive:false,emission:100,anchor:anchor?structuredClone(anchor):null,
+  return {...entry,tintCustom:entry.tintCustom??null,defaultMode:entry.mode,defaultSlot:slot,defaultScale:ART_META[slot].scale,name,autoName:name,nameEdited:false,id:'art-'+nextArtId++,slot,sleevePreset:'patch',visible:true,glow:false,uvReactive:false,emission:100,anchor:anchor?structuredClone(anchor):null,
     placement:{x:0,y:0,scale:ART_META[slot].scale/100,rot:0}};
 }
 function beginArtworkRename(id){
@@ -2159,6 +2184,7 @@ function recordArtUndo(){
   document.getElementById('artUndo').disabled=false;
 }
 function undoArtwork(){
+  colorPicker?.close();colorActions?.cancel();
   if(artLoading||!artHistory.length)return;
   finishArtworkRename(false);cancelLayerDrag();cancelAnchorPick();
   const snapshot=artHistory.pop();
@@ -2168,6 +2194,7 @@ function undoArtwork(){
 }
 function artStatus(message){document.getElementById('artStatus').textContent=message;}
 function selectArtwork(id){
+  if(id!==activeArtId){colorPicker?.close();colorActions?.cancel();}
   if(renamingArtId&&renamingArtId!==id)finishArtworkRename(true);
   if(anchorPickId&&anchorPickId!==id)cancelAnchorPick();
   activeArtId=artEntry(id)?id:null;inkEditingEntry=null;
@@ -2283,8 +2310,7 @@ function syncArtworkUi(){
   document.getElementById('artPosition').hidden=!current;
   for(const id of ['artPosition','artUploadAny'])document.getElementById(id).disabled=artLoading;
   document.getElementById('artUploadAny').textContent=artLoading?'Adding…':'+ Add artwork';
-  for(const id of ['artMode','artFit','artReset','artAdd','artReplace','artView'])document.getElementById(id).disabled=artLoading||!entry;
-  document.getElementById('artMode').value=entry?.mode||'original';
+  for(const id of ['artFit','artReset','artAdd','artReplace','artView'])document.getElementById(id).disabled=artLoading||!entry;
   document.getElementById('artFit').checked=!!entry?.fit;
   document.getElementById('artUndo').disabled=artLoading||!artHistory.length;
   const index=artLayers.indexOf(entry);
@@ -2355,7 +2381,8 @@ async function loadArtFiles(slot,files,action='add',targetId=null){
       return layer;
     });
     if(action==='replace'&&target){
-      added[0].id=target.id;added[0].placement={...target.placement};added[0].visible=target.visible;added[0].fit=target.fit;
+      added[0].id=target.id;added[0].placement={...target.placement};added[0].visible=target.visible;
+      for(const prop of ['fit','mode','defaultMode','inkCustom','tintCustom','glow','uvReactive','emission'])added[0][prop]=target[prop];
       if(target.nameEdited){added[0].name=target.name;added[0].nameEdited=true;}
       artLayers.splice(index,1,...added);
     }else artLayers.splice(index<0?0:index,0,...added);
@@ -2467,12 +2494,6 @@ document.getElementById('artClose').onclick=()=>{
 };
 document.getElementById('artRaise').onclick=()=>moveArtwork(activeArtId,-1);
 document.getElementById('artLower').onclick=()=>moveArtwork(activeArtId,1);
-document.getElementById('artMode').onchange=e=>{
-  const entry=artEntry();if(artLoading||!entry)return;
-  recordArtUndo();entry.mode=e.target.value;
-  if(entry.mode!=='original'&&!entry.inkCustom)entry.inkCustom=inkHex(entry);
-  requestArtworkRender(entry);syncArtworkUi();
-};
 for(const [id,prop] of [['artGlow','glow'],['artUV','uvReactive']])document.getElementById(id).onchange=e=>{
   const entry=artEntry();if(artLoading||!entry)return;
   recordArtUndo();entry[prop]=e.target.checked;
@@ -2482,7 +2503,7 @@ for(const [id,prop] of [['artGlow','glow'],['artUV','uvReactive']])document.getE
   }
   requestArtworkRender(entry);syncArtworkUi();
   // Use the same persistent picker as the swatch, within this user action.
-  if(entry[prop])inkColorInput.click();
+  if(entry[prop])colorPicker?.open(document.getElementById('inkCustom'),document.querySelector('[data-art-color="ink"]'));
 };
 let emissionEditingId=null;
 document.getElementById('artEmission').addEventListener('input',e=>{
@@ -3056,11 +3077,77 @@ function initializeBrandArtwork(logo,back){
     entry.mode='ink'; // Only the startup graphics override the Original default.
     // A null custom color follows the garment until the user picks a color.
     const layer=initializeLayer(entry,slot);
-    if(slot==='chest')layer.placement.scale=.6;
+    if(slot==='chest'){layer.placement.scale=.6;layer.defaultScale=60;}
+    layer.defaultMode='ink';
     return layer;
   });
 }
-installColorPicker();
+function setStudioInput(id,value,event='input'){
+  const input=document.getElementById(id);
+  if(input.type==='checkbox')input.checked=!!value;else input.value=String(value);
+  input.dispatchEvent(new Event(event,{bubbles:true}));
+}
+function resetStudioColor(id,keepOpen=false){
+  const entry=artEntry();
+  if(id==='artwork')id=entry?.mode==='tint'?'tintCustom':entry?.mode==='ink'?'inkCustom':null;
+  if(!id)return;
+  if(!keepOpen)colorPicker?.close();
+  if(id==='inkCustom'||id==='tintCustom'){
+    if(artLoading||!entry)return;recordArtUndo();entry[id]=null;requestArtworkRender(entry);syncInkUi();
+  }else if(id==='garmentCustom'){
+    useManualFabricColor();state.blank=0;state.garmentCustom='#D8D8D8';
+    document.getElementById(id).value=state.garmentCustom;document.querySelector('#swatches .custom i').style.background=state.garmentCustom;
+    syncGarmentSwatches();applyLook();
+  }else if(id==='gridColor'){
+    state.gridColorCustom=false;state.gridColor=BRAND[state.theme].grid;document.getElementById(id).value=state.gridColor;drawPatternBackground();
+  }else if(id==='bgCustom')setStudioInput(id,THEMES[state.theme].bg);
+  else if(id==='nightGreen')setStudioInput(id,NIGHT_DEFAULTS.green);
+  else if(id==='nightMagenta')setStudioInput(id,NIGHT_DEFAULTS.magenta);
+  if(keepOpen)colorPicker?.refresh();
+}
+function installGroupResets(){
+  for(const button of document.querySelectorAll('[data-reset-group]')){
+    button.innerHTML=RESET_ICON;
+    button.onclick=()=>{
+      colorPicker?.close();colorActions?.cancel();
+      switch(button.dataset.resetGroup){
+        case 'fabric':
+          resetStudioColor('garmentCustom');setStudioInput('fabricUV',false,'change');setStudioInput('fabricEmission',100);break;
+        case 'lighting':
+          document.querySelector('#segLight [data-v="studio"]').click();setStudioInput('lightPower',100);
+          setStudioInput('lightLock',false,'change');setStudioInput('selfShadows',true,'change');
+          resetStudioColor('nightGreen');resetStudioColor('nightMagenta');break;
+        case 'grid':
+          setStudioInput('dotGrid',true,'change');setStudioInput('gridType','square','change');resetStudioColor('gridColor');
+          applyGridScale(35);applyGridCharSize(45);applyGridStroke(.5);break;
+        case 'artwork':{
+          const entry=artEntry();if(!entry||artLoading)return;recordArtUndo();
+          Object.assign(entry,{mode:entry.defaultMode||'original',inkCustom:null,tintCustom:null,glow:false,uvReactive:false,emission:100,fit:hasFullSleeve(entry)&&entry.sleevePreset==='full'});
+          requestArtworkRender(entry);syncArtworkUi();break;
+        }
+      }
+    };
+  }
+  // Text group resets use the same glyph and borderless treatment as individual resets.
+  for(const [id,label] of [['artReset','Reset placement'],['resetInertia','Reset motion']]){
+    const button=document.getElementById(id);button.classList.add('reset-action');button.innerHTML=RESET_ICON+'<span>'+label+'</span>';
+  }
+}
+function samplePreviewColor(x,y){
+  const bounds=stage.getBoundingClientRect();if(x<bounds.left||x>=bounds.right||y<bounds.top||y>=bounds.bottom)return null;
+  // Capture only when the user samples; no persistent GPU readback or screenshots.
+  draw();const gl=renderer.getContext(),rgba=new Uint8Array(4),rect=canvas.getBoundingClientRect();
+  const px=Math.max(0,Math.min(canvas.width-1,Math.floor((x-rect.left)*canvas.width/rect.width)));
+  const py=Math.max(0,Math.min(canvas.height-1,Math.floor((y-rect.top)*canvas.height/rect.height)));
+  gl.readPixels(px,canvas.height-1-py,1,1,gl.RGBA,gl.UNSIGNED_BYTE,rgba);
+  const bg=patternCtx.getImageData(Math.min(patternCanvas.width-1,Math.floor(x*patternCanvas.width/innerWidth)),Math.min(patternCanvas.height-1,Math.floor(y*patternCanvas.height/innerHeight)),1,1).data;
+  const alpha=rgba[3]/255,premultiplied=gl.getContextAttributes().premultipliedAlpha;
+  return '#'+[0,1,2].map(i=>Math.round(Math.min(255,rgba[i]*(premultiplied?1:alpha)+bg[i]*(1-alpha))).toString(16).padStart(2,'0')).join('').toUpperCase();
+}
+
+colorPicker=installColorPicker({onReset:input=>resetStudioColor(input.id,true)});
+colorActions=installColorActions({picker:colorPicker,artworkTarget:()=>{const entry=artEntry();return entry&&entry.mode!=='original'?document.getElementById(entry.mode==='tint'?'tintCustom':'inkCustom'):null;},resetColor:resetStudioColor,samplePreview:samplePreviewColor});
+installGroupResets();
 installSliderControls(prop=>artDefault(artEntry()?.slot||activeArtSlot,prop));
 await Promise.all([loadSvg(BRAND.wordmark,4096),loadSvg(BRAND.emblem,2048)]).then(async ([back,logo])=>{
   artLayers=initializeBrandArtwork(logo,back);

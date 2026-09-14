@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<!-- Release 26: larger emblem-only startup. Deploy index.html with the assets folder. Source: orb-tee-11.html. -->
+<!-- Release 27: color tools, resets, stable switching and calibrated chest defaults. Deploy index.html with the assets folder. Source: orb-tee-11.html. -->
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -13,7 +13,7 @@
 .startup-content{display:flex;align-items:center;flex-direction:column;text-align:center;padding:12px;transform:translateY(-12px)}
 .startup-emblem{display:block;width:296px;height:296px;overflow:visible}
 .startup-emblem [stroke]{stroke:#fff;stroke-width:4.5;opacity:.48}
-.startup-emblem>circle:first-child{opacity:.16}
+.startup-emblem .startup-track{opacity:.16}
 .startup-emblem .startup-progress{stroke-width:5;opacity:1;stroke-dasharray:100;stroke-dashoffset:94;transition:stroke-dashoffset .2s linear}
 #startupStatus{margin:26px 0 0;font:10px/1.6 Rubik,Arial,sans-serif;letter-spacing:.1em;color:rgba(255,255,255,.6);min-height:16px}
 #startupRetry{margin-top:18px;padding:8px 16px;border:1px solid #ffffff50;background:none;color:#fff;font:11px/1.4 Rubik,Arial,sans-serif;cursor:pointer}
@@ -26,11 +26,11 @@
 @media(prefers-reduced-motion:reduce){#startup,#startup .startup-progress{transition:none}#startup.is-indeterminate .startup-progress,#startup.is-preparing .startup-emblem{animation:none}}
 </style>
 <script src="./assets/js/brand.js"></script>
-<link rel="stylesheet" href="./assets/css/studio.css?v=24">
+<link rel="stylesheet" href="./assets/css/studio.css?v=27">
 </head>
 <body data-theme="light" class="startup-lock">
-<div id="startup" class="is-indeterminate" aria-label="Loading ORB Garment Studio"><div class="startup-content"><div id="startupProgress" role="progressbar" aria-label="Preparing garment preview" aria-valuemin="0" aria-valuemax="100"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" class="startup-emblem" aria-hidden="true"> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="500" r="460"/> <g> <path fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" d=" M674.6182861,925.295166V674.7720947C674.6182861,578.2481689,596.3701172,500,499.8461609,500 s-174.7721252,78.2481689-174.7721252,174.7720947V925.295166"/> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="325.2278748" r="174.7721252"/> </g> <g> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="616.5148926" r="116.5148926"/> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="383.4851074" r="116.5148926"/> </g> <circle class="startup-progress" pathLength="100" transform="rotate(-90 499.8461609 500)" fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="500" r="460"/></svg></div><p id="startupStatus" role="status" aria-live="polite">Preparing studio</p><button id="startupRetry" type="button" hidden>Try again</button></div></div>
-<script src="./assets/js/startup.js?v=24"></script>
+<div id="startup" class="is-indeterminate" aria-label="Loading ORB Garment Studio"><div class="startup-content"><div id="startupProgress" role="progressbar" aria-label="Preparing garment preview" aria-valuemin="0" aria-valuemax="100"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" class="startup-emblem" aria-hidden="true"><defs><clipPath id="startupReveal"><circle cx="499.8461609" cy="500" r="0"/></clipPath></defs> <circle class="startup-track" fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="500" r="0"/> <g clip-path="url(#startupReveal)"> <path fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" d=" M674.6182861,925.295166V674.7720947C674.6182861,578.2481689,596.3701172,500,499.8461609,500 s-174.7721252,78.2481689-174.7721252,174.7720947V925.295166"/> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="325.2278748" r="174.7721252"/> </g> <g clip-path="url(#startupReveal)"> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="616.5148926" r="116.5148926"/> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="383.4851074" r="116.5148926"/> </g> <circle class="startup-progress" pathLength="100" transform="rotate(-90 499.8461609 500)" fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="500" r="0"/></svg></div><p id="startupStatus" role="status" aria-live="polite">Preparing studio</p><button id="startupRetry" type="button" hidden>Try again</button></div></div>
+<script src="./assets/js/startup.js?v=27"></script>
 <noscript><style>#startup{display:none}.startup-lock{overflow:auto}</style><p>JavaScript is required to use ORB Garment Studio.</p></noscript>
 <script>(()=>{const theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.body.dataset.theme=theme;document.documentElement.dataset.theme=theme;document.documentElement.style.colorScheme=theme;})();</script>
 
@@ -108,7 +108,7 @@
 
         <div class="appearanceControls">
           <div class="subsec">
-            <div class="grphd fabric-head"><span class="lbl">Fabric color</span><span class="lbl" id="blankName">Chalk</span></div>
+            <div class="grphd fabric-head"><span class="lbl">Fabric color</span><span class="lbl" id="blankName">Chalk</span><button type="button" class="slider-reset" data-reset-group="fabric" aria-label="Reset fabric appearance" title="Reset fabric appearance"></button></div>
             <div class="swatches" id="swatches" role="radiogroup" aria-label="Garment color"></div>
             <div class="fabric-options"><label class="check-option" data-tip="Use Chalk in light mode and Washed Black in dark mode. Choosing a fabric color turns this off."><input id="matchFabricToTheme" type="checkbox">Match fabric to theme</label><label class="check-option"><input id="fabricUV" type="checkbox">UV reactive</label></div>
 <div class="inline-range" id="fabricEmissionControl" hidden>
@@ -130,18 +130,15 @@
 <section id="artEditor" hidden aria-label="Selected artwork controls">
   <div class="art-editor-head"><strong id="artEditorName" class="sr-only">Artwork placement</strong><button id="artAdd" type="button" title="Add separate layers at this placement">+ Add here</button><button id="artReplace" type="button" title="Replace image" aria-label="Replace image">Replace</button><button id="artPosition" type="button" title="Set position" aria-label="Set position" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="5"/><path d="M10 1v5m0 8v5M1 10h5m8 0h5"/></svg></button><button id="artView" type="button" title="View on garment" aria-label="View on garment">View</button><button id="artClose" type="button" aria-label="Close artwork controls">Done</button></div>
   <div id="sleevePresetControl" class="sleeve-preset-row" hidden><span>Sleeve print</span><div role="group" aria-label="Sleeve print preset"><button type="button" data-sleeve-preset="patch" aria-pressed="true">Patch</button><button type="button" data-sleeve-preset="full" aria-pressed="false" title="100% fits shoulder to wrist; scale up to 600%">Full sleeve</button></div></div>
-  <div class="art-mode-row">
-    <label for="artMode">Render as</label>
-    <div class="art-mode-choice">
-      <select id="artMode"><option value="original">Original</option><option value="tint" title="Colorize while preserving light/dark detail, backgrounds, and transparency">Tint</option><option value="ink" title="One ink color; use image transparency or extract a simple light/dark background">Single ink</option></select>
-      <label class="sw custom" id="customInkChoice" hidden title="Choose ink color">
-      <i id="inkCustomChip" style="background:#181818"></i>
-      <span class="pickerGlyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m19 3 2 2-8.5 8.5-3-3z"></path><path d="m8.8 11.2-4.3 4.3v4h4l4.3-4.3"></path></svg></span>
-      <input id="inkCustom" type="color" value="#181818" aria-label="Custom artwork color">
-    </label>
-    </div>
+  <div class="art-modes" role="group" aria-label="Artwork color mode">
+    <div class="art-mode-option"><button type="button" data-art-mode="original" aria-pressed="true">Original</button></div>
+    <div class="art-mode-option"><button type="button" data-art-mode="tint" aria-pressed="false">Tint</button><button type="button" class="art-color-swatch" data-art-color="tint" aria-label="Choose tint color" title="Choose tint color"></button></div>
+    <div class="art-mode-option"><button type="button" data-art-mode="ink" aria-pressed="false">Solid</button><button type="button" class="art-color-swatch" data-art-color="ink" aria-label="Choose solid color" title="Choose solid color"></button></div>
+    <button type="button" id="artEyedropper" class="color-sample" data-sample-target="artwork" aria-label="Sample active artwork color" title="Sample active artwork color"></button>
+    <button type="button" id="artColorReset" class="slider-reset" data-reset-color="artwork" aria-label="Reset active artwork color" title="Reset active artwork color"></button>
+    <input id="inkCustom" type="color" value="#181818" hidden aria-label="Solid artwork color"><input id="tintCustom" type="color" value="#ffffff" hidden aria-label="Tint artwork color">
   </div>
-  <label class="art-fit check-option"><input id="artFit" type="checkbox">Fit visible artwork <span title="Ignore transparent margins when sizing. Opaque backgrounds stay intact.">ⓘ</span></label>
+  <div class="art-fit-row"><label class="art-fit check-option"><input id="artFit" type="checkbox">Fit visible artwork <span title="Ignore transparent margins when sizing. Opaque backgrounds stay intact.">ⓘ</span></label><button type="button" id="artAppearanceReset" data-reset-group="artwork" class="slider-reset" aria-label="Reset artwork appearance" title="Reset artwork appearance"></button></div>
   <div class="emission-controls" role="group" aria-label="Artwork light response">
     <div class="option-row"><label class="check-option"><input id="artGlow" type="checkbox">Glow in the dark</label><label class="check-option"><input id="artUV" type="checkbox">UV reactive</label></div>
     <div class="inline-range" id="artEmissionControl" hidden><label for="artEmission">Glow intensity</label><input id="artEmission" type="range" min="0" max="300" step="5" value="100" aria-label="Artwork glow intensity"><input type="number" class="num" id="artEmissionValue" value="100" aria-label="artEmissionValue"></div>
@@ -164,7 +161,7 @@
       <summary>Environment</summary>
       <div class="sectionBody envBody">
         <div class="envItem lightingControls">
-          <span class="lbl">Lighting</span>
+          <div class="setting-heading"><span class="lbl">Lighting</span><button type="button" class="slider-reset" data-reset-group="lighting" aria-label="Reset lighting" title="Reset lighting"></button></div>
           <div class="quickSeg" id="segLight" aria-label="Lighting preset">
             <button type="button" data-v="studio" aria-pressed="true" aria-label="1: Studio" title="Studio">1</button>
             <button type="button" data-v="day" aria-pressed="false" aria-label="2: Outdoor day" title="Outdoor day">2</button>
@@ -173,8 +170,8 @@
           </div>
           <p id="lightDescription" aria-live="polite">Studio · Soft neutral studio light for judging fabric and print.</p>
           <div id="nightColors" hidden>
-            <label class="night-color">Key light <span class="sw custom colorSingle"><i id="nightGreenChip" style="background:#73ff68"></i><input id="nightGreen" type="color" value="#73ff68" aria-label="Night key light color"></span></label>
-            <label class="night-color">Fill / rim <span class="sw custom colorSingle"><i id="nightMagentaChip" style="background:#ee53bd"></i><input id="nightMagenta" type="color" value="#ee53bd" aria-label="Night fill and rim light color"></span></label>
+            <label class="night-color">Key light <span class="color-tools"><span class="sw custom colorSingle"><i id="nightGreenChip" style="background:#73ff68"></i><input id="nightGreen" type="color" value="#73ff68" aria-label="Night key light color"></span><button type="button" class="color-sample" data-sample-target="nightGreen" aria-label="Sample key light color" title="Sample key light color"></button><button type="button" class="slider-reset" data-reset-color="nightGreen" aria-label="Reset key light color" title="Reset key light color"></button></span></label>
+            <label class="night-color">Fill / rim <span class="color-tools"><span class="sw custom colorSingle"><i id="nightMagentaChip" style="background:#ee53bd"></i><input id="nightMagenta" type="color" value="#ee53bd" aria-label="Night fill and rim light color"></span><button type="button" class="color-sample" data-sample-target="nightMagenta" aria-label="Sample fill and rim light color" title="Sample fill and rim light color"></button><button type="button" class="slider-reset" data-reset-color="nightMagenta" aria-label="Reset fill and rim light color" title="Reset fill and rim light color"></button></span></label>
           </div>
           <div class="inline-range"><label for="lightPower">Intensity</label><input id="lightPower" type="range" min="0" max="140" value="100" step="1" aria-label="Light intensity"><input type="number" class="num" id="lightPowerValue" value="100" aria-label="lightPowerValue"></div>
           <div class="option-row light-options">
@@ -183,11 +180,11 @@
           </div>
         </div>
         <div class="envItem">
-          <div class="pickerline"><span class="lbl">Background Color</span><label class="sw custom colorSingle" aria-label="Background color" title="Background color"><i id="bgColorChip" style="background:#f4f4f4"></i><input id="bgCustom" type="color" value="#f4f4f4" aria-label="Background color"></label></div>
+          <div class="pickerline"><span class="lbl">Background Color</span><span class="color-tools"><label class="sw custom colorSingle" aria-label="Background color" title="Background color"><i id="bgColorChip" style="background:#f4f4f4"></i><input id="bgCustom" type="color" value="#f4f4f4" aria-label="Background color"></label><button type="button" class="color-sample" data-sample-target="bgCustom" aria-label="Sample background color" title="Sample background color"></button><button type="button" class="slider-reset" data-reset-color="bgCustom" aria-label="Reset background color" title="Reset background color"></button></span></div>
         </div>
 
         <div class="envItem">
-          <div class="grid-style-row option-row"><label class="check-option"><input id="dotGrid" type="checkbox" aria-label="Show background grid" checked>Grid</label><select id="gridType" aria-label="Grid style"><option value="square">Square grid</option><option value="pattern">Pattern paper</option></select><input id="gridColor" type="color" value="#e0e0e0" aria-label="Grid color" title="Grid color"></div>
+          <div class="grid-style-row option-row"><label class="check-option"><input id="dotGrid" type="checkbox" aria-label="Show background grid" checked>Grid</label><button type="button" class="slider-reset" data-reset-group="grid" aria-label="Reset grid" title="Reset grid"></button><select id="gridType" aria-label="Grid style"><option value="square">Square grid</option><option value="pattern">Pattern paper</option></select><span class="color-tools"><input id="gridColor" type="color" value="#e0e0e0" aria-label="Grid color" title="Grid color"><button type="button" class="color-sample" data-sample-target="gridColor" aria-label="Sample grid color" title="Sample grid color"></button><button type="button" class="slider-reset" data-reset-color="gridColor" aria-label="Reset grid color" title="Reset grid color"></button></span></div>
 <div class="ctrl hasReset" id="gridStrokeRow"><label for="gridStroke">Stroke</label><input id="gridStroke" type="range" min="0.25" max="3" step="0.25" value="0.5"><input id="gridStrokeNum" class="num" type="number" min="0.25" max="3" step="0.25" value="0.5" aria-label="Grid stroke thickness in pixels"><button id="resetGridStroke" class="motionResetOne" type="button" aria-label="Reset grid stroke">↺</button></div>
           <div class="ctrl hasReset"><label for="gridScale">Grid scale</label><input id="gridScale" type="range" min="30" max="175" step="1" value="35" aria-label="Grid scale"><input class="num" id="gridScaleNum" type="number" min="30" max="175" step="1" value="35" inputmode="numeric" aria-label="Grid scale value"><button class="motionResetOne" id="resetGridScale" type="button" aria-label="Reset Grid scale to default" data-tip="Reset Grid scale to its default value (35)."><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 8.5V4.5h4"></path><path d="M5.2 7.1A8 8 0 1 1 4.4 14"></path></svg></button></div>
           <div class="ctrl hasReset" id="gridCharacterRow" hidden><label for="gridCharSize">Character size</label><input id="gridCharSize" type="range" min="30" max="160" step="1" value="45" aria-label="Character size"><input class="num" id="gridCharSizeNum" type="number" min="30" max="160" step="1" value="45" inputmode="numeric" aria-label="Character size value"><button class="motionResetOne" id="resetGridCharSize" type="button" aria-label="Reset Character size to default" data-tip="Reset Character size to its default value (45)."><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 8.5V4.5h4"></path><path d="M5.2 7.1A8 8 0 1 1 4.4 14"></path></svg></button></div>
@@ -302,7 +299,7 @@
       </section></li>
       <li><span class="guideNumber" aria-hidden="true">03</span><section>
         <h3>Color and finish</h3>
-        <p><strong>Original</strong> is the default for uploads and preserves image colors, backgrounds, and transparency. The starting ORB graphics use <strong>Single ink</strong> with automatic shirt contrast until you choose an ink color. <strong>Tint</strong> changes the color family while preserving light/dark detail and transparency. <strong>Single ink</strong> uses one flat color, preserving soft edges and extracting simple light or dark backgrounds. Both use the picker beside the mode selector; each layer remembers its color. Choose garment colors and print glossiness in the sidebar; <strong>Fit visible artwork</strong> trims transparent margins. Use the pencil or double-click a layer name to rename it. Enter saves, Escape cancels; the original filename appears while editing.</p>
+        <p><strong>Original</strong> is the default for uploads and preserves image colors, backgrounds, and transparency. The starting ORB graphics use <strong>Solid</strong> with automatic shirt contrast until you choose an ink color. <strong>Tint</strong> changes the color family while preserving light/dark detail and transparency. <strong>Solid</strong> uses one flat color, preserving soft edges and extracting simple light or dark backgrounds. Click a mode label to activate it, its swatch to edit color, or the eyedropper to sample; each layer remembers separate Tint and Solid colors. Choose garment colors and print glossiness in the sidebar; <strong>Fit visible artwork</strong> trims transparent margins. Use the pencil or double-click a layer name to rename it. Enter saves, Escape cancels; the original filename appears while editing.</p>
       </section></li>
       <li><span class="guideNumber" aria-hidden="true">04</span><section>
         <h3>Preview and export</h3>
@@ -336,6 +333,6 @@
 })();
 </script>
 
-<script type="module" src="./assets/js/studio.js?v=25"></script>
+<script type="module" src="./assets/js/studio.js?v=27"></script>
 </body>
 </html>

@@ -1,16 +1,17 @@
 // Persistent, nonmodal color editing shared by every Studio color control.
-export function installColorPicker(){
+import {RESET_ICON} from './controls.js?v=27';
+export function installColorPicker({onReset=()=>{}}={}){
   const panel=document.createElement('section');
   panel.id='colorPopover';panel.hidden=true;panel.setAttribute('role','dialog');
   panel.setAttribute('aria-label','Choose color');
-  panel.innerHTML=`<div class="color-pop-head"><strong id="colorPopoverTitle">Color</strong><button type="button" id="colorDone">Done</button></div>
+  panel.innerHTML=`<div class="color-pop-head"><strong id="colorPopoverTitle">Color</strong><button type="button" id="colorReset" class="slider-reset" aria-label="Reset color" title="Reset color">${RESET_ICON}</button><button type="button" id="colorDone">Done</button></div>
     <div id="colorSV" tabindex="0" role="slider" aria-label="Saturation and brightness" aria-valuemin="0" aria-valuemax="100"><span id="colorCursor"></span></div>
     <label class="color-hue-label" for="colorHue">Hue</label><input id="colorHue" type="range" min="0" max="360" value="0" aria-label="Hue">
     <div class="color-hex-row"><span id="colorPreview"></span><label for="colorHex">Hex</label><input id="colorHex" type="text" maxlength="7" spellcheck="false" autocapitalize="characters" inputmode="text" value="#FFFFFF"></div>`;
   document.body.append(panel);
   const field=panel.querySelector('#colorSV'),cursor=panel.querySelector('#colorCursor');
   const hue=panel.querySelector('#colorHue'),hex=panel.querySelector('#colorHex'),preview=panel.querySelector('#colorPreview');
-  let target=null,h=0,s=0,v=1,changed=false;
+  let target=null,anchor=null,h=0,s=0,v=1,changed=false;
   function read(value){
     const rgb=value.slice(1).match(/../g).map(c=>parseInt(c,16)/255),[r,g,b]=rgb;
     const max=Math.max(...rgb),min=Math.min(...rgb),d=max-min;v=max;s=max?d/max:0;
@@ -34,7 +35,7 @@ export function installColorPicker(){
     const viewport=window.visualViewport,left=viewport?.offsetLeft||0,top=viewport?.offsetTop||0;
     const width=viewport?.width||innerWidth,height=viewport?.height||innerHeight;
     panel.style.width=Math.min(288,width-24)+'px';
-    const r=target.getBoundingClientRect(),ph=panel.offsetHeight,pw=panel.offsetWidth;
+    const r=(anchor||target).getBoundingClientRect(),ph=panel.offsetHeight,pw=panel.offsetWidth;
     panel.style.left=Math.max(left+12,Math.min(r.right-pw,left+width-pw-12))+'px';
     const below=r.bottom+10;
     panel.style.top=Math.max(top+12,Math.min(below+ph<top+height-12?below:r.top-ph-10,top+height-ph-12))+'px';
@@ -45,15 +46,16 @@ export function installColorPicker(){
     if(changed)previous.dispatchEvent(new Event('change',{bubbles:true}));
     if(restore&&previous.isConnected)previous.focus({preventScroll:true});
   }
-  function open(input){
+  function open(input,source=input){
     if(input.disabled)return;
     if(target===input&&!panel.hidden)return;
-    close();target=input;changed=false;h=0;read(input.value);
+    close();target=input;anchor=source;changed=false;h=0;read(input.value);
     panel.querySelector('#colorPopoverTitle').textContent=input.getAttribute('aria-label')||'Color';
     input.setAttribute('aria-controls',panel.id);input.setAttribute('aria-expanded','true');
     panel.hidden=false;sync();position();field.focus({preventScroll:true});
   }
   document.addEventListener('click',event=>{
+    if(event.target.closest('[data-sample-target],[data-reset-color],[data-reset-group]'))return;
     const input=event.target.closest('input[type="color"]')||event.target.closest('label')?.querySelector('input[type="color"]');
     if(!input)return;event.preventDefault();open(input);
   },true);
@@ -66,6 +68,7 @@ export function installColorPicker(){
     close();
   },true);
   panel.querySelector('#colorDone').addEventListener('click',()=>close(true));
+  panel.querySelector('#colorReset').addEventListener('click',()=>{const input=target;if(input)onReset(input);});
   let pointer=null;
   function move(event){
     const r=field.getBoundingClientRect();s=Math.max(0,Math.min(1,(event.clientX-r.left)/r.width));v=1-Math.max(0,Math.min(1,(event.clientY-r.top)/r.height));sync(true);
@@ -84,4 +87,5 @@ export function installColorPicker(){
   hex.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();field.focus();}});
   window.addEventListener('resize',position);window.addEventListener('scroll',position,true);
   window.visualViewport?.addEventListener('resize',position);window.visualViewport?.addEventListener('scroll',position);
+  return {open,close,refresh(){if(target){h=0;read(target.value);sync();}},get target(){return target;}};
 }

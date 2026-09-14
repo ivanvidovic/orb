@@ -696,3 +696,36 @@ select,select option,select optgroup{color:var(--ink);background-color:var(--pap
 .sleeve-preset-row>div{display:flex;gap:3px}
 #artWorkspace .sleeve-preset-row button{min-height:30px;padding:4px 10px;border:1px solid var(--rule-mid);border-radius:4px;background:transparent;color:inherit;font:inherit;white-space:nowrap;cursor:pointer}
 #artWorkspace .sleeve-preset-row button[aria-pressed="true"],#artWorkspace .sleeve-preset-row button[aria-pressed="true"]:hover{background:var(--ink);color:var(--paper)}
+/* Compact, consistent color modes and direct color actions. */
+#artWorkspace .art-modes{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr) minmax(0,1.3fr) 24px 24px;gap:3px;align-items:center;margin:10px 0}
+#artWorkspace .art-mode-option{display:flex;align-items:center;min-width:0;border:1px solid var(--rule-mid);height:32px}
+#artWorkspace .art-mode-option.selected{border-color:var(--ink);background:var(--ink);color:var(--paper)}
+#artWorkspace .art-mode-option>[data-art-mode]{flex:1;min-width:0;min-height:30px;padding:3px 4px;border:0;color:inherit;font-size:10px;white-space:nowrap;background:none}
+#artWorkspace .art-mode-option>[data-art-mode]:hover{color:inherit;background:color-mix(in srgb,currentColor 10%,transparent)}
+#artWorkspace .art-mode-option>.art-color-swatch{flex:none;width:17px;height:20px;min-height:20px;padding:0;margin:0 4px 0 0;border:1px solid var(--rule-mid);background:var(--swatch);box-shadow:inset 0 0 0 1px #ffffff70}
+#artWorkspace .art-mode-option>.art-color-swatch:focus-visible{outline:2px solid currentColor;outline-offset:2px}
+#panel .color-tools{display:inline-flex;align-items:center;gap:3px;flex:none}
+#panel .color-tools .sw,#panel .color-tools input[type=color]{width:24px;height:26px;min-width:24px;aspect-ratio:auto}
+#panel .color-tools .sw input[type=color]{width:100%;height:100%;min-width:0}
+#panel .color-tools>input[type=color]{padding:1px;border:1px solid var(--rule-mid);background:none;cursor:pointer}
+#panel .color-sample,#artWorkspace .color-sample{display:inline-flex;align-items:center;justify-content:center;flex:none;width:24px;height:28px;min-height:28px;padding:3px;border:0;border-radius:0;box-shadow:none;background:transparent;color:var(--ink);cursor:pointer}
+.color-sample svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.color-sample:disabled{opacity:.3;cursor:default!important}
+#panel .swatches{grid-template-columns:repeat(6,minmax(0,1fr)) 24px 24px;gap:5px;align-items:center}
+#panel .swatches>.sw{min-width:0}
+#panel .fabric-head{gap:5px}
+#panel .fabric-head #blankName{margin-left:auto}
+#panel .setting-heading{display:flex;align-items:center;justify-content:space-between;gap:6px}
+#panel #nightColors{display:flex;flex-wrap:wrap;gap:6px 12px}
+#panel #nightColors[hidden]{display:none}
+#panel .night-color{display:flex;align-items:center;justify-content:space-between;gap:8px;flex:1 1 125px;font-size:11px}
+#panel .grid-style-row{gap:3px;align-items:center;flex-wrap:nowrap}
+#panel .grid-style-row select{flex:1;min-width:40px;width:60px;padding:4px 2px;font-size:10px}
+#panel .grid-style-row .check-option{font-size:11px;gap:4px}
+#artWorkspace .art-fit-row{display:flex;align-items:center;justify-content:space-between;gap:4px}
+#artWorkspace .art-fit-row .art-fit{margin:0;flex:1}
+#panel .reset-action{display:inline-flex;align-items:center;gap:5px;border:0;border-radius:0;background:transparent;color:var(--ink);font:inherit;font-size:11px;cursor:pointer}
+.reset-action svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+#screenSampler{position:fixed;z-index:10020;top:12px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:12px;max-width:calc(100vw - 24px);padding:10px 14px;background:var(--ink);color:var(--paper);font:11px/1.5 var(--sans);box-shadow:0 2px 12px #0003}
+#screenSampler[hidden]{display:none}#screenSampler button{padding:4px 6px;background:none;color:inherit;border:1px solid currentColor;cursor:pointer}
+body.is-sampling,body.is-sampling *{cursor:crosshair!important}body.is-sampling #screenSampler button{cursor:pointer!important}

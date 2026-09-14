@@ -2,7 +2,23 @@
 (()=>{
   const overlay=document.getElementById('startup'),ring=overlay.querySelector('.startup-progress');
   const meter=document.getElementById('startupProgress'),status=document.getElementById('startupStatus'),retry=document.getElementById('startupRetry');
-  let active=true,finished=false,value=0;
+  let active=true,finished=false,value=0,radius=0,revealToken=0;
+  const track=overlay.querySelector('.startup-track'),aperture=overlay.querySelector('#startupReveal circle');
+  function setRadius(value){radius=value;for(const circle of [track,ring,aperture])circle.setAttribute('r',String(value));}
+  function revealTo(target,duration,exiting=false){
+    const token=++revealToken,from=radius,start=performance.now();
+    if(matchMedia('(prefers-reduced-motion: reduce)').matches){setRadius(target);return Promise.resolve();}
+    return new Promise(resolve=>{
+      function frame(now){
+        if(token!==revealToken){resolve();return;}
+        const t=Math.max(0,Math.min(1,(now-start)/duration)),ease=exiting?t*t*t:1-Math.pow(1-t,3);
+        setRadius(from+(target-from)*ease);
+        if(t<1)requestAnimationFrame(frame);else resolve();
+      }
+      requestAnimationFrame(frame);
+    });
+  }
+  revealTo(460,560);
   const locked=new Set();
   function lock(){
     if(!active)return;
@@ -34,7 +50,7 @@
       progress(1,'Ready');finished=true;clearTimeout(slow);retry.hidden=true;overlay.classList.remove('is-preparing','is-indeterminate');
       await new Promise(resolve=>requestAnimationFrame(resolve));
       overlay.classList.add('is-leaving');
-      await new Promise(resolve=>{if(matchMedia('(prefers-reduced-motion: reduce)').matches)resolve();else setTimeout(resolve,390);});
+      await Promise.all([revealTo(0,360,true),new Promise(resolve=>{if(matchMedia('(prefers-reduced-motion: reduce)').matches)resolve();else setTimeout(resolve,390);})]);
       active=false;overlay.hidden=true;document.body.classList.remove('startup-lock');
       for(const node of locked)node.inert=false;locked.clear();
     },fail};
