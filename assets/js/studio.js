@@ -332,7 +332,7 @@ uniform float uArtRough,uHasArtwork;
 uniform sampler2D uArtwork,uArtworkEffects,uSpillGlow,uSpillUV;
 uniform float uHasEffects,uBlackLight,uFabricReactive,uGlowSceneLevel;
 float kIlluminance=0.0,kUVExposure=0.0,kUVVisibility=1.0,kHardVisibility=1.0;
-vec3 kFabricColor=vec3(0.0),kArtColor=vec3(0.0),kEffectNormal=vec3(0.0),kFabricHighlights=vec3(0.0);
+vec3 kFabricColor=vec3(0.0),kArtColor=vec3(0.0),kEffectNormal=vec3(0.0);
 vec2 kArtEffects=vec2(0.0);
 varying vec2 vArtworkUv;
 float kArtworkMask=0.0;`;
@@ -368,21 +368,14 @@ float kUV=1.25*(1.0-exp(-1.8*(.14*uBlackLight+.86*kUVExposure)))/(1.0+4.0*kVisib
 float kGlow=kArtEffects.r*kDark+kArtEffects.g*kUV;
 totalEmissiveRadiance+=kArtColor*kGlow;
 // Preserve v27's actual black-light reflections and shadowing. Fabric color
-// controls reflected brightness and highlights only. Fabric never emits light.
+// controls only the retained pale-fabric brightness lift. Fabric never emits light.
 float kFabricLuma=dot(kFabricColor,vec3(.2126,.7152,.0722));
 float kFabricLight=smoothstep(.015,.55,kFabricLuma);
 float kFabricUVGain=clamp(uBlackLight*100.0,0.0,1.0)*uFabricReactive*(1.0-kArtworkMask);
 // Pale cloth is slightly lighter. Dark cloth receives no diffuse lift.
 reflectedLight.directDiffuse*=1.0+.16*kFabricLight*kFabricUVGain;
 reflectedLight.indirectDiffuse*=1.0+.12*kFabricLight*kFabricUVGain;
-// Strengthen existing light/reflection highlights, preserving their original
-// colors, normal-map detail, and location instead of filling dark folds.
-float kHighlightGain=1.0+mix(.55,.30,kFabricLight)*kFabricUVGain;
-reflectedLight.directSpecular*=kHighlightGain;
-reflectedLight.indirectSpecular*=kHighlightGain;
-// Soft reflected glints for very dark cloth. These use the actual light
-// colors, mapped normals and shadow visibility; unlit folds stay dark.
-reflectedLight.directSpecular+=.22*kFabricHighlights*(1.0-kFabricLight)*kFabricUVGain;
+// Specular reflections use the original v27 material response without gains.
 
 if(gl_FrontFacing&&uHasEffects>.5&&vArtworkUv.x>=0.0&&vArtworkUv.y>=0.0){
   // A short-range surface bounce approximation. Cached colors retain the
@@ -443,10 +436,6 @@ function patchFabricMaterial(mat){
         #if UNROLLED_LOOP_INDEX == 0
           kUVExposure += uBlackLight*kUVVisibility*max(dot(kEffectNormal,directLight.direction),0.0);
         #endif
-        if(uBlackLight>0.0&&uFabricReactive>.5){
-          vec3 kHalf=normalize(directLight.direction+geometryViewDir);
-          kFabricHighlights+=directLight.color*pow(max(dot(normal,kHalf),0.0),12.0);
-        }
         RE_Direct( directLight,`);
     lightingChunk=lightingChunk.slice(0,dirStart)+directional+lightingChunk.slice(dirEnd);
     lightingChunk=lightingChunk.replaceAll('RE_Direct( directLight,','kIlluminance += dot(directLight.color,vec3(.2126,.7152,.0722))*max(dot(kEffectNormal,directLight.direction),0.0); RE_Direct( directLight,');
@@ -482,7 +471,7 @@ function patchFabricMaterial(mat){
     sh.fragmentShader = sh.fragmentShader.replace('#include <roughnessmap_fragment>',
       '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, clamp(uArtRough, 0.02, 1.0), clamp(kArtworkMask, 0.0, 1.0));');
   };
-  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v31-no-fabric-emission';
+  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v32-original-specular';
   mat.needsUpdate=true;
   return mat;
 }
