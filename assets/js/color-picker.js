@@ -1,5 +1,5 @@
 // Persistent, nonmodal color editing shared by every Studio color control.
-import {RESET_ICON} from './controls.js?v=27';
+import {RESET_ICON} from './controls.js?v=28';
 export function installColorPicker({onReset=()=>{}}={}){
   const panel=document.createElement('section');
   panel.id='colorPopover';panel.hidden=true;panel.setAttribute('role','dialog');

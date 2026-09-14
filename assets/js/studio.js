@@ -1,7 +1,7 @@
 import {renderPlacementDiagram} from './placement-diagrams.js?v=23';
-import {installColorPicker} from './color-picker.js?v=27';
-import {installSliderControls,RESET_ICON} from './controls.js?v=27';
-import {installColorActions} from './color-actions.js?v=27';
+import {installColorPicker} from './color-picker.js?v=28';
+import {installSliderControls,RESET_ICON} from './controls.js?v=28';
+import {installColorActions} from './color-actions.js?v=28';
 let colorPicker=null,colorActions=null;
 
 const BRAND=window.BRAND;
@@ -128,7 +128,7 @@ lightRig.add(hemi,key,fil,rim,key.target,fil.target,rim.target);
 const lightReference=new THREE.Quaternion(),lightInverse=new THREE.Quaternion();
 const lightEnvironmentRotation={value:new THREE.Matrix3()},lightEnvironmentPower={value:1};
 const lightRotationMatrix=new THREE.Matrix4();
-const effectUniforms={uBlackLight:{value:0},uGlowSceneLevel:{value:0},uFabricUV:{value:0}};
+const effectUniforms={uBlackLight:{value:0},uGlowSceneLevel:{value:0}};
 let lightReferenceReady=false,shadowDirty=true,lastShadowTime=-Infinity,lastShadowSignature='';
 key.castShadow=true;
 key.shadow.mapSize.set(MOBILE?1024:2048,MOBILE?1024:2048);
@@ -147,10 +147,7 @@ function updateShadowMap(){
     renderer.shadowMap.needsUpdate=true;lastShadowTime=now;shadowDirty=false;lastShadowSignature=sig;
   }
 }
-function syncFabricEffects(){
-  const strength=state.fabricEmission/100;
-  effectUniforms.uFabricUV.value=state.fabricUV?strength:0;
-}
+
 const LIGHT_PRESETS={
   studio:{label:'Studio',description:'Soft neutral studio light for judging fabric and print.',
     exposure:.98,hemi:.32,hemiSky:'#ffffff',hemiGround:'#c2bdb6',
@@ -167,7 +164,7 @@ const LIGHT_PRESETS={
     key:1.65,keyColor:NIGHT_DEFAULTS.green,keyPos:[-1.7,1.3,1.4],
     fill:.48,fillColor:NIGHT_DEFAULTS.magenta,fillPos:[1.5,.6,.95],
     rim:1.15,rimColor:NIGHT_DEFAULTS.magenta,rimPos:[.8,1.1,-1.6]},
-  uv:{label:'Black light',description:'Black light with scattered room UV and subtle shape fill. Reactive ink stays fluorescent in shadows and brightens toward the light.',
+  uv:{label:'Black light',description:'Pale fabric fluoresces blue automatically. Dark fabric retains subtle violet highlights; reactive ink responds to UV exposure.',
     exposure:1,hemi:.035,hemiSky:'#77718f',hemiGround:'#252030',
     key:.18,keyColor:'#824bff',keyPos:[-1.65,1.85,1.35],
     fill:.07,fillColor:'#c1c3d2',fillPos:[1.55,.45,1],
@@ -315,8 +312,8 @@ const VERT_HEAD=`
 const FRAG_HEAD=`
 uniform float uArtRough,uHasArtwork;
 uniform sampler2D uArtwork,uArtworkEffects,uSpillGlow,uSpillUV;
-uniform float uHasEffects,uBlackLight,uFabricUV,uFabricReactive,uGlowSceneLevel;
-float kIlluminance=0.0,kUVExposure=0.0,kUVVisibility=1.0,kHardVisibility=1.0;
+uniform float uHasEffects,uBlackLight,uFabricReactive,uGlowSceneLevel;
+float kIlluminance=0.0,kUVExposure=0.0,kFabricUVExposure=0.0,kUVVisibility=1.0,kHardVisibility=1.0;
 vec3 kFabricColor=vec3(0.0),kArtColor=vec3(0.0),kEffectNormal=vec3(0.0);
 vec2 kArtEffects=vec2(0.0);
 varying vec2 vArtworkUv;
@@ -351,8 +348,25 @@ float kDark=exp(-kVisible/.055)*(1.0-smoothstep(.18,.45,kVisible))/(1.0+4.0*uGlo
 // UV strength is calibrated to half the previous output at a 100% slider.
 float kUV=1.25*(1.0-exp(-1.8*(.14*uBlackLight+.86*kUVExposure)))/(1.0+4.0*kVisible*kVisible+2.0*uGlowSceneLevel*uGlowSceneLevel);
 float kGlow=kArtEffects.r*kDark+kArtEffects.g*kUV;
-float kFabric=uFabricUV*kUV*uFabricReactive;
-totalEmissiveRadiance+=kArtColor*kGlow+kFabricColor*kFabric*(1.0-kArtworkMask);
+totalEmissiveRadiance+=kArtColor*kGlow;
+// Automatic brightener approximation: pale, neutral cloth fluoresces blue.
+// Evaluate the underlying fabric before compositing ink, then mask by print coverage.
+float kFabricLuma=dot(kFabricColor,vec3(.2126,.7152,.0722));
+float kFabricMax=max(max(kFabricColor.r,kFabricColor.g),kFabricColor.b);
+float kFabricMin=min(min(kFabricColor.r,kFabricColor.g),kFabricColor.b);
+float kNeutral=1.0-(kFabricMax-kFabricMin)/max(kFabricMax,.001);
+float kBrightener=smoothstep(.035,.70,kFabricLuma)*mix(.12,1.0,kNeutral*kNeutral);
+float kFabricUV=1.0-exp(-1.7*(.07*uBlackLight+kFabricUVExposure));
+float kFabricCoverage=uFabricReactive*(1.0-kArtworkMask)*(gl_FrontFacing?1.0:.60);
+vec3 kFluorColor=mix(vec3(.035,.18,.65),vec3(.035,.26,1.0),kNeutral);
+// Retain fine weave relief without letting it create crunchy excitation edges.
+float kWeave=clamp(.8+.2*dot(normal,kEffectNormal),.6,1.0);
+totalEmissiveRadiance+=kFluorColor*(1.35*kBrightener*kFabricUV*kWeave*kFabricCoverage);
+// Very weak blue-violet reflected fill keeps dark folds legible. It disappears
+// with the UV rig and never produces fluorescent emission on black cloth.
+float kDarkCloth=1.0-smoothstep(.015,.15,kFabricLuma);
+reflectedLight.directDiffuse+=vec3(.30,.26,.70)*(.10*kDarkCloth*kFabricUV*kFabricCoverage);
+
 if(gl_FrontFacing&&uHasEffects>.5&&vArtworkUv.x>=0.0&&vArtworkUv.y>=0.0){
   // A short-range surface bounce approximation. Cached colors retain the
   // separate glow/UV strengths; current lighting gates their visible spill.
@@ -399,7 +413,7 @@ function patchFabricMaterial(mat){
         // Broader shadow filtering is only used by the emission response.
         // The visible cloth and artwork keep the normal shadow definition.
         #if defined(USE_SHADOWMAP) && (UNROLLED_LOOP_INDEX < NUM_DIR_LIGHT_SHADOWS)
-        if((uHasEffects>.5||uFabricUV>0.0)&&receiveShadow){
+        if((uHasEffects>.5||(uBlackLight>0.0&&uFabricReactive>.5))&&receiveShadow){
           kHardVisibility=kUVVisibility;
           kUVVisibility=.25*(
             getShadow(directionalShadowMap[i],directionalLightShadow.shadowMapSize,directionalLightShadow.shadowBias,directionalLightShadow.shadowRadius,vDirectionalShadowCoord[i]+vec4(vec2(2.0,0.0)/directionalLightShadow.shadowMapSize*vDirectionalShadowCoord[i].w,0.0,0.0))+
@@ -411,6 +425,9 @@ function patchFabricMaterial(mat){
         #endif
         #if UNROLLED_LOOP_INDEX == 0
           kUVExposure += uBlackLight*kUVVisibility*max(dot(kEffectNormal,directLight.direction),0.0);
+          kFabricUVExposure += .78*uBlackLight*mix(.20,1.0,kUVVisibility)*max(dot(kEffectNormal,directLight.direction),0.0);
+        #elif UNROLLED_LOOP_INDEX == 2
+          kFabricUVExposure += .22*uBlackLight*max(dot(kEffectNormal,directLight.direction),0.0);
         #endif
         RE_Direct( directLight,`);
     lightingChunk=lightingChunk.slice(0,dirStart)+directional+lightingChunk.slice(dirEnd);
@@ -447,7 +464,7 @@ function patchFabricMaterial(mat){
     sh.fragmentShader = sh.fragmentShader.replace('#include <roughnessmap_fragment>',
       '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, clamp(uArtRough, 0.02, 1.0), clamp(kArtworkMask, 0.0, 1.0));');
   };
-  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v22-uv-calibration';
+  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v28-auto-fabric';
   mat.needsUpdate=true;
   return mat;
 }
@@ -878,6 +895,7 @@ async function loadCatalog(id){
   if(modelLoading)return false;
   if(id===activeGarmentId)return true;
   const item=GARMENT_CATALOG.find(g=>g.id===id);if(!item)return false;
+  const initialLoad=!current;
   cancelAnchorPick();
   modelBusy(true);modelRetry.hidden=true;retryModel=()=>loadCatalog(id);
   modelStatus.textContent='Loading '+item.label+'…';
@@ -888,7 +906,7 @@ async function loadCatalog(id){
     UV_PROFILES=res.profiles;modelKind='catalog';
     setGarment(res.group,false);trimCatalogCache();
     selectedCatalogId=id;activeGarmentId=id;
-    state.tr=item.distance;state.focusTarget.set(0,.02,0);
+
     garmentSelect.querySelector('option[value="custom"]')?.remove();
     garmentSelect.value=id;
     document.getElementById('modelName').textContent=item.label;
@@ -896,7 +914,7 @@ async function loadCatalog(id){
     document.getElementById('modelName').dataset.garmentId=id;
     document.getElementById('modelName').dataset.triangles=res.tris;
     garment.rotation.y=0;
-    requestArtworkRender();syncArtworkUi();applyLook();setView('angle');
+    requestArtworkRender();syncArtworkUi();applyLook();if(initialLoad)setView('angle');
     modelStatus.textContent='';artStatus('');
     return true;
   }catch(error){
@@ -917,6 +935,7 @@ async function loadModel(file){
   if(modelLoading){artStatus('A model is already loading.');return;}
   if(!/\.glb$/i.test(file.name)){artStatus('Choose a GLB with embedded textures.');return;}
   modelBusy(true);modelRetry.hidden=true;
+  const initialLoad=!current;
   const url=URL.createObjectURL(file);
   bootMsg.textContent='Reading custom garment…';
   document.getElementById('boot').classList.toggle('gone',!!current);
@@ -934,7 +953,7 @@ async function loadModel(file){
     document.getElementById('modelName').dataset.garmentId='custom';
     document.getElementById('fitNote').textContent=`H 74cm · W ${Math.round(res.size.x*100)}cm`;
     document.getElementById('rowFit').hidden=false;
-    modelStatus.textContent='';setView('front');return true;
+    modelStatus.textContent='';if(initialLoad)setView('front');return true;
   }catch(error){
     console.error(error);
     if(imported){if(res)disposeImported(imported);else disposeModel(imported);}
@@ -954,7 +973,7 @@ const THEMES={
   dark:{bg:BRAND.dark.paper},
 };
 const systemColorScheme=matchMedia('(prefers-color-scheme: dark)');
-const state={ themeMode:'system', theme:'light', blank:0, garmentCustom:'#D8D8D8', artGlossiness:50, matchFabricToTheme:false, bg:THEMES.light.bg, dotGrid:true, gridType:'square', gridColor:BRAND.light.grid, gridColorCustom:false, gridStroke:0.5, gridScale:35, gridCharSize:45, light:'studio', lightPower:100, lightLocked:true, nightGreen:NIGHT_DEFAULTS.green, nightMagenta:NIGHT_DEFAULTS.magenta, selfShadows:true, fabricUV:false, fabricEmission:100, wind:1, view:'angle',
+const state={ themeMode:'system', theme:'light', blank:0, garmentCustom:'#D8D8D8', artGlossiness:50, matchFabricToTheme:false, bg:THEMES.light.bg, dotGrid:true, gridType:'square', gridColor:BRAND.light.grid, gridColorCustom:false, gridStroke:0.5, gridScale:35, gridCharSize:45, light:'studio', lightPower:100, lightLocked:true, nightGreen:NIGHT_DEFAULTS.green, nightMagenta:NIGHT_DEFAULTS.magenta, selfShadows:true, wind:1, view:'angle',
   inertia:{enabled:true,strength:15,ramp:100,settle:0.5,elasticity:60,overshoot:70,release:70,sensitivity:50,bias:25,sleeve:100,arc:100},
   focus:new THREE.Vector3(0,.02,0),focusTarget:new THREE.Vector3(0,.02,0),az:0.62, el:1.30, r:1.55, taz:0.62, tel:1.30, tr:1.55, present:false };
 const WIND_LEVELS=[0,0.011,0.024];
@@ -1651,12 +1670,6 @@ for(const [id,prop] of [['nightGreen','nightGreen'],['nightMagenta','nightMagent
 document.getElementById('selfShadows').addEventListener('change',e=>{
   state.selfShadows=e.target.checked;renderer.shadowMap.enabled=state.selfShadows;shadowDirty=true;
   scene.traverse(o=>{if(o.isMesh)for(const m of Array.isArray(o.material)?o.material:[o.material])m.needsUpdate=true;});
-});
-document.getElementById('fabricUV').addEventListener('change',e=>{
-  state.fabricUV=e.target.checked;document.getElementById('fabricEmissionControl').hidden=!state.fabricUV;syncFabricEffects();
-});
-document.getElementById('fabricEmission').addEventListener('input',e=>{
-  state.fabricEmission=Number(e.target.value);document.getElementById('fabricEmissionValue').value=state.fabricEmission;syncFabricEffects();
 });
 segment('segView',v=>setView(v));
 function syncFabricToTheme(){
@@ -3111,8 +3124,6 @@ function installGroupResets(){
     button.onclick=()=>{
       colorPicker?.close();colorActions?.cancel();
       switch(button.dataset.resetGroup){
-        case 'fabric':
-          resetStudioColor('garmentCustom');setStudioInput('fabricUV',false,'change');setStudioInput('fabricEmission',100);break;
         case 'lighting':
           document.querySelector('#segLight [data-v="studio"]').click();setStudioInput('lightPower',100);
           setStudioInput('lightLock',false,'change');setStudioInput('selfShadows',true,'change');

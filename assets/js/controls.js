@@ -3,7 +3,7 @@ export const RESET_ICON='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4
 export function installSliderControls(defaultArtworkValue){
   const icon=RESET_ICON;
   const pairs=new Map();let wheelTimer;
-  const unitLabels={fabricEmission:'Fabric UV intensity',artEmission:'Artwork glow intensity',lightPower:'Light intensity',artGlossiness:'Artwork glossiness',colorHue:'Hue'};
+  const unitLabels={artEmission:'Artwork glow intensity',lightPower:'Light intensity',artGlossiness:'Artwork glossiness',colorHue:'Hue'};
   for(const range of document.querySelectorAll('input[type="range"]')){
     let row=range.parentElement;
     if(range.id==='colorHue'){

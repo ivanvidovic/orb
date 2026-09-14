@@ -1,5 +1,5 @@
-import {RESET_ICON} from './controls.js?v=27';
-const SAMPLE_ICON='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 3 6 6M13 5l6 6M16 2l6 6-3 3-6-6zM14 8 4 18v3h3L17 11"/></svg>';
+import {RESET_ICON} from './controls.js?v=28';
+const SAMPLE_ICON='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 6l3-3a3.54 3.54 0 0 1 5 5l-3 3z" fill="currentColor"/><path d="m11.5 5.5 7 7M13 8l-8.5 8.5c-.7.7-.5 1.5-1 2L2 20l2 2 1.5-1.5c.5-.5 1.3-.3 2-1L16 11"/></svg>';
 export function installColorActions({picker,artworkTarget,resetColor,samplePreview}){
   let pending=null,controller=null,suppressClick=false;
   const hint=document.createElement('div');hint.id='screenSampler';hint.hidden=true;hint.setAttribute('role','status');
