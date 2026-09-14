@@ -751,7 +751,7 @@ async function getCatalogBytes(item){
     const stem=item.file.replace(/\.glb$/,'');
     const urls=['../garments/'+item.file,'../calibration/'+stem+'.json','../calibration/'+stem+'.bin'];
     return Promise.all(urls.map(async (path,index)=>{
-      const url=new URL(path,import.meta.url);url.searchParams.set('v','18');
+      const url=new URL(path,import.meta.url);url.searchParams.set('v',index===0&&item.id==='womens-tee'?'35':'18');
       const response=await fetch(url);
       if(!response.ok)throw new Error('Garment asset could not load.');
       if(index===0&&window.ORBStartup?.active){
