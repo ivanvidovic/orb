@@ -26,11 +26,11 @@
 @media(prefers-reduced-motion:reduce){#startup,#startup .startup-progress{transition:none}#startup.is-indeterminate .startup-progress,#startup.is-preparing .startup-emblem{animation:none}}
 </style>
 <script src="./assets/js/brand.js"></script>
-<link rel="stylesheet" href="./assets/css/studio.css?v=33">
+<link rel="stylesheet" href="./assets/css/studio.css?v=34">
 </head>
 <body data-theme="light" class="startup-lock">
 <div id="startup" class="is-indeterminate" aria-label="Loading ORB Garment Studio"><div class="startup-content"><div id="startupProgress" role="progressbar" aria-label="Preparing garment preview" aria-valuemin="0" aria-valuemax="100"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" class="startup-emblem" aria-hidden="true"><defs><clipPath id="startupReveal"><circle cx="499.8461609" cy="500" r="0"/></clipPath></defs> <circle class="startup-track" fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="500" r="0"/> <g clip-path="url(#startupReveal)"> <path fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" d=" M674.6182861,925.295166V674.7720947C674.6182861,578.2481689,596.3701172,500,499.8461609,500 s-174.7721252,78.2481689-174.7721252,174.7720947V925.295166"/> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="325.2278748" r="174.7721252"/> </g> <g clip-path="url(#startupReveal)"> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="616.5148926" r="116.5148926"/> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="383.4851074" r="116.5148926"/> </g> <circle class="startup-progress" pathLength="100" transform="rotate(-90 499.8461609 500)" fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="500" r="0"/></svg></div><p id="startupStatus" role="status" aria-live="polite">Preparing studio</p><button id="startupRetry" type="button" hidden>Try again</button></div></div>
-<script src="./assets/js/startup.js?v=33"></script>
+<script src="./assets/js/startup.js?v=34"></script>
 <noscript><style>#startup{display:none}.startup-lock{overflow:auto}</style><p>JavaScript is required to use ORB Garment Studio.</p></noscript>
 <script>(()=>{const theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.body.dataset.theme=theme;document.documentElement.dataset.theme=theme;document.documentElement.style.colorScheme=theme;})();</script>
 
@@ -45,9 +45,12 @@
     <div class="quickGroup">
       <div class="quickLabel">Camera</div>
       <div class="quickSeg" id="segView" aria-label="Camera view">
-        <button type="button" data-v="front" aria-pressed="false" aria-label="Camera 1: Front view" title="1 · Front">1</button>
-        <button type="button" data-v="angle" aria-pressed="true" aria-label="Camera 2: Angle view" title="2 · Angle">2</button>
-        <button type="button" data-v="back" aria-pressed="false" aria-label="Camera 3: Back view" title="3 · Back">3</button>
+        <button type="button" data-v="front" aria-pressed="false" aria-label="Camera 1: Front" title="1 · Front">1</button>
+        <button type="button" data-v="angle" aria-pressed="true" aria-label="Camera 2: Front three-quarter" title="2 · Front three-quarter">2</button>
+        <button type="button" data-v="side" aria-pressed="false" aria-label="Camera 3: Side" title="3 · Side">3</button>
+        <button type="button" data-v="backangle" aria-pressed="false" aria-label="Camera 4: Back three-quarter" title="4 · Back three-quarter">4</button>
+        <button type="button" data-v="back" aria-pressed="false" aria-label="Camera 5: Back" title="5 · Back">5</button>
+        <button type="button" data-v="detail" aria-pressed="false" aria-label="Camera 6: Detail" title="6 · Detail">6</button>
       </div>
     </div>
 
@@ -301,7 +304,7 @@
       </section></li>
       <li><span class="guideNumber" aria-hidden="true">04</span><section>
         <h3>Preview and export</h3>
-        <p>Drag to rotate; scroll or pinch to zoom. Use camera and wind presets above. In Environment, choose Studio, Outdoor day, City night, or Black light; adjust light intensity and night colors there. Lighting follows your view by default. Check Fix lights in scene to keep the rig stationary while you orbit. Garment self-shadows add depth to overlapping cloth and can be disabled for performance. The middle theme button follows your system’s light or dark appearance. Theme changes affect the interface and background while preserving garment colors and lighting. Enable Match fabric to theme beside the fabric colors for automatic light/dark fabric switching. Choosing a fabric color turns that option off. <strong>Environment</strong> also controls the background and grid. In Black light, dark fabric retains its matte reflections and pale fabric gains a small UV-dependent glow. Type higher intensity values to expand its slider; Black light remembers its own intensity separately from other presets. The preview switches to a black background and faint grid; leaving Black light restores your previous background and grid colors. Switching garments preserves your viewing angle and zoom. In Artwork, Glossiness applies to all layers. Each expanded artwork layer has Glow in the dark and UV reactive controls; enable either to reveal its intensity slider. Glow becomes visible in darkness and shadow; UV reactivity responds to the Black light preset. Emission includes a subtle local color spill onto surrounding fabric. UV has a dim ambient response in the Black light preset. Zoom out from a closeup, or press Done in its artwork controls, to return to the garment center. <strong>Present</strong> hides the interface; <strong>Save Image</strong> exports the current view.</p>
+        <p>Drag to rotate; scroll or pinch to zoom. Use the six camera presets above: Front, Front three-quarter, Side, Back three-quarter, Back, and Detail. Views transition smoothly; zoom out from Detail to recenter. Wind presets sit alongside them. In Environment, choose Studio, Outdoor day, City night, or Black light; adjust light intensity and night colors there. Lighting follows your view by default. Check Fix lights in scene to keep the rig stationary while you orbit. Garment self-shadows add depth to overlapping cloth and can be disabled for performance. The middle theme button follows your system’s light or dark appearance. Theme changes affect the interface and background while preserving garment colors and lighting. Enable Match fabric to theme beside the fabric colors for automatic light/dark fabric switching. Choosing a fabric color turns that option off. <strong>Environment</strong> also controls the background and grid. In Black light, 100% intensity uses the stronger default lighting. White fabric uses a light blue base (#A4B2FF) in this preset, with a smooth blend for near-white colors. Your chosen fabric color remains unchanged in other presets. Dark fabric retains its matte reflections and pale fabric gains a small UV-dependent glow. Type higher intensity values to expand its slider; Black light remembers its own intensity separately from other presets. The preview switches to a black background and faint grid; leaving Black light restores your previous background and grid colors. Switching garments preserves your viewing angle and zoom. In Artwork, Glossiness applies to all layers. Each expanded artwork layer has Glow in the dark and UV reactive controls; enable either to reveal its intensity slider. Glow becomes visible in darkness and shadow; UV reactivity responds to the Black light preset. Emission includes a subtle local color spill onto surrounding fabric. UV has a dim ambient response in the Black light preset. Zoom out from a closeup, or press Done in its artwork controls, to return to the garment center. <strong>Present</strong> hides the interface; <strong>Save Image</strong> exports the current view.</p>
       </section></li>
     </ol>
     <details class="guideAdvanced">
@@ -331,6 +334,6 @@
 })();
 </script>
 
-<script type="module" src="./assets/js/studio.js?v=33"></script>
+<script type="module" src="./assets/js/studio.js?v=34"></script>
 </body>
 </html>

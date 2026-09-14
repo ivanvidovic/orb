@@ -1,7 +1,7 @@
 import {renderPlacementDiagram} from './placement-diagrams.js?v=23';
-import {installColorPicker} from './color-picker.js?v=33';
-import {installSliderControls,RESET_ICON} from './controls.js?v=33';
-import {installColorActions} from './color-actions.js?v=33';
+import {installColorPicker} from './color-picker.js?v=34';
+import {installSliderControls,RESET_ICON} from './controls.js?v=34';
+import {installColorActions} from './color-actions.js?v=34';
 let colorPicker=null,colorActions=null;
 
 const BRAND=window.BRAND;
@@ -189,7 +189,8 @@ function syncLightingBackdrop(){
 }
 function applyLightingPreset(){
   syncLightingBackdrop();
-  const p=LIGHT_PRESETS[state.light]||LIGHT_PRESETS.studio,power=state.lightPower/100;
+  syncFabricColors();
+  const p=LIGHT_PRESETS[state.light]||LIGHT_PRESETS.studio,power=state.lightPower/100*(state.light==='uv'?8:1);
   renderer.toneMappingExposure=p.exposure;scene.environment=environments[state.light]||environments.studio;
   lightEnvironmentPower.value=power*(state.light==='studio'?.55:state.light==='day'?.65:.45);
   effectUniforms.uBlackLight.value=state.light==='uv'?power:0;
@@ -684,7 +685,7 @@ function adopt(root){
       // Keep every authored map and material group. Garment tint remains user-controlled.
       material.userData.orbBaseColor=material.color.toArray();
       material.userData.orbTintable=material.metalness<0.5;
-      if(material.userData.orbTintable)material.color.multiply(new THREE.Color(currentGarment().hex));
+      if(material.userData.orbTintable)material.color.multiply(renderedFabricColor(currentGarment().hex));
       for(const value of Object.values(material))if(value?.isTexture)value.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
       return patchFabricMaterial(material);
     });
@@ -1131,18 +1132,31 @@ function applyBackground(){
   renderer.setClearColor(0x000000,0);
   drawPatternBackground();
 }
-function applyLook(){
-  const g=currentGarment();
-  const syncGarmentColor=root=>{
-    if(!root) return;
+// UV tint changes the rendered cloth only. Stored colors and artwork stay intact.
+function renderedFabricColor(hex){
+  const color=new THREE.Color(hex);
+  if(state.light!=='uv')return color;
+  const hi=Math.max(color.r,color.g,color.b),lo=Math.min(color.r,color.g,color.b);
+  const saturation=hi>0?(hi-lo)/hi:0;
+  const white=THREE.MathUtils.smoothstep(lo,.55,.85)*(1-THREE.MathUtils.smoothstep(saturation,.08,.30));
+  return color.lerp(new THREE.Color('#A4B2FF'),white);
+}
+function syncFabricColors(){
+  const color=renderedFabricColor(currentGarment().hex);
+  const sync=root=>{
+    if(!root)return;
     root.traverse(o=>{
-      if(!o.isMesh) return;
+      if(!o.isMesh)return;
       const mats=Array.isArray(o.material)?o.material:[o.material];
-      mats.forEach(m=>{ if(m?.userData.orbTintable && m.color) m.color.fromArray(m.userData.orbBaseColor).multiply(new THREE.Color(g.hex)); });
+      mats.forEach(m=>{if(m?.userData.orbTintable&&m.color)m.color.fromArray(m.userData.orbBaseColor).multiply(color);});
     });
   };
-  syncGarmentColor(current);
-  if(presentCloneActive) syncGarmentColor(presentGarment);
+  sync(current);
+  if(presentCloneActive)sync(presentGarment);
+}
+function applyLook(){
+  const g=currentGarment();
+  syncFabricColors();
   // Only unfixed Single ink layers follow the garment. Repaint their panels
   // when the contrasting ink changes, not on every garment-color input event.
   for(const layer of artLayers){
@@ -1365,7 +1379,7 @@ function leaveInspection(){
   inspectionFocus=null;state.focusTarget.copy(garmentCenter);
   state.tr=GARMENT_CATALOG.find(g=>g.id===activeGarmentId)?.distance||1.55;
 }
-const VIEWS={front:[0,1.45],angle:[0.62,1.30],back:[Math.PI,1.45]};
+const VIEWS={front:[0,1.45],angle:[.62,1.30],side:[Math.PI/2,1.45],backangle:[Math.PI-.62,1.30],back:[Math.PI,1.45],detail:[.45,1.35]};
 function viewArtwork(slot){
   const meta=ART_META[slot],q=UV_PROFILES[slot];
   setView(meta.view);
@@ -1386,6 +1400,10 @@ function setView(v){
   const [az,el]=special[v]||(v==='left'?[Math.PI/2,1.3]:v==='right'?[-Math.PI/2,1.3]:VIEWS[v]);
   state.taz=az+Math.round((state.taz-az)/(Math.PI*2))*Math.PI*2;
   state.tel=el;
+  if(v==='detail'){
+    state.tr*=.67;state.focusTarget.set(0,.13,0);
+    inspectionFocus={point:state.focusTarget.clone(),distance:state.tr};
+  }
 }
 
 /* ================================== UI ================================== */
@@ -1467,8 +1485,11 @@ function setControlTip(id,text,alsoNumberId=null){
 
 const staticTips=[
   ['#segView button[data-v="front"]','Camera 1: move to a straight front view.'],
-  ['#segView button[data-v="angle"]','Camera 2: move to the default three-quarter view.'],
-  ['#segView button[data-v="back"]','Camera 3: move to a straight back view.'],
+  ['#segView button[data-v="angle"]','Camera 2: Front three-quarter. Show depth, chest artwork, and sleeve detail.'],
+  ['#segView button[data-v="side"]','Camera 3: Side. Review sleeve patches and full-length sleeve graphics.'],
+  ['#segView button[data-v="backangle"]','Camera 4: Back three-quarter. Show back artwork and garment shape.'],
+  ['#segView button[data-v="back"]','Camera 5: Back. Check back artwork and alignment.'],
+  ['#segView button[data-v="detail"]','Camera 6: Detail. Inspect chest fabric and print; zoom out to recenter.'],
 
   ['#segLight button[data-v="studio"]','Soft neutral studio lighting for evaluating fabric and print.'],
   ['#segLight button[data-v="day"]','Warm outdoor daylight with cool sky fill.'],

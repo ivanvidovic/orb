@@ -1,4 +1,4 @@
-import {RESET_ICON} from './controls.js?v=33';
+import {RESET_ICON} from './controls.js?v=34';
 const SAMPLE_ICON='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 6l3-3a3.54 3.54 0 0 1 5 5l-3 3z" fill="currentColor"/><path d="m11.5 5.5 7 7M13 8l-8.5 8.5c-.7.7-.5 1.5-1 2L2 20l2 2 1.5-1.5c.5-.5 1.3-.3 2-1L16 11"/></svg>';
 export function installColorActions({picker,artworkTarget,resetColor,samplePreview}){
   let pending=null,controller=null,suppressClick=false;

@@ -415,7 +415,7 @@ body{color-scheme:light}body[data-theme="dark"]{color-scheme:dark}#artWorkspace 
   .themeToggle{grid-area:1/4;margin:0;width:84px;height:30px}
   .topActions{grid-area:1/2;display:flex;justify-self:end;margin:0;align-self:center}
   .topAction{width:auto;height:32px;min-height:32px;padding:0 9px;font-size:8px;letter-spacing:.08em}
-  .topTools{grid-area:2/1/3/-1;order:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:100%;gap:10px;margin:0;padding:0}
+  .topTools{grid-area:2/1/3/-1;order:0;display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);width:100%;gap:10px;margin:0;padding:0}
   .quickGroup{width:100%;min-width:0;display:flex;flex-direction:column;align-items:stretch;gap:4px}
   .quickLabel{font-size:8px;line-height:1;letter-spacing:.09em}
   .quickSeg{width:100%;flex:0 0 auto}.quickSeg button{width:auto;flex:1;min-height:32px;height:32px;font-size:9px}
@@ -618,7 +618,7 @@ select,select option,select optgroup{color:var(--ink);background-color:var(--pap
 
 /* Release 16: named lighting, independent material response, tidy layer actions. */
 .sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
-.topTools{grid-template-columns:repeat(2,minmax(0,1fr))}
+.topTools{grid-template-columns:minmax(0,2fr) minmax(0,1fr)}
 #segLight{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;border:0;background:none}
 #segLight button{width:auto;min-height:34px;border:1px solid var(--rule);border-radius:6px;font-size:11px;padding:5px 8px;white-space:nowrap}
 #segLight button[aria-pressed="true"]{border-color:var(--ink);background:var(--ink);color:var(--paper)}
