@@ -7,11 +7,28 @@ export function installColorPicker({onReset=()=>{}}={}){
   panel.innerHTML=`<div class="color-pop-head"><strong id="colorPopoverTitle">Color</strong><button type="button" id="colorReset" class="slider-reset" aria-label="Reset color" title="Reset color">${RESET_ICON}</button><button type="button" id="colorDone">Done</button></div>
     <div id="colorSV" tabindex="0" role="slider" aria-label="Saturation and brightness" aria-valuemin="0" aria-valuemax="100"><span id="colorCursor"></span></div>
     <label class="color-hue-label" for="colorHue">Hue</label><input id="colorHue" type="range" min="0" max="360" value="0" aria-label="Hue">
-    <div class="color-hex-row"><span id="colorPreview"></span><label for="colorHex">Hex</label><input id="colorHex" type="text" maxlength="7" spellcheck="false" autocapitalize="characters" inputmode="text" value="#FFFFFF"></div>`;
+    <div class="color-hex-row"><span id="colorPreview"></span><label for="colorHex">Hex</label><input id="colorHex" type="text" maxlength="7" spellcheck="false" autocapitalize="characters" inputmode="text" value="#FFFFFF"></div><div class="recent-colors"><span>Session colors</span><div id="recentColorSwatches" aria-label="Recent colors"></div></div>`;
   document.body.append(panel);
   const field=panel.querySelector('#colorSV'),cursor=panel.querySelector('#colorCursor');
   const hue=panel.querySelector('#colorHue'),hex=panel.querySelector('#colorHex'),preview=panel.querySelector('#colorPreview');
   let target=null,anchor=null,h=0,s=0,v=1,changed=false;
+  const memoryKey='orb-colors:'+location.pathname;let recent=[];
+  try{const saved=JSON.parse(sessionStorage.getItem(memoryKey)||'[]');if(Array.isArray(saved))recent=saved.filter(c=>/^#[0-9a-f]{6}$/i.test(c)).slice(0,12);}catch{}
+  function remember(color){
+    if(!/^#[0-9a-f]{6}$/i.test(color))return;
+    color=color.toUpperCase();recent=[color,...recent.filter(c=>c!==color)].slice(0,12);
+    try{sessionStorage.setItem(memoryKey,JSON.stringify(recent));}catch{}
+    drawRecent();
+  }
+  function drawRecent(){
+    const row=panel.querySelector('#recentColorSwatches');row.replaceChildren();
+    if(!recent.length){const hint=document.createElement('small');hint.textContent='Applied colors appear here';row.append(hint);}
+    for(const color of recent){const b=document.createElement('button');b.type='button';b.style.background=color;b.title=color;b.setAttribute('aria-label','Use '+color);b.dataset.sampleColor=color;
+      b.onclick=()=>{if(!target)return;read(color);sync(true);target.dispatchEvent(new Event('change',{bubbles:true}));changed=false;};row.append(b);}
+  }
+  document.addEventListener('change',event=>{if(event.target.matches('input[type="color"]'))remember(event.target.value);});
+  document.getElementById('swatches').addEventListener('click',event=>{const b=event.target.closest('[data-blank]');if(b){const c=b.querySelector('i').style.backgroundColor.match(/\d+/g);if(c)remember('#'+c.slice(0,3).map(n=>Number(n).toString(16).padStart(2,'0')).join(''));}});
+  drawRecent();
   function read(value){
     const rgb=value.slice(1).match(/../g).map(c=>parseInt(c,16)/255),[r,g,b]=rgb;
     const max=Math.max(...rgb),min=Math.min(...rgb),d=max-min;v=max;s=max?d/max:0;

@@ -1,8 +1,14 @@
+import {installWorkspace} from './workspace.js?v=36';
+import {installExports} from './presentation-export.js?v=36';
+import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=36';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=23';
-import {installColorPicker} from './color-picker.js?v=34';
+import {installColorPicker} from './color-picker.js?v=36';
 import {installSliderControls,RESET_ICON} from './controls.js?v=34';
 import {installColorActions} from './color-actions.js?v=34';
-let colorPicker=null,colorActions=null;
+let colorPicker=null,colorActions=null,workspace=null;
+let renderSuspended=false,designLocked=false,historyRestoring=false,customModelFile=null,customFlipped=false;
+const modelHistoryIds=new WeakMap();let nextModelHistoryId=1;
+function modelHistoryId(file){if(!file)return null;if(!modelHistoryIds.has(file))modelHistoryIds.set(file,nextModelHistoryId++);return modelHistoryIds.get(file);}
 
 const BRAND=window.BRAND;
 document.title=BRAND.title;
@@ -596,7 +602,7 @@ let current=null, isCustom=false;
 function setGarment(obj, custom){
   shadowDirty=true;
   resetArtworkMaps();
-  artLayers.forEach(layer=>layer.anchor=null);artHistory.length=0;
+  artLayers.forEach(layer=>layer.anchor=null);
   // Remove the old presentation clone before disposing any geometry it shares.
   presentCloneMaterials.forEach(m=>m.dispose?.());
   presentCloneMaterials=[];
@@ -918,9 +924,10 @@ async function loadCatalog(id){
   document.getElementById('boot').classList.toggle('gone',!!current);
   try{
     const res=await prepareCatalog(item);
+    if(current)recordArtUndo();
     UV_PROFILES=res.profiles;modelKind='catalog';
     setGarment(res.group,false);trimCatalogCache();
-    selectedCatalogId=id;activeGarmentId=id;
+    selectedCatalogId=id;activeGarmentId=id;customModelFile=null;customFlipped=false;
 
     garmentSelect.querySelector('option[value="custom"]')?.remove();
     garmentSelect.value=id;
@@ -930,7 +937,7 @@ async function loadCatalog(id){
     document.getElementById('modelName').dataset.triangles=res.tris;
     garment.rotation.y=0;
     requestArtworkRender();syncArtworkUi();applyLook();if(initialLoad)setView('angle');
-    modelStatus.textContent='';artStatus('');
+    modelStatus.textContent='';artStatus('');workspace?.notify();
     return true;
   }catch(error){
     console.error('Garment load failed',error);
@@ -958,8 +965,9 @@ async function loadModel(file){
   try{
     const gltf=await gltfLoader.loadAsync(url);imported=gltf.scene;
     res=adopt(imported);disposeImported(imported);imported=null;
+    if(current)recordArtUndo();
     cancelAnchorPick();UV_PROFILES={};modelKind='custom';
-    setGarment(res.group,true);committed=true;activeGarmentId='custom';trimCatalogCache();
+    setGarment(res.group,true);committed=true;activeGarmentId='custom';customModelFile=file;customFlipped=false;trimCatalogCache();
     if(!garmentSelect.querySelector('option[value="custom"]'))garmentSelect.add(new Option('Custom garment','custom'));
     garmentSelect.value='custom';
     requestArtworkRender();syncArtworkUi();applyLook();artStatus('');
@@ -1034,7 +1042,8 @@ function patternLetterLabel(index){
   const letters=['A','B','C','D'];
   return letters[mod(index,4)];
 }
-function drawPatternMark(x,y,kind,val,size){
+function drawPatternMark(x,y,kind,val,size,patternCtxOverride=null){
+  const patternCtx=patternCtxOverride||document.getElementById('bgPattern').getContext('2d');
   const accent=state.gridColor;
   patternCtx.save();
   patternCtx.translate(x,y);
@@ -1068,9 +1077,10 @@ function drawPatternMark(x,y,kind,val,size){
   }
   patternCtx.restore();
 }
-function drawPatternBackground(){
-  const w=window.innerWidth||1, h=window.innerHeight||1;
-  const dpr=Math.min(2, window.devicePixelRatio||1);
+function drawPatternBackground(target=null){
+  const patternCanvas=target||document.getElementById('bgPattern'),patternCtx=patternCanvas.getContext('2d');
+  const w=target?target.width:window.innerWidth||1,h=target?target.height:window.innerHeight||1;
+  const dpr=target?1:Math.min(2, window.devicePixelRatio||1);
   if(patternCanvas.width!==Math.round(w*dpr) || patternCanvas.height!==Math.round(h*dpr)){
     patternCanvas.width=Math.round(w*dpr);
     patternCanvas.height=Math.round(h*dpr);
@@ -1081,9 +1091,9 @@ function drawPatternBackground(){
   patternCtx.fillRect(0,0,w,h);
   if(!state.dotGrid) return;
 
-  const mobileGridFactor = w <= 820 ? 0.72 : 1;
+  const mobileGridFactor = target?Math.max(w,h)/1600:w <= 820 ? 0.72 : 1;
   const spacing=128*(state.gridScale/100)*mobileGridFactor;
-  const charSize=13*(state.gridCharSize/100);
+  const charSize=13*(state.gridCharSize/100)*(target?Math.max(w,h)/1600:1);
   const markSize=Math.max(3, charSize*0.95);
   const cx=w*0.5, cy=h*0.5;
   if(state.gridType==='square'){
@@ -1122,7 +1132,7 @@ function drawPatternBackground(){
         kind='plus';
       }
 
-      drawPatternMark(x,y,kind,value, kind==='text' ? charSize : markSize);
+      drawPatternMark(x,y,kind,value, kind==='text' ? charSize : markSize,patternCtx);
     }
   }
 }
@@ -2179,7 +2189,7 @@ function flushArtwork(){
 const fileInput=document.getElementById('file');
 let pendingSlot='back',pendingLayerId=null,pendingUploadAction='add',artLoading=false;
 let artLayers=[],nextArtId=1,activeArtId=null,renamingArtId=null;
-const artHistory=[],layerRows=new Map();
+const artHistory=[],artFuture=[],layerRows=new Map();
 const artEntry=(id=activeArtId)=>artLayers.find(layer=>layer.id===id)||null;
 const hasFullSleeve=layer=>!isCustom&&!!UV_PROFILES[layer?.slot]?.full;
 const layerProfile=layer=>layer.anchor||(hasFullSleeve(layer)&&layer.sleevePreset==='full'?UV_PROFILES[layer.slot].full:UV_PROFILES[layer.slot]);
@@ -2237,18 +2247,29 @@ function finishArtworkRename(save=true,refocus=false){
   if(refocus)row?.querySelector('.art-select').focus();
 }
 function recordArtUndo(){
-  artHistory.push({active:activeArtId,layers:artLayers.map(e=>({...e,placement:{...e.placement},anchor:e.anchor?structuredClone(e.anchor):null}))});
-  if(artHistory.length>12)artHistory.shift();
-  document.getElementById('artUndo').disabled=false;
+  if(historyRestoring||designLocked)return;
+  const snapshot=designSnapshot(),key=historyKey(snapshot);
+  if(artHistory.length&&artHistory.at(-1).key===key)return;
+  artHistory.push({snapshot,key});if(artHistory.length>40)artHistory.shift();
+  artFuture.length=0;document.getElementById('artUndo').disabled=false;
+  document.getElementById('artRedo').disabled=true;
 }
-function undoArtwork(){
+async function undoArtwork(redo=false){
   colorPicker?.close();colorActions?.cancel();
-  if(artLoading||!artHistory.length)return;
+  if(artLoading||modelLoading||designLocked)return;
   finishArtworkRename(false);cancelLayerDrag();cancelAnchorPick();
-  const snapshot=artHistory.pop();
-  artLayers=snapshot.layers;activeArtId=snapshot.active;inkEditingEntry=null;
-  if(artEntry())activeArtSlot=artEntry().slot;
-  requestArtworkRender();syncArtworkUi();artStatus('');
+  const from=redo?artFuture:artHistory,to=redo?artHistory:artFuture;
+  const currentSnapshot=designSnapshot(),key=historyKey(currentSnapshot);
+  while(from.length&&from.at(-1).key===key)from.pop();
+  if(!from.length){syncArtworkUi();return;}
+  const next=from.at(-1);
+  historyRestoring=true;setWorkspaceLock(true,redo?'Redoing…':'Undoing…');
+  try{
+    await restoreSnapshotGarment(next.snapshot,next.snapshot.modelFile);
+    restoreDesignState(next.snapshot,false);from.pop();to.push({snapshot:currentSnapshot,key});
+    workspace?.notify();artStatus('');
+  }catch(error){artStatus(error.message||'This edit could not be restored.');}
+  finally{historyRestoring=false;setWorkspaceLock(false);syncArtworkUi();}
 }
 function artStatus(message){document.getElementById('artStatus').textContent=message;}
 function selectArtwork(id){
@@ -2334,7 +2355,7 @@ function syncArtworkUi(){
     if(!wrap){wrap=createLayerRow(layer);layerRows.set(layer.id,wrap);}
     // Do not detach/reinsert the active form on slider or color-picker updates.
     if(wrap!==cursor)list.insertBefore(wrap,cursor);else cursor=cursor.nextElementSibling;
-    const row=wrap.firstElementChild,selected=layer.id===activeArtId;
+    const row=wrap.firstElementChild,selected=layer.id===activeArtId;row.dataset.slot=layer.slot;
     wrap.classList.toggle('active',selected);
     row.classList.toggle('selected',selected);row.classList.toggle('art-hidden',!layer.visible);
     const label=ART_META[layer.slot].label+(hasFullSleeve(layer)&&layer.sleevePreset==='full'?' · Full sleeve':'');
@@ -2366,11 +2387,14 @@ function syncArtworkUi(){
   }
   editor.hidden=!entry;
   document.getElementById('artPosition').hidden=!current;
+  document.getElementById('artPosition').textContent=isCustom?'Set position':'Change placement';
   for(const id of ['artPosition','artUploadAny'])document.getElementById(id).disabled=artLoading;
   document.getElementById('artUploadAny').textContent=artLoading?'Adding…':'+ Add artwork';
   for(const id of ['artFit','artReset','artAdd','artReplace','artView'])document.getElementById(id).disabled=artLoading||!entry;
   document.getElementById('artFit').checked=!!entry?.fit;
   document.getElementById('artUndo').disabled=artLoading||!artHistory.length;
+  document.getElementById('artRedo').disabled=artLoading||!artFuture.length;
+  document.getElementById('artDuplicate').disabled=artLoading||!entry;
   const index=artLayers.indexOf(entry);
   document.getElementById('artRaise').disabled=artLoading||index<=0;
   document.getElementById('artLower').disabled=artLoading||index<0||index>=artLayers.length-1;
@@ -2406,13 +2430,12 @@ function fitVisibleArtwork(source){
 }
 function openArtUpload(id,action='add'){
   const entry=artEntry(id);if(artLoading||!entry)return;
-  pendingSlot=entry.slot;pendingLayerId=id;pendingUploadAction=action;
-  fileInput.value='';fileInput.click();
+  workspace.openAssets({action,slot:entry.slot,target:id});
 }
 function decodeArtworkFile(file){
   return new Promise((resolve,reject)=>{
     const url=URL.createObjectURL(file),img=new Image();
-    img.onload=()=>{try{resolve(makeArtworkEntry(img,file.name));}catch(e){reject(e);}finally{URL.revokeObjectURL(url);}};
+    img.onload=()=>{try{resolve({...makeArtworkEntry(img,file.name),originalFile:file});}catch(e){reject(e);}finally{URL.revokeObjectURL(url);}};
     img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('Unsupported or damaged image'));};img.src=url;
   });
 }
@@ -2426,28 +2449,33 @@ async function loadArtFiles(slot,files,action='add',targetId=null){
 
     try{entries.push(await decodeArtworkFile(file));}catch{failed.push(file.name);}
   }
-  let added=[];
-  if(entries.length){
-    recordArtUndo();
-    const target=artEntry(targetId),index=artLayers.indexOf(target);
-    // Reuse a placement's last native anchor, but copy it into every new layer.
-    const anchor=target?.anchor||artLayers.find(e=>e.slot===slot&&e.anchor)?.anchor||null;
-    const names=new Set(artLayers.filter(e=>action!=='replace'||e!==target).map(e=>e.name.toLocaleLowerCase()));
-    added=entries.map(e=>{
-      const layer=initializeLayer(e,slot,anchor,names);layer.sleevePreset=target?.sleevePreset||'patch';
-      if(hasFullSleeve(layer)&&layer.sleevePreset==='full'){layer.placement.scale=1;layer.fit=target?.fit??true;}
-      return layer;
-    });
-    if(action==='replace'&&target){
-      added[0].id=target.id;added[0].placement={...target.placement};added[0].visible=target.visible;
-      for(const prop of ['fit','mode','defaultMode','inkCustom','tintCustom','glow','uvReactive','emission'])added[0][prop]=target[prop];
-      if(target.nameEdited){added[0].name=target.name;added[0].nameEdited=true;}
-      artLayers.splice(index,1,...added);
-    }else artLayers.splice(index<0?0:index,0,...added);
-    activeArtId=added[0].id;activeArtSlot=slot;requestArtworkRender();
-  }
+  const registered=[];
+  for(const entry of entries){try{registered.push(await workspace.register(entry));}catch{failed.push(entry.sourceName);}}
+  const added=addArtworkEntries(slot,registered,action,targetId);
   artLoading=false;syncArtworkUi();
-  artStatus(failed.length?`Could not read: ${failed.join(', ')}.`:'');
+  if(failed.length)artStatus(`Could not read: ${failed.join(', ')}.`);else if(added.length)artStatus('');
+  return added;
+}
+function addArtworkEntries(slot,entries,action='add',targetId=null){
+  if(!entries.length)return [];
+  if(artLayers.length+entries.length-(action==='replace'?1:0)>200){artStatus('This design has reached its 200-layer limit.');return [];}
+  recordArtUndo();
+  const target=artEntry(targetId),index=artLayers.indexOf(target);
+  const anchor=target?.anchor||artLayers.find(e=>e.slot===slot&&e.anchor)?.anchor||null;
+  const names=new Set(artLayers.filter(e=>action!=='replace'||e!==target).map(e=>e.name.toLocaleLowerCase()));
+  const added=entries.map(e=>{
+    const layer=initializeLayer(e,slot,anchor,names);layer.sleevePreset=target?.sleevePreset||'patch';
+    if(hasFullSleeve(layer)&&layer.sleevePreset==='full'){layer.placement.scale=1;layer.fit=target?.fit??true;}
+    return layer;
+  });
+  if(action==='replace'&&target){
+    added[0].id=target.id;added[0].placement={...target.placement};added[0].visible=target.visible;
+    for(const prop of ['fit','mode','defaultMode','inkCustom','tintCustom','glow','uvReactive','emission'])added[0][prop]=target[prop];
+    if(target.nameEdited){added[0].name=target.name;added[0].nameEdited=true;}
+    artLayers.splice(index,1,...added);
+  }else artLayers.splice(index<0?0:index,0,...added);
+  activeArtId=added[0].id;activeArtSlot=slot;requestArtworkRender();syncArtworkUi();workspace?.notify();
+  if(isCustom&&!added[0].anchor)beginAnchorPick(added[0].id);
   return added;
 }
 function clearArtwork(id){
@@ -2545,7 +2573,13 @@ fileInput.addEventListener('change',async()=>{
 for(const button of document.querySelectorAll('[data-sleeve-preset]'))button.onclick=()=>setSleevePreset(button.dataset.sleevePreset);
 document.getElementById('artAdd').onclick=()=>openArtUpload(activeArtId,'add');
 document.getElementById('artReplace').onclick=()=>openArtUpload(activeArtId,'replace');
-document.getElementById('artUndo').onclick=undoArtwork;
+document.getElementById('artUndo').onclick=()=>undoArtwork();
+document.getElementById('artRedo').onclick=()=>undoArtwork(true);
+document.getElementById('artDuplicate').onclick=()=>{
+  const entry=artEntry();if(!entry||artLoading)return;if(artLayers.length>=200){artStatus('This design has reached its 200-layer limit.');return;}recordArtUndo();
+  const layer={...entry,id:'art-'+nextArtId++,name:uniqueArtworkName(entry.name,new Set(artLayers.map(l=>l.name.toLowerCase()))),placement:{...entry.placement},anchor:entry.anchor?structuredClone(entry.anchor):null};
+  artLayers.splice(artLayers.indexOf(entry),0,layer);activeArtId=layer.id;requestArtworkRender();syncArtworkUi();workspace?.notify();
+};
 document.getElementById('artView').onclick=()=>viewArtwork(activeArtSlot);
 document.getElementById('artClose').onclick=()=>{
   leaveInspection();const id=activeArtId;selectArtwork(null);layerRows.get(id)?.querySelector('.art-select').focus();
@@ -2598,7 +2632,7 @@ for(const prop of ['x','y','scale','rot']){
 document.getElementById('artWorkspace').addEventListener('keydown',e=>{
   if(/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName))return;
   if(e.key==='F2'&&artEntry()){e.preventDefault();beginArtworkRename(activeArtId);return;}
-  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();undoArtwork();}
+  
 });
 syncArtworkUi();
 
@@ -2657,6 +2691,7 @@ document.getElementById('fileModel').onchange=e=>{
 };
 document.getElementById('btnFlip').onclick=()=>{
   if(!isCustom)return;
+  recordArtUndo();customFlipped=!customFlipped;
   const turn=new THREE.Matrix4().makeRotationY(Math.PI);
   current.traverse(o=>{if(o.isMesh){o.geometry.applyMatrix4(turn);o.geometry.computeBoundingSphere();}});
   for(const q of artLayers.map(layer=>layer.anchor).filter(Boolean)){
@@ -2666,7 +2701,7 @@ document.getElementById('btnFlip').onclick=()=>{
   requestArtworkRender();rebuildPresentClone(false);
 };
 document.getElementById('btnShipped').onclick=()=>loadCatalog(selectedCatalogId);
-document.getElementById('artPosition').onclick=()=>beginAnchorPick(activeArtId);
+document.getElementById('artPosition').onclick=()=>{if(isCustom)beginAnchorPick(activeArtId);else openMovePicker();};
 document.getElementById('positionCancel').onclick=()=>{cancelAnchorPick();artStatus('');};
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&anchorPickId){cancelAnchorPick();artStatus('');}});
 
@@ -2693,11 +2728,12 @@ placementDialog.querySelector('.placement-tabs').addEventListener('keydown',even
   const next=event.key==='Home'?'outside':event.key==='End'?'inside':placementMode==='outside'?'inside':'outside';
   const button=placementDialog.querySelector(`[data-placement-side="${next}"]`);button.click();button.focus();
 });
-let placementFiles=[],placementThumbUrl=null,placementReturnFocus=null;
+let placementFiles=[],placementEntries=[],placementMoveId=null,placementThumbUrl=null,placementReturnFocus=null;
 function openPlacementPicker(files,suggested=activeArtSlot){
   if(artLoading)return;
   const images=Array.from(files).filter(f=>f.type.startsWith('image/')||/\.(png|jpe?g|webp|gif|avif|svg)$/i.test(f.name));
   if(!images.length){artStatus('Choose a supported image file.');return;}
+  placementEntries=[];placementMoveId=null;document.getElementById('placementTitle').textContent='Choose a placement';
   placementFiles=images;placementReturnFocus=document.activeElement;
   if(placementThumbUrl)URL.revokeObjectURL(placementThumbUrl);
   placementThumbUrl=URL.createObjectURL(images[0]);
@@ -2711,23 +2747,42 @@ placementDialog.addEventListener('close',()=>{
   // A queued close event can arrive after a new picker has already opened.
   // It must not revoke that new artwork preview or clear its pending files.
   if(placementDialog.open)return;
-  placementFiles=[];
+  placementFiles=[];placementEntries=[];placementMoveId=null;
   if(placementThumbUrl)URL.revokeObjectURL(placementThumbUrl);
   placementThumbUrl=null;document.getElementById('placementImage').removeAttribute('src');
   placementReturnFocus?.focus?.();
 });
 document.getElementById('placementCancel').onclick=closePlacementPicker;
 placementDialog.addEventListener('click',e=>{if(e.target===placementDialog)closePlacementPicker();});
+function openEntryPicker(entries){
+  if(artLoading||!entries.length)return;
+  placementFiles=[];placementEntries=entries;placementMoveId=null;placementReturnFocus=document.activeElement;
+  document.getElementById('placementTitle').textContent='Choose a placement';
+  document.getElementById('placementImage').src=entries[0].thumb;
+  document.getElementById('placementFileName').textContent=entries.length===1?entries[0].name:`${entries.length} images`;
+  placementSuggested=activeArtSlot;placementMode=ART_META[activeArtSlot]?.side==='Inside'?'inside':'outside';renderPlacements();placementDialog.showModal();
+}
+function openMovePicker(){
+  const entry=artEntry();if(artLoading||!entry)return;
+  placementFiles=[];placementEntries=[];placementMoveId=entry.id;placementReturnFocus=document.activeElement;
+  document.getElementById('placementTitle').textContent='Change placement';
+  document.getElementById('placementImage').src=entry.thumb;document.getElementById('placementFileName').textContent=entry.name;
+  placementSuggested=entry.slot;placementMode=ART_META[entry.slot].side==='Inside'?'inside':'outside';renderPlacements();placementDialog.showModal();
+}
 placementDialog.querySelector('.placement-options').addEventListener('click',async event=>{
   const button=event.target.closest('[data-place]');if(!button||button.disabled)return;
-  const files=placementFiles.slice(),slot=button.dataset.place;
-  closePlacementPicker();const added=await loadArtFiles(slot,files,'add');
+  const files=placementFiles.slice(),entries=placementEntries.slice(),moveId=placementMoveId,slot=button.dataset.place;
+  closePlacementPicker();
+  if(moveId){
+    const entry=artEntry(moveId);if(!entry||!UV_PROFILES[slot])return;
+    recordArtUndo();entry.slot=slot;entry.defaultSlot=slot;entry.defaultScale=ART_META[slot].scale;
+    entry.anchor=null;entry.sleevePreset='patch';entry.placement={x:0,y:0,scale:ART_META[slot].scale/100,rot:0};
+    activeArtSlot=slot;activeArtId=moveId;requestArtworkRender();syncArtworkUi();viewArtwork(slot);workspace?.notify();return;
+  }
+  const added=entries.length?addArtworkEntries(slot,entries):await loadArtFiles(slot,files,'add');
   if(added.length){viewArtwork(slot);if(isCustom&&!added[0].anchor)beginAnchorPick(added[0].id);}
 });
-document.getElementById('artUploadAny').onclick=()=>{
-  if(artLoading)return;
-  pendingUploadAction='choose';fileInput.value='';fileInput.click();
-};
+document.getElementById('artUploadAny').onclick=()=>workspace?.openAssets();
 const dropEl=document.getElementById('drop');
 let dragDepth=0;
 const hasDropFiles=e=>Array.from(e.dataTransfer?.types||[]).includes('Files');
@@ -2737,7 +2792,9 @@ document.addEventListener('dragleave',e=>{if(!hasDropFiles(e))return;if(--dragDe
 document.addEventListener('drop',e=>{
   if(!hasDropFiles(e))return;
   e.preventDefault();dragDepth=0;dropEl.classList.remove('on');
-  const files=Array.from(e.dataTransfer.files),model=files.find(f=>/\.glb$/i.test(f.name));
+  if(designLocked||modelLoading||artLoading||workspace?.busy)return;
+  const files=Array.from(e.dataTransfer.files),project=files.find(f=>/\.(orb|zip)$/i.test(f.name)),model=files.find(f=>/\.glb$/i.test(f.name));
+  if(project){workspace.dropProject(project);return;}
   if(model){loadModel(model);return;}
   const slot=e.target.closest?.('[data-art-card]')?.dataset.slot||activeArtSlot;
   openPlacementPicker(files,slot);
@@ -2801,50 +2858,10 @@ presentExitShield.addEventListener('wheel',e=>{
   e.stopPropagation();
 },{passive:false});
 
-document.getElementById('btnSave').onclick=()=>{
-  if(state.present) return;
-
-  const dpr=renderer.getPixelRatio();
-  renderer.setPixelRatio(Math.min(3,dpr*2));
-  resize();
-  draw();
-
-  const source=renderer.domElement;
-  let url;
-
-  if(state.present){
-    url=source.toDataURL('image/png');
-  }else{
-    // Preserve the original behavior: normal exports contain the preview stage,
-    // not the interface-sized transparent areas of the permanent canvas.
-    const r=stage.getBoundingClientRect();
-    const px=renderer.getPixelRatio();
-    const crop=document.createElement('canvas');
-    crop.width=Math.max(1,Math.round(r.width*px));
-    crop.height=Math.max(1,Math.round(r.height*px));
-    const cx=crop.getContext('2d');
-    cx.drawImage(
-      source,
-      Math.round(r.left*px),Math.round(r.top*px),
-      crop.width,crop.height,
-      0,0,crop.width,crop.height
-    );
-    url=crop.toDataURL('image/png');
-  }
-
-  renderer.setPixelRatio(dpr);
-  resize();
-  draw();
-
-  const a=document.createElement('a');
-  a.href=url;
-  a.download=`${BRAND.exportPrefix}-${activeGarmentId||'custom-garment'}-${currentGarment().name.toLowerCase()}-${state.view||'free'}.png`;
-  a.click();
-};
-
 /* ================================= loop ================================= */
 
 function resize(){
+  if(renderSuspended)return;
   const w=window.innerWidth||1,h=window.innerHeight||1;
   renderer.setSize(w,h,false);
   drawPatternBackground();
@@ -3072,6 +3089,7 @@ function draw(){
 function tick(){
   requestAnimationFrame(tick);
   const dt=Math.min(0.05,clock.getDelta());
+  if(renderSuspended)return;
   uni.uTime.value+=dt;
   if(intro<1){
     intro=Math.min(1,intro+dt/1.15);
@@ -3202,6 +3220,115 @@ function samplePreviewColor(x,y){
   return '#'+[0,1,2].map(i=>Math.round(Math.min(255,rgba[i]*(premultiplied?1:alpha)+bg[i]*(1-alpha))).toString(16).padStart(2,'0')).join('').toUpperCase();
 }
 
+// Shared state boundary for undo, portable files, and browser recovery.
+function designSnapshot(){
+  return {name:document.getElementById('designName').value,garmentId:activeGarmentId,customFlipped,modelFile:customModelFile,modelToken:modelHistoryId(customModelFile),active:activeArtId,
+    settings:structuredClone(pick(state,SETTING_FIELDS)),regularBackdrop:regularBackdrop?{...regularBackdrop}:null,
+    lighting:{reference:lightReference.toArray(),quaternion:lightRig.quaternion.toArray()},
+    camera:{az:state.taz,el:state.tel,r:state.tr,focus:state.focusTarget.toArray(),view:state.view},
+    layers:artLayers.map(e=>({...e,placement:{...e.placement},anchor:e.anchor?structuredClone(e.anchor):null}))};
+}
+function historyKey(snapshot){return JSON.stringify({name:snapshot.name,garmentId:snapshot.garmentId,customFlipped:snapshot.customFlipped,modelToken:snapshot.modelToken,settings:snapshot.settings,regularBackdrop:snapshot.regularBackdrop,layers:snapshot.layers.map(e=>pick(e,LAYER_FIELDS))});}
+function restoreDesignState(snapshot,restoreCamera=true){
+  colorPicker?.close();colorActions?.cancel();cancelAnchorPick();finishArtworkRename(false);
+  artLayers=snapshot.layers.map(e=>({...e,placement:{...e.placement},anchor:e.anchor?structuredClone(e.anchor):null}));
+  activeArtId=artLayers.some(e=>e.id===snapshot.active)?snapshot.active:null;
+  if(artEntry())activeArtSlot=artEntry().slot;
+  nextArtId=Math.max(nextArtId,...artLayers.map(e=>(Number(e.id.replace(/^art-/,''))||0)+1));
+  Object.assign(state,structuredClone(pick(snapshot.settings,SETTING_FIELDS)));
+  document.getElementById('designName').value=snapshot.name||'Untitled design';
+  regularBackdrop=snapshot.regularBackdrop?{...snapshot.regularBackdrop}:state.light==='uv'?{bg:THEMES.light.bg,gridColor:BRAND.light.grid,gridColorCustom:false}:null;
+  applyTheme(false);
+  // Theme application can choose a default grid; the saved preview takes precedence.
+  state.bg=snapshot.settings.bg;state.gridColor=snapshot.settings.gridColor;
+  if(snapshot.lighting){lightReference.fromArray(snapshot.lighting.reference);lightRig.quaternion.fromArray(snapshot.lighting.quaternion);lightReferenceReady=true;}
+  clearTimeout(nightEnvironmentTimer);
+  const old=environments.night;environments.night=makeEnvironment('night',{green:state.nightGreen,magenta:state.nightMagenta});
+  applyLightingPreset();environmentTargets.get(old)?.dispose();environmentTargets.delete(old);
+  renderer.shadowMap.enabled=state.selfShadows;shadowDirty=true;
+  scene.traverse(o=>{if(o.isMesh)for(const m of Array.isArray(o.material)?o.material:[o.material])m.needsUpdate=true;});
+  if(restoreCamera&&snapshot.camera){const c=snapshot.camera;state.az=state.taz=c.az;state.el=state.tel=clamp(c.el,.25,2.8);state.r=state.tr=clamp(c.r,.2,10);state.focus.fromArray(c.focus);state.focusTarget.copy(state.focus);state.view=c.view;inspectionFocus=state.focusTarget.distanceTo(garmentCenter)>.03?{point:state.focusTarget.clone(),distance:state.tr}:null;}
+  document.getElementById('garmentCustom').value=state.garmentCustom;document.querySelector('#swatches .custom i').style.background=state.garmentCustom;
+  for(const id of ['bgCustom','gridColor','nightGreen','nightMagenta']){document.getElementById(id).value=id==='bgCustom'?state.bg:state[id];const chip=document.getElementById(id==='bgCustom'?'bgColorChip':id+'Chip');if(chip)chip.style.background=id==='bgCustom'?state.bg:state[id];}
+  for(const id of ['matchFabricToTheme','dotGrid','selfShadows'])document.getElementById(id).checked=state[id];
+  document.getElementById('lightLock').checked=!state.lightLocked;
+  document.getElementById('gridType').value=state.gridType;
+  for(const [id,value] of [['segLight',state.light],['segWind',state.wind],['segView',state.view]])for(const b of document.querySelectorAll('#'+id+' button'))b.setAttribute('aria-pressed',String(String(value)===b.dataset.v));
+  for(const k of Object.keys(MOTION_APPLIERS))MOTION_APPLIERS[k](state.inertia[k]);
+  document.getElementById('inertiaEnabled').checked=state.inertia.enabled;
+  applyGridScale(state.gridScale);applyGridCharSize(state.gridCharSize);applyGridStroke(state.gridStroke);
+  syncGridStyle();syncLightPowerControl();setArtworkGlossiness(state.artGlossiness);syncGarmentSwatches();
+  requestArtworkRender();syncArtworkUi();applyLook();applyBackground();
+}
+async function restoreSnapshotGarment(snapshot,model){
+  if(snapshot.garmentId==='custom'){
+    if(!model)throw new Error('The custom garment is missing.');
+    if(!isCustom||customModelFile!==model){if(!await loadModel(model))throw new Error('The custom garment could not load.');}
+    if(!!snapshot.customFlipped!==customFlipped)document.getElementById('btnFlip').click();
+  }else if(!await loadCatalog(snapshot.garmentId))throw new Error('The garment could not load. Your design was not replaced.');
+}
+function setWorkspaceLock(value,message='Working…'){
+  designLocked=value;document.querySelector('header').inert=value;document.querySelector('main').inert=value;
+  document.getElementById('workspaceBusy').hidden=!value;document.querySelector('#workspaceBusy span').textContent=message;
+}
+function installDesignHistory(){
+  let editing=null;
+  const before=e=>{if(designLocked||historyRestoring)return;const t=e.target;
+    if(!t.closest('#panel,header,#colorPopover'))return;
+    if(t.matches('input[type="file"],input[type="search"]'))return;
+    if(e.type==='input'){
+      if(!t.matches('input')||t.matches('input[type="checkbox"]'))return;
+      const owner=t.closest('#colorPopover')&&colorPicker?.target?colorPicker.target:t;
+      if(editing!==owner){recordArtUndo();editing=owner;}
+    }else if(e.type==='change'){
+      if(t.matches('input[type="checkbox"],select'))recordArtUndo();editing=null;
+    }else if(t.closest('#swatches button[data-blank],#segLight button,#segWind button,[data-theme-mode],[data-reset-color],[data-reset-group],#resetArtGlossiness,[data-reset-motion],#resetInertia,#resetGridScale,#resetGridStroke,#resetGridCharSize'))recordArtUndo();
+  };
+  for(const type of ['input','change','click'])document.addEventListener(type,before,true);
+  document.addEventListener('focusin',e=>{if(e.target.id==='designName')recordArtUndo();},true);
+  document.addEventListener('focusout',()=>editing=null);
+  document.addEventListener('pointerup',()=>workspace?.notify());
+  document.addEventListener('keydown',e=>{
+    if(!(e.ctrlKey||e.metaKey)||e.altKey||e.target.closest('input,textarea,select,[contenteditable="true"]'))return;
+    if(e.key.toLowerCase()==='z'||e.key.toLowerCase()==='y'){e.preventDefault();undoArtwork(e.shiftKey||e.key.toLowerCase()==='y');}
+  });
+}
+const defaultDesignSettings=structuredClone(pick(state,SETTING_FIELDS));
+workspace=installWorkspace({
+  schema:{garments:GARMENT_CATALOG.map(g=>g.id),slots:ART_KEYS},busy:()=>artLoading||modelLoading||designLocked,
+  snapshot:designSnapshot,modelFile:()=>customModelFile,decode:decodeArtworkFile,
+  finish:()=>{finishArtworkRename(true);colorPicker?.close();},lock:setWorkspaceLock,
+  clearHistory:()=>{artHistory.length=0;artFuture.length=0;syncArtworkUi();},
+  async restore(snapshot,model){
+    historyRestoring=true;
+    try{await restoreSnapshotGarment(snapshot,model);restoreDesignState(snapshot);}finally{historyRestoring=false;}
+  },
+  newDesign:()=>{
+    const snapshot=designSnapshot();snapshot.layers=[];snapshot.active=null;snapshot.name='Untitled design';snapshot.settings=structuredClone(defaultDesignSettings);snapshot.regularBackdrop=null;
+    recordArtUndo();restoreDesignState(snapshot,false);setView('angle');
+  },
+  chooseEntries:openEntryPicker,
+  addEntries:(slot,entries,action,target)=>{addArtworkEntries(slot,entries,action,target);viewArtwork(slot);},
+  browse:ctx=>{pendingUploadAction=ctx.action;pendingSlot=ctx.slot||activeArtSlot;pendingLayerId=ctx.target||null;fileInput.value='';fileInput.click();}
+});
+installDesignHistory();
+document.getElementById('resetView').onclick=()=>setView('angle');
+const cameraLabels={front:'Front',angle:'Front ¾',side:'Left',backangle:'Back ¾',back:'Back',detail:'Detail'};
+for(const button of document.querySelectorAll('#segView button'))button.textContent=cameraLabels[button.dataset.v];
+for(const button of document.querySelectorAll('#segWind button'))button.textContent=['Still','Gentle','Breezy'][Number(button.dataset.v)];
+for(const button of document.querySelectorAll('#segLight button'))button.textContent=LIGHT_PRESETS[button.dataset.v].label;
+installExports({THREE,renderer,scene,camera,garment,presentGarment,shirtShadow,presentShadow,uni,state,current:()=>current,
+  snapshot:designSnapshot,workspace,busy:()=>artLoading||modelLoading||designLocked||workspace.busy,
+  lock:setWorkspaceLock,pause:value=>renderSuspended=value,flush:flushArtwork,draw,resize,
+  updateLights:updateLightLock,updateShadows:()=>{shadowDirty=true;updateShadowMap();},
+  backdrop:drawPatternBackground,lighting:()=>({reference:lightReference.clone(),quaternion:lightRig.quaternion.clone()}),
+  restoreLighting:s=>{lightReference.copy(s.reference);lightRig.quaternion.copy(s.quaternion);},
+  finish:()=>{finishArtworkRename(true);colorPicker?.close();colorActions?.cancel();},
+  name:()=>document.getElementById('designName').value,
+  viewAngles:v=>v==='right'?[-Math.PI/2,1.45]:VIEWS[v],
+  label:()=>GARMENT_CATALOG.find(g=>g.id===activeGarmentId)?.label||'Custom garment'
+});
+
 colorPicker=installColorPicker({onReset:input=>resetStudioColor(input.id,true)});
 colorActions=installColorActions({picker:colorPicker,artworkTarget:()=>{const entry=artEntry();return entry&&entry.mode!=='original'?document.getElementById(entry.mode==='tint'?'tintCustom':'inkCustom'):null;},resetColor:resetStudioColor,samplePreview:samplePreviewColor});
 installGroupResets();
@@ -3218,6 +3345,8 @@ await Promise.all([loadSvg(BRAND.wordmark,4096),loadSvg(BRAND.emblem,2048)]).the
   // Upload textures, compose artwork, and draw the first garment before the handoff.
   resize();draw();
   await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  for(let i=0;i<artLayers.length;i++){const registered=await workspace.register(artLayers[i]);artLayers[i].assetId=registered.assetId;}
+  await workspace.ready();
   document.body.classList.add('ready');
   await window.ORBStartup?.complete();
   preloadCatalog();

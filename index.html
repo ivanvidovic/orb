@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<!-- Release 27: color tools, resets, stable switching and calibrated chest defaults. Deploy index.html with the assets folder. Source: orb-tee-11.html. -->
+<!-- ORB Studio 36: portable designs, artwork library, session colors and presentation exports. -->
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -26,7 +26,7 @@
 @media(prefers-reduced-motion:reduce){#startup,#startup .startup-progress{transition:none}#startup.is-indeterminate .startup-progress,#startup.is-preparing .startup-emblem{animation:none}}
 </style>
 <script src="./assets/js/brand.js"></script>
-<link rel="stylesheet" href="./assets/css/studio.css?v=34">
+<link rel="stylesheet" href="./assets/css/studio.css?v=36">
 </head>
 <body data-theme="light" class="startup-lock">
 <div id="startup" class="is-indeterminate" aria-label="Loading ORB Garment Studio"><div class="startup-content"><div id="startupProgress" role="progressbar" aria-label="Preparing garment preview" aria-valuemin="0" aria-valuemax="100"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" class="startup-emblem" aria-hidden="true"><defs><clipPath id="startupReveal"><circle cx="499.8461609" cy="500" r="0"/></clipPath></defs> <circle class="startup-track" fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="500" r="0"/> <g clip-path="url(#startupReveal)"> <path fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" d=" M674.6182861,925.295166V674.7720947C674.6182861,578.2481689,596.3701172,500,499.8461609,500 s-174.7721252,78.2481689-174.7721252,174.7720947V925.295166"/> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="325.2278748" r="174.7721252"/> </g> <g clip-path="url(#startupReveal)"> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="616.5148926" r="116.5148926"/> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="383.4851074" r="116.5148926"/> </g> <circle class="startup-progress" pathLength="100" transform="rotate(-90 499.8461609 500)" fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="500" r="0"/></svg></div><p id="startupStatus" role="status" aria-live="polite">Preparing studio</p><button id="startupRetry" type="button" hidden>Try again</button></div></div>
@@ -68,6 +68,7 @@
     <div class="topActions" aria-label="Preview actions">
       <button class="topAction" id="btnPresent" type="button">Present</button>
       <button class="topAction" id="btnSave" type="button">Save Image</button>
+      <button class="topAction" id="btnExportAll" type="button">Export All</button>
     </div>
   <button class="helpBtn fadein" id="btnHelp" type="button" aria-label="Open tool help">?</button>
 
@@ -87,11 +88,18 @@
 <main>
   <div id="stage">
     <canvas id="gl"></canvas>
+    <button id="resetView" type="button" class="stage-reset">Reset view</button><p class="stage-help">Drag to rotate · Scroll to zoom</p>
     <div id="drop"><span class="lbl lbl-ink">Drop artwork to choose a placement</span></div>
     <div id="positionHint" hidden><span id="positionHintText"></span><button id="positionCancel" type="button">Cancel</button></div><div id="boot"><p class="lbl" id="bootMsg">Loading</p></div>
   </div>
 
   <aside id="panel">
+    <section class="design-bar" aria-label="Design file">
+      <label class="lbl" for="designName">Design name</label>
+      <input id="designName" type="text" value="Untitled design" maxlength="80" autocomplete="off" spellcheck="false">
+      <div class="design-actions"><button id="designSave" type="button">Save design</button><button id="designOpen" type="button">Open</button><button id="designNew" type="button">New</button></div>
+      <p id="designStatus" role="status" aria-live="polite">Your work stays on this device.</p>
+    </section>
         <div class="garmentChooser">
           <span class="lbl">Garment</span>
           <select id="garmentSelect" aria-label="Garment" hidden>
@@ -121,15 +129,21 @@
         </div>
 
         <div id="artWorkspace">
-  <div class="art-heading"><span>Artwork</span><button id="artUploadAny" type="button">+ Add artwork</button><button id="artUndo" type="button" disabled>Undo</button></div>
+  <div class="art-heading"><span>Artwork</span><button id="artUploadAny" type="button">+ Add artwork</button><button id="artUndo" type="button" disabled title="Undo (Ctrl / Cmd Z)">Undo</button><button id="artRedo" type="button" disabled title="Redo (Ctrl / Cmd Shift Z)">Redo</button></div>
 <div class="art-common" role="group" aria-label="Finish for all artwork layers">
   <div class="compact-control"><label for="artGlossiness">Glossiness <small>All artwork</small></label><input id="artGlossiness" type="range" min="0" max="100" step="1" value="50" aria-label="Glossiness for all artwork, zero matte and one hundred glossy"><input type="number" class="num" id="artGlossinessName" value="50" aria-label="artGlossinessName"><button id="resetArtGlossiness" type="button" class="motionResetOne" aria-label="Reset artwork glossiness" title="Reset glossiness to 50">↺</button></div>
 </div>
+<details id="artShelf" class="art-shelf" open><summary>Artwork library <span id="shelfCount">0</span></summary>
+  <div id="shelfDrop" tabindex="0" role="button" aria-label="Upload images to artwork library">Drop images here or <strong>browse</strong></div>
+  <input id="shelfSearch" type="search" placeholder="Find artwork…" aria-label="Find artwork" hidden>
+  <div id="shelfGrid" class="shelf-grid" aria-label="Available artwork"></div>
+  <p class="shelf-note">Click a graphic to place it. Files stay in this browser.</p>
+</details>
 <div id="artLayers" aria-label="Artwork layers"></div>
 <p id="artEmpty" hidden>Drop an image or choose Add artwork to get started.</p>
 <div id="artEditorParking" hidden>
 <section id="artEditor" hidden aria-label="Selected artwork controls">
-  <div class="art-editor-head"><strong id="artEditorName" class="sr-only">Artwork placement</strong><button id="artAdd" type="button" title="Add separate layers at this placement">+ Add here</button><button id="artReplace" type="button" title="Replace image" aria-label="Replace image">Replace</button><button id="artPosition" type="button" title="Set position" aria-label="Set position" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="5"/><path d="M10 1v5m0 8v5M1 10h5m8 0h5"/></svg></button><button id="artView" type="button" title="View on garment" aria-label="View on garment">View</button><button id="artClose" type="button" aria-label="Close artwork controls">Done</button></div>
+  <div class="art-editor-head"><strong id="artEditorName" class="sr-only">Artwork placement</strong><button id="artAdd" type="button" title="Add separate layers at this placement">+ Add here</button><button id="artReplace" type="button" title="Replace image" aria-label="Replace image">Replace</button><button id="artPosition" type="button" title="Move this layer to a standard placement">Change placement</button><button id="artDuplicate" type="button">Duplicate</button><button id="artView" type="button" title="View on garment" aria-label="View on garment">View</button><button id="artClose" type="button" aria-label="Close artwork controls">Done</button></div>
   <div id="sleevePresetControl" class="sleeve-preset-row" hidden><span>Sleeve print</span><div role="group" aria-label="Sleeve print preset"><button type="button" data-sleeve-preset="patch" aria-pressed="true">Patch</button><button type="button" data-sleeve-preset="full" aria-pressed="false" title="100% fits shoulder to wrist; scale up to 600%">Full sleeve</button></div></div>
   <div class="art-modes" role="group" aria-label="Artwork color mode">
     <div class="art-mode-option"><button type="button" data-art-mode="original" aria-pressed="true">Original</button></div>
@@ -158,7 +172,7 @@
       </div>
     </details>
 
-    <details class="sectionFold fadein" open>
+    <details class="sectionFold fadein">
       <summary>Environment</summary>
       <div class="sectionBody envBody">
         <div class="envItem lightingControls">
@@ -296,15 +310,15 @@
       </section></li>
       <li><span class="guideNumber" aria-hidden="true">02</span><section>
         <h3>Arrange your layers</h3>
-        <p>Select a graphic to open its controls directly below the row. Add multiple graphics to any placement. Drag the grip to reorder them; higher layers appear on top. On touch or keyboard, you can also use <strong>↑ ↓</strong>. Use <strong>×</strong> to remove one graphic. <strong>Undo</strong> restores it.</p>
+        <p>Select a graphic to open its controls directly below the row. Add multiple graphics to any placement. Drag the grip to reorder them; higher layers appear on top. On touch or keyboard, you can also use <strong>↑ ↓</strong>. Use <strong>×</strong> to remove one graphic. <strong>Undo / Redo</strong> restores design edits. Use <strong>Duplicate</strong> to reuse a layer and <strong>Change placement</strong> to move it with the placement diagram.</p>
       </section></li>
       <li><span class="guideNumber" aria-hidden="true">03</span><section>
         <h3>Color and finish</h3>
-        <p><strong>Original</strong> is the default for uploads and preserves image colors, backgrounds, and transparency. The starting ORB graphics use <strong>Solid</strong> with automatic shirt contrast until you choose an ink color. <strong>Tint</strong> changes the color family while preserving light/dark detail and transparency. <strong>Solid</strong> uses one flat color, preserving soft edges and extracting simple light or dark backgrounds. Click a mode label to activate it, its swatch to edit color, or the eyedropper to sample; each layer remembers separate Tint and Solid colors. Choose garment colors and print glossiness in the sidebar; <strong>Fit visible artwork</strong> trims transparent margins. Use the pencil or double-click a layer name to rename it. Enter saves, Escape cancels; the original filename appears while editing.</p>
+        <p><strong>Original</strong> is the default for uploads and preserves image colors, backgrounds, and transparency. The starting ORB graphics use <strong>Solid</strong> with automatic shirt contrast until you choose an ink color. <strong>Tint</strong> changes the color family while preserving light/dark detail and transparency. <strong>Solid</strong> uses one flat color, preserving soft edges and extracting simple light or dark backgrounds. Click a mode label to activate it, its swatch to edit color, or the eyedropper to sample; each layer remembers separate Tint and Solid colors. Recent colors are shared by the color pickers. Choose garment colors and print glossiness in the sidebar; <strong>Fit visible artwork</strong> trims transparent margins. Use the pencil or double-click a layer name to rename it. Enter saves, Escape cancels; the original filename appears while editing.</p>
       </section></li>
       <li><span class="guideNumber" aria-hidden="true">04</span><section>
         <h3>Preview and export</h3>
-        <p>Drag to rotate; scroll or pinch to zoom. Use the six camera presets above: Front, Front three-quarter, Side, Back three-quarter, Back, and Detail. Views transition smoothly; zoom out from Detail to recenter. Wind presets sit alongside them. In Environment, choose Studio, Outdoor day, City night, or Black light; adjust light intensity and night colors there. Lighting follows your view by default. Check Fix lights in scene to keep the rig stationary while you orbit. Garment self-shadows add depth to overlapping cloth and can be disabled for performance. The middle theme button follows your system’s light or dark appearance. Theme changes affect the interface and background while preserving garment colors and lighting. Enable Match fabric to theme beside the fabric colors for automatic light/dark fabric switching. Choosing a fabric color turns that option off. <strong>Environment</strong> also controls the background and grid. In Black light, 100% intensity uses the stronger default lighting. White fabric uses a light blue base (#A4B2FF) in this preset, with a smooth blend for near-white colors. Your chosen fabric color remains unchanged in other presets. Dark fabric retains its matte reflections and pale fabric gains a small UV-dependent glow. Type higher intensity values to expand its slider; Black light remembers its own intensity separately from other presets. The preview switches to a black background and faint grid; leaving Black light restores your previous background and grid colors. Switching garments preserves your viewing angle and zoom. In Artwork, Glossiness applies to all layers. Each expanded artwork layer has Glow in the dark and UV reactive controls; enable either to reveal its intensity slider. Glow becomes visible in darkness and shadow; UV reactivity responds to the Black light preset. Emission includes a subtle local color spill onto surrounding fabric. UV has a dim ambient response in the Black light preset. Zoom out from a closeup, or press Done in its artwork controls, to return to the garment center. <strong>Present</strong> hides the interface; <strong>Save Image</strong> exports the current view.</p>
+        <p>Drag to rotate; scroll or pinch to zoom. Use the six camera presets above: Front, Front three-quarter, Side, Back three-quarter, Back, and Detail. Views transition smoothly; zoom out from Detail to recenter. Wind presets sit alongside them. In Environment, choose Studio, Outdoor day, City night, or Black light; adjust light intensity and night colors there. Lighting follows your view by default. Check Fix lights in scene to keep the rig stationary while you orbit. Garment self-shadows add depth to overlapping cloth and can be disabled for performance. The middle theme button follows your system’s light or dark appearance. Theme changes affect the interface and background while preserving garment colors and lighting. Enable Match fabric to theme beside the fabric colors for automatic light/dark fabric switching. Choosing a fabric color turns that option off. <strong>Environment</strong> also controls the background and grid. In Black light, 100% intensity uses the stronger default lighting. White fabric uses a light blue base (#A4B2FF) in this preset, with a smooth blend for near-white colors. Your chosen fabric color remains unchanged in other presets. Dark fabric retains its matte reflections and pale fabric gains a small UV-dependent glow. Type higher intensity values to expand its slider; Black light remembers its own intensity separately from other presets. The preview switches to a black background and faint grid; leaving Black light restores your previous background and grid colors. Switching garments preserves your viewing angle and zoom. In Artwork, Glossiness applies to all layers. Each expanded artwork layer has Glow in the dark and UV reactive controls; enable either to reveal its intensity slider. Glow becomes visible in darkness and shadow; UV reactivity responds to the Black light preset. Emission includes a subtle local color spill onto surrounding fabric. UV has a dim ambient response in the Black light preset. Zoom out from a closeup, or press Done in its artwork controls, to return to the garment center. <strong>Present</strong> hides the interface; <strong>Save Image</strong> exports the current view. <strong>Export All</strong> creates consistently framed PNGs, an optional presentation sheet, and an optional editable design in one ZIP. <strong>Save design</strong> downloads a portable .orb file; reopen it with <strong>Open</strong> or drag it into the studio. Your artwork library and unfinished design are also remembered in this browser. Download a design file to keep a portable backup.</p>
       </section></li>
     </ol>
     <details class="guideAdvanced">
@@ -312,10 +326,26 @@
       <p>Choose one of the four garments at the top of the sidebar. Artwork uses each garment’s own UV panels. You can also upload a GLB with embedded textures and non-overlapping UVs. Select an artwork row, choose <strong>Set position</strong>, then tap the model. <strong>Turn around</strong> corrects its orientation; <strong>Restore selection</strong> returns to the built-in garment.</p>
     </details>
   </div>
-  <div class="helpFooter"><span><kbd>Esc</kbd> to close</span><span>orb-tee-11.html</span></div>
+  <div class="helpFooter"><span><kbd>Esc</kbd> to close</span><span>ORB Studio 36</span></div>
 </dialog>
 
+<dialog id="assetDialog" class="workspace-dialog" aria-labelledby="assetTitle"><div class="workspace-head"><h2 id="assetTitle">Add artwork</h2><button type="button" data-close-dialog aria-label="Close">×</button></div><div class="workspace-body"><button id="assetBrowse" type="button">Upload images</button><p class="muted">Or choose a graphic from your library.</p><div id="assetGrid" class="shelf-grid"></div></div></dialog>
+<dialog id="saveDialog" class="workspace-dialog" aria-labelledby="saveTitle"><div class="workspace-head"><h2 id="saveTitle">Save design</h2><button type="button" data-close-dialog aria-label="Close">×</button></div><div class="workspace-body"><p>One editable file with this garment, all layers, artwork, and preview settings.</p><label class="check-option"><input id="saveIncludeLibrary" type="checkbox">Include unused library graphics</label><p class="muted">Used graphics are always included. Built-in 3D garments stay in the app.</p><button id="saveConfirm" class="primary-action" type="button">Download design</button><p id="saveStatus" role="status"></p></div></dialog>
+<dialog id="exportDialog" class="workspace-dialog" aria-labelledby="exportTitle"><div class="workspace-head"><h2 id="exportTitle">Export presentation</h2><button type="button" data-close-dialog aria-label="Close">×</button></div><div class="workspace-body">
+ <p>Your current lighting, fabric, and artwork. Consistently framed PNGs in one ZIP.</p>
+ <fieldset class="export-views"><legend>Views</legend><label><input type="checkbox" name="exportView" value="front" checked>Front</label><label><input type="checkbox" name="exportView" value="angle" checked>Front ¾</label><label><input type="checkbox" name="exportView" value="side" checked>Left side</label><label><input type="checkbox" name="exportView" value="right" checked>Right side</label><label><input type="checkbox" name="exportView" value="backangle" checked>Back ¾</label><label><input type="checkbox" name="exportView" value="back" checked>Back</label><label><input type="checkbox" name="exportView" value="detail">Detail</label></fieldset>
+ <div class="export-options"><label>Layout<select id="exportShape"><option value="square">Square</option><option value="portrait">Portrait · 4:5</option><option value="wide">Landscape · 16:9</option></select></label><label>Long edge<select id="exportSize"><option value="2048">2048 px</option><option value="3072">3072 px</option><option value="4096">4096 px</option></select></label><label>Background<select id="exportBackground"><option value="current">Current background</option><option value="transparent">Transparent</option><option value="white">White</option></select></label></div>
+ <label class="check-option"><input id="exportGrid" type="checkbox" checked>Include current grid</label>
+ <label class="check-option"><input id="exportSheet" type="checkbox" checked>Include presentation sheet</label>
+ <label class="check-option"><input id="exportDesign" type="checkbox">Include editable design file</label>
+ <p class="muted">Full views use the same scale with room around the garment. Detail is a closer crop. Motion pauses during export.</p>
+ <div class="export-footer"><button id="exportConfirm" class="primary-action" type="button">Download PNG package</button><button id="exportCancel" type="button" hidden>Cancel export</button></div><p id="exportStatus" role="status" aria-live="polite"></p>
+</div></dialog>
+<dialog id="confirmDialog" class="workspace-dialog" aria-labelledby="confirmTitle"><div class="workspace-head"><h2 id="confirmTitle">Start a new design?</h2><button type="button" data-close-dialog aria-label="Close">×</button></div><div class="workspace-body"><p id="confirmText">Save your current design before starting over. Your artwork library stays available.</p><div class="design-actions"><button id="confirmSave" type="button">Save first</button><button id="confirmContinue" type="button">Start new</button><button type="button" data-close-dialog>Cancel</button></div></div></dialog>
+<div id="workspaceBusy" hidden role="status" aria-live="polite"><span>Working…</span></div>
 <div id="uiTooltip" role="tooltip" aria-hidden="true"></div>
+<input type="file" id="projectFile" accept=".orb,.zip" hidden>
+<input type="file" id="shelfFile" accept="image/*" multiple hidden>
 <input type="file" id="file" accept="image/*" multiple hidden>
 <input type="file" id="fileModel" accept=".glb,model/gltf-binary" hidden>
 
@@ -334,6 +364,7 @@
 })();
 </script>
 
-<script type="module" src="./assets/js/studio.js?v=35"></script>
+<script src="./assets/vendor/jszip/jszip.min.js"></script>
+<script type="module" src="./assets/js/studio.js?v=36"></script>
 </body>
 </html>
