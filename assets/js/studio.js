@@ -1,6 +1,6 @@
-import {installWorkspace} from './workspace.js?v=36';
+import {installWorkspace} from './workspace.js?v=37';
 import {installExports} from './presentation-export.js?v=36';
-import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=36';
+import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=37';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=23';
 import {installColorPicker} from './color-picker.js?v=36';
 import {installSliderControls,RESET_ICON} from './controls.js?v=34';
@@ -1660,6 +1660,13 @@ function syncInkUi(){
     input.disabled=disabled;swatch.disabled=disabled;
     const color=inkHex(entry,mode);input.value=color;swatch.style.setProperty('--swatch',color);swatch.dataset.sampleColor=color;
   }
+  document.getElementById('solidSettings').hidden=!entry||entry.mode!=='ink';
+  for(const [id,key,fallback] of [['solidCutoff','solidCutoff',12],['solidSoftness','solidSoftness',65]]){
+    const input=document.getElementById(id);input.value=entry?.[key]??fallback;input.disabled=disabled;
+    const number=document.getElementById(id+'Value');if(number){number.value=input.value;number.disabled=disabled;}
+  }
+  document.getElementById('solidInvert').checked=!!entry?.solidInvert;
+  document.getElementById('solidInvert').disabled=disabled;
   document.getElementById('artEyedropper').disabled=disabled||entry.mode==='original';
   document.getElementById('artColorReset').disabled=disabled||entry.mode==='original';
   document.getElementById('artAppearanceReset').disabled=disabled;
@@ -1961,22 +1968,26 @@ function resetArtworkMaps(){
   }
   requestArtworkRender();
 }
+function artworkSourceKey(layer){
+  return `${layer.fit?1:0}/${layer.mode==='ink'?`ink/${layer.solidCutoff??12}/${layer.solidSoftness??65}/${!!layer.solidInvert}`:'color'}`;
+}
 function artworkSource(layer){
   let cached=artworkSources.get(layer.source);
   if(!cached){cached={fitted:null,textures:new Map()};artworkSources.set(layer.source,cached);}
   const source=layer.fit?(cached.fitted||(cached.fitted=fitVisibleArtwork(layer.source))):layer.source;
-  const key=`${source===layer.source?0:1}/${layer.mode==='ink'?'ink':'color'}`;
+  const key=artworkSourceKey(layer);
   if(!cached.textures.has(key)){
-    const raster=layer.mode==='ink'?makeArtworkMask(source):source;
+    const raster=layer.mode==='ink'?makeArtworkMask(source,layer):source;
     cached.textures.set(key,{texture:texFromArtwork(raster,layer.mode!=='ink'),width:raster.width,height:raster.height});
   }
   return cached.textures.get(key);
 }
 function trimArtworkSources(){
   const sources=new Set(artLayers.map(layer=>layer.source));
-  for(const [source,cached] of artworkSources)if(!sources.has(source)){
-    for(const image of cached.textures.values())image.texture.dispose();
-    artworkSources.delete(source);
+  for(const [source,cached] of artworkSources){
+    const keys=new Set(artLayers.filter(l=>l.source===source).map(artworkSourceKey));
+    for(const [key,image] of cached.textures)if(!keys.has(key)){image.texture.dispose();cached.textures.delete(key);}
+    if(!sources.has(source))artworkSources.delete(source);
   }
 }
 function artworkPanelBounds(geometry){
@@ -2151,7 +2162,7 @@ function flushArtwork(){
   const oldFace=renderer.getActiveCubeFace(),oldMip=renderer.getActiveMipmapLevel();
   renderer.getClearColor(artworkClearColor);renderer.autoClear=false;renderer.setClearColor(0x000000,0);
   try{
-    if(all)trimArtworkSources();
+    trimArtworkSources();
     current.traverse(mesh=>{
       if(!mesh.isMesh)return;
       const geometry=mesh.geometry,meshId=mesh.userData.orbMeshId||1,map=getArtworkMap(meshId),bounds=artworkPanelBounds(geometry);
@@ -2387,7 +2398,7 @@ function syncArtworkUi(){
   }
   editor.hidden=!entry;
   document.getElementById('artPosition').hidden=!current;
-  document.getElementById('artPosition').textContent=isCustom?'Set position':'Change placement';
+  document.getElementById('artPosition').textContent=isCustom?'Set position':'Placement';
   for(const id of ['artPosition','artUploadAny'])document.getElementById(id).disabled=artLoading;
   document.getElementById('artUploadAny').textContent=artLoading?'Adding…':'+ Add artwork';
   for(const id of ['artFit','artReset','artAdd','artReplace','artView'])document.getElementById(id).disabled=artLoading||!entry;
@@ -2415,7 +2426,7 @@ function makeArtworkEntry(img,name){
   const source=prepareArtworkSource(img),thumb=document.createElement('canvas');thumb.width=72;thumb.height=72;
   const scale=Math.min(72/source.width,72/source.height);
   thumb.getContext('2d').drawImage(source,(72-source.width*scale)/2,(72-source.height*scale)/2,source.width*scale,source.height*scale);
-  return {source,sourceName:String(name||'Artwork'),name:suggestArtworkName(name),mode:'original',inkCustom:null,fit:false,thumb:thumb.toDataURL('image/png')};
+  return {source,sourceName:String(name||'Artwork'),name:suggestArtworkName(name),mode:'original',inkCustom:null,solidCutoff:12,solidSoftness:65,solidInvert:false,fit:false,thumb:thumb.toDataURL('image/png')};
 }
 function fitVisibleArtwork(source){
   const w=source.width,h=source.height,d=source.getContext('2d').getImageData(0,0,w,h).data;
@@ -2470,7 +2481,7 @@ function addArtworkEntries(slot,entries,action='add',targetId=null){
   });
   if(action==='replace'&&target){
     added[0].id=target.id;added[0].placement={...target.placement};added[0].visible=target.visible;
-    for(const prop of ['fit','mode','defaultMode','inkCustom','tintCustom','glow','uvReactive','emission'])added[0][prop]=target[prop];
+    for(const prop of ['fit','mode','defaultMode','inkCustom','tintCustom','solidCutoff','solidSoftness','solidInvert','defaultSolidInvert','glow','uvReactive','emission'])added[0][prop]=target[prop];
     if(target.nameEdited){added[0].name=target.name;added[0].nameEdited=true;}
     artLayers.splice(index,1,...added);
   }else artLayers.splice(index<0?0:index,0,...added);
@@ -2604,6 +2615,20 @@ document.getElementById('artEmission').addEventListener('input',e=>{
   entry.emission=Number(e.target.value);requestArtworkRender(entry);syncArtControls();
 });
 for(const event of ['change','blur'])document.getElementById('artEmission').addEventListener(event,()=>emissionEditingId=null);
+let solidEditing=null;
+for(const id of ['solidCutoff','solidSoftness']){
+  const input=document.getElementById(id);
+  input.addEventListener('input',()=>{
+    const entry=artEntry();if(!entry||artLoading)return;
+    if(solidEditing!==input){recordArtUndo();solidEditing=input;}
+    entry[id]=Number(input.value);requestArtworkRender(entry);workspace?.notify();
+  });
+  for(const event of ['change','blur'])input.addEventListener(event,()=>solidEditing=null);
+}
+document.getElementById('solidInvert').onchange=e=>{
+  const entry=artEntry();if(!entry||artLoading)return;
+  recordArtUndo();entry.solidInvert=e.target.checked;requestArtworkRender(entry);workspace?.notify();
+};
 document.getElementById('artFit').onchange=e=>{
   const entry=artEntry();if(artLoading||!entry)return;
   recordArtUndo();entry.fit=e.target.checked;requestArtworkRender(entry);syncArtworkUi();
@@ -2637,38 +2662,27 @@ document.getElementById('artWorkspace').addEventListener('keydown',e=>{
 syncArtworkUi();
 
 
-function makeArtworkMask(img){
-  // Source preparation already bounds both dimensions to the GPU limit.
-  // Keep that resolution and every source alpha level, including edge pixels.
+function makeArtworkMask(img,settings={}){
+  // Shape brightness BEFORE texture filtering; source alpha remains edge coverage.
+  // This keeps intentional ink buildup without crushing antialiased silhouettes.
   const srcW=img.width,srcH=img.height,pad=4;
-  const out=document.createElement('canvas');
-  out.width=srcW+pad*2;out.height=srcH+pad*2;
-  const cx=out.getContext('2d',{willReadFrequently:true});
-  cx.drawImage(img,pad,pad);
+  const out=document.createElement('canvas');out.width=srcW+pad*2;out.height=srcH+pad*2;
+  const cx=out.getContext('2d',{willReadFrequently:true});cx.drawImage(img,pad,pad);
   const im=cx.getImageData(pad,pad,srcW,srcH),d=im.data;
-  let useAlpha=false;
-  for(let i=3;i<d.length;i+=4)if(d[i]<255){useAlpha=true;break;}
-  let cornerLum=0,samples=0;
-  if(!useAlpha){
-    const size=Math.min(12,srcW,srcH);
-    for(const [x0,y0] of [[0,0],[srcW-size,0],[0,srcH-size],[srcW-size,srcH-size]]){
-      for(let y=y0;y<y0+size;y++)for(let x=x0;x<x0+size;x++){
-        const i=(y*srcW+x)*4;
-        cornerLum+=d[i]*.299+d[i+1]*.587+d[i+2]*.114;samples++;
-      }
-    }
+  const cutoff=(settings.solidCutoff??12)/100;
+  const width=Math.max(.0001,(1-cutoff)*(settings.solidSoftness??65)/100);
+  const coverage=new Float32Array(256);
+  for(let i=0;i<256;i++){
+    const level=settings.solidInvert?1-i/255:i/255;
+    const t=Math.max(0,Math.min(1,(level-cutoff)/width));
+    coverage[i]=t*t*(3-2*t);
   }
-  const backgroundIsLight=cornerLum/Math.max(1,samples)>127;
   for(let i=0;i<d.length;i+=4){
-    if(!useAlpha){
-      const lum=d[i]*.299+d[i+1]*.587+d[i+2]*.114;
-      d[i+3]=backgroundIsLight?255-lum:lum;
-    }
+    const brightness=Math.round(d[i]*.299+d[i+1]*.587+d[i+2]*.114);
+    d[i+3]=Math.round(d[i+3]*coverage[brightness]);
     d[i]=255;d[i+1]=255;d[i+2]=255;
   }
-  // No threshold, edge deletion, or blur. Padding only isolates texture edges.
-  cx.putImageData(im,pad,pad);
-  return out;
+  cx.putImageData(im,pad,pad);return out;
 }
 function texFromArtwork(cv,original=false){
   const t=new THREE.CanvasTexture(cv);
@@ -3150,11 +3164,12 @@ const loadSvg=(url,longEdge)=>new Promise((resolve,reject)=>{
 function initializeBrandArtwork(logo,back){
   return [[logo,'Emblem','chest'],[back,'Wordmark','back']].map(([image,name,slot])=>{
     const entry=makeArtworkEntry(image,BRAND.name+' '+name+'.svg');
+    entry.solidInvert=true; // The bundled ORB graphics are black on transparent.
     entry.mode='ink'; // Only the startup graphics override the Original default.
     // A null custom color follows the garment until the user picks a color.
     const layer=initializeLayer(entry,slot);
     if(slot==='chest'){layer.placement.scale=.6;layer.defaultScale=60;}
-    layer.defaultMode='ink';
+    layer.defaultMode='ink';layer.defaultSolidInvert=true;
     return layer;
   });
 }
@@ -3197,7 +3212,7 @@ function installGroupResets(){
           applyGridScale(35);applyGridCharSize(45);applyGridStroke(.5);break;
         case 'artwork':{
           const entry=artEntry();if(!entry||artLoading)return;recordArtUndo();
-          Object.assign(entry,{mode:entry.defaultMode||'original',inkCustom:null,tintCustom:null,glow:false,uvReactive:false,emission:100,fit:hasFullSleeve(entry)&&entry.sleevePreset==='full'});
+          Object.assign(entry,{mode:entry.defaultMode||'original',inkCustom:null,tintCustom:null,solidCutoff:12,solidSoftness:65,solidInvert:!!entry.defaultSolidInvert,glow:false,uvReactive:false,emission:100,fit:hasFullSleeve(entry)&&entry.sleevePreset==='full'});
           requestArtworkRender(entry);syncArtworkUi();break;
         }
       }
@@ -3229,9 +3244,25 @@ function designSnapshot(){
     layers:artLayers.map(e=>({...e,placement:{...e.placement},anchor:e.anchor?structuredClone(e.anchor):null}))};
 }
 function historyKey(snapshot){return JSON.stringify({name:snapshot.name,garmentId:snapshot.garmentId,customFlipped:snapshot.customFlipped,modelToken:snapshot.modelToken,settings:snapshot.settings,regularBackdrop:snapshot.regularBackdrop,layers:snapshot.layers.map(e=>pick(e,LAYER_FIELDS))});}
+function legacySolidInvert(source){
+  // Migrate pre-v37 Solid layers once; new artwork always uses explicit polarity.
+  const w=source.width,h=source.height,d=source.getContext('2d').getImageData(0,0,w,h).data;
+  let transparent=false,light=0,alpha=0;
+  for(let i=0;i<d.length;i+=4){transparent ||= d[i+3]<255;light+=(d[i]*.299+d[i+1]*.587+d[i+2]*.114)*d[i+3];alpha+=d[i+3];}
+  if(transparent)return alpha>0&&light/alpha<127;
+  const size=Math.min(12,w,h);let corners=0,count=0;
+  for(const [x0,y0] of [[0,0],[w-size,0],[0,h-size],[w-size,h-size]])for(let y=y0;y<y0+size;y++)for(let x=x0;x<x0+size;x++){
+    const i=(y*w+x)*4;corners+=d[i]*.299+d[i+1]*.587+d[i+2]*.114;count++;
+  }
+  return corners/Math.max(1,count)>127;
+}
 function restoreDesignState(snapshot,restoreCamera=true){
   colorPicker?.close();colorActions?.cancel();cancelAnchorPick();finishArtworkRename(false);
   artLayers=snapshot.layers.map(e=>({...e,placement:{...e.placement},anchor:e.anchor?structuredClone(e.anchor):null}));
+  for(const layer of artLayers)if(layer.solidInvert===undefined){
+    layer.solidInvert=(layer.mode==='ink'||layer.defaultMode==='ink')?legacySolidInvert(layer.source):false;
+    layer.defaultSolidInvert=layer.defaultMode==='ink'&&layer.solidInvert;
+  }
   activeArtId=artLayers.some(e=>e.id===snapshot.active)?snapshot.active:null;
   if(artEntry())activeArtSlot=artEntry().slot;
   nextArtId=Math.max(nextArtId,...artLayers.map(e=>(Number(e.id.replace(/^art-/,''))||0)+1));

@@ -1,4 +1,4 @@
-import {FORMAT_VERSION,LAYER_FIELDS,SETTING_FIELDS,pick,cleanFilename,canvasBlob,downloadBlob,validateProject} from './design-format.js?v=36';
+import {FORMAT_VERSION,LAYER_FIELDS,SETTING_FIELDS,pick,cleanFilename,canvasBlob,downloadBlob,validateProject} from './design-format.js?v=37';
 const $=id=>document.getElementById(id);
 const imageFile=f=>f.type.startsWith('image/')||/\.(png|jpe?g|webp|gif|avif|svg)$/i.test(f.name);
 const pause=()=>new Promise(resolve=>setTimeout(resolve,0));
@@ -64,8 +64,8 @@ export function installWorkspace(api){
   $('artShelf').addEventListener('dragleave',()=>{$('shelfDrop').classList.remove('over');});
   $('artShelf').addEventListener('drop',e=>{e.preventDefault();e.stopPropagation();$('drop').classList.remove('on');$('shelfDrop').classList.remove('over');importImages(Array.from(e.dataTransfer.files));});
   $('assetBrowse').onclick=()=>{$('assetDialog').close();api.browse(context);};
-  async function packageData(includeLibrary=false){
-    api.finish();const snapshot=api.snapshot();
+  async function packageData(includeLibrary=false,finishEditing=true){
+    if(finishEditing)api.finish();const snapshot=api.snapshot();
     // Register sources kept by an undo snapshot or imported before the tray existed.
     for(const layer of snapshot.layers)if(!assets.has(layer.assetId)){const a=await register(layer,{show:false});layer.assetId=a.assetId;}
     const ids=new Set(snapshot.layers.map(l=>l.assetId));if(includeLibrary)for(const id of shelfIds)ids.add(id);
@@ -89,7 +89,7 @@ export function installWorkspace(api){
     if(busy||api.busy()){clearTimeout(saveTimer);saveTimer=setTimeout(autosave,900);return;}
     const savingRevision=revision;
     saveChain=saveChain.catch(()=>{}).then(async()=>{
-      const data=await packageData(true);data.revision=savingRevision;
+      const data=await packageData(true,false);data.revision=savingRevision;
       await dbPut(data);savedRevision=savingRevision;
       if(revision===savingRevision)status('Saved on this device');
     }).catch(()=>{status('Browser save unavailable. Use Save design to keep your work.');});
@@ -101,7 +101,7 @@ export function installWorkspace(api){
     for(const a of data.doc.assets){const record=data.records.find(r=>r.id===a.id);if(!record?.blob)throw new Error('An artwork file is missing.');
       const entry=await api.decode(new File([record.blob],a.name,{type:a.type}));entry.assetId=a.id;if(!data.doc.layers.some(l=>l.assetId===a.id))entry.source=null;staged.set(a.id,{...record,name:a.name,entry});
     }
-    const layers=data.doc.layers.map(l=>({...staged.get(l.assetId).entry,...pick(l,LAYER_FIELDS)}));
+    const layers=data.doc.layers.map(l=>({...staged.get(l.assetId).entry,...pick(l,LAYER_FIELDS),solidInvert:l.solidInvert}));
     return {staged,layers};
   }
   async function applyPackage(data,{mergeLibrary=true}={}){

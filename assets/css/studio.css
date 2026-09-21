@@ -781,3 +781,19 @@ body.present .stage-reset,body.present .stage-help{display:none}
 @media(min-width:821px){header{gap:12px}.topTools{gap:14px}.quickGroup{gap:6px}.quickLabel{font-size:8px}.topAction{padding:0 8px;font-size:8px}#panel{flex-basis:340px}}
 @media(min-width:821px) and (max-width:1150px){header{flex-wrap:wrap;height:auto;min-height:90px;padding-top:8px;padding-bottom:8px}.topTools{order:5;width:100%;justify-content:center}.hspacer{display:block}}
 @media(max-width:820px){#segView button{padding:0 4px;min-width:0;font-size:9px}#segWind button{padding:0 4px;min-width:0;font-size:9px}.topTools{grid-template-columns:minmax(0,3fr) minmax(0,1.3fr)}.topActions{gap:0}.topAction{font-size:8px;padding:0 7px}.design-bar{margin-bottom:8px;padding-bottom:8px}#panel .art-shelf summary{padding:0}.shelf-grid{grid-template-columns:repeat(4,minmax(0,1fr));max-height:160px}.stage-help{display:none}.stage-reset{bottom:10px;right:10px;padding:7px 9px;font-size:10px}#assetGrid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
+/* v37: compact help, legible artwork previews, and contained layer actions. */
+#artWorkspace .art-editor-head{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;justify-content:stretch}
+#artWorkspace .art-editor-head button,#artWorkspace .art-editor-head #artPosition{width:auto;min-width:0;padding:6px 3px;white-space:normal;overflow-wrap:anywhere}
+#artWorkspace .art-thumb,.shelf-use img{background:repeating-conic-gradient(#727272 0% 25%,#a2a2a2 0% 50%) 50%/12px 12px}
+.shelf-use img{padding:4px;box-sizing:border-box}
+.guideSteps{gap:14px}
+.guideNavigation{font-size:11px;line-height:1.6;color:var(--graphite);padding:14px 0 4px;margin:0}
+.guideAdvanced{margin-top:10px;padding-top:10px}
+.guideRows{margin:10px 0 4px;display:grid;gap:10px}
+.guideRows>div{display:grid;grid-template-columns:110px minmax(0,1fr);gap:12px;font-size:12px;line-height:1.55}
+.guideRows dt{font-weight:500;color:var(--ink)}.guideRows dd{margin:0;color:var(--graphite)}
+.solid-settings{margin:8px 0 12px;border-bottom:1px solid var(--rule);padding-bottom:10px}
+.solid-settings summary{font-size:11px;cursor:pointer}.solid-settings p{font-size:10px;line-height:1.5;color:var(--graphite);margin:8px 0}
+.solid-settings .inline-range{margin:8px 0}.solid-settings .check-option{margin-top:10px}
+@media(max-width:480px){.guideRows>div{grid-template-columns:1fr;gap:2px}}
