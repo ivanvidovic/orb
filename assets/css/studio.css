@@ -622,7 +622,7 @@ select,select option,select optgroup{color:var(--ink);background-color:var(--pap
 #segLight{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;border:0;background:none}
 #segLight button{width:auto;min-height:34px;border:1px solid var(--rule);border-radius:6px;font-size:11px;padding:5px 8px;white-space:nowrap}
 #segLight button[aria-pressed="true"]{border-color:var(--ink);background:var(--ink);color:var(--paper)}
-#nightColors{display:flex;gap:12px}#nightColors[hidden]{display:none}
+#nightControls{display:flex;gap:12px}#nightControls[hidden]{display:none}
 .night-color{display:flex;align-items:center;justify-content:space-between;gap:8px;flex:1;font-size:11px}
 .control-note{font-size:11px;line-height:1.5;color:var(--graphite);margin:0}
 .emission-controls{display:grid;gap:8px;border-top:1px solid var(--rule);padding-top:10px;margin:10px 0 12px}
@@ -714,8 +714,8 @@ select,select option,select optgroup{color:var(--ink);background-color:var(--pap
 #panel .fabric-head{gap:5px}
 #panel .fabric-head #blankName{margin-left:auto}
 #panel .setting-heading{display:flex;align-items:center;justify-content:space-between;gap:6px}
-#panel #nightColors{display:flex;flex-wrap:wrap;gap:6px 12px}
-#panel #nightColors[hidden]{display:none}
+#panel #nightControls{display:flex;flex-wrap:wrap;gap:6px 12px}
+#panel #nightControls[hidden]{display:none}
 #panel .night-color{display:flex;align-items:center;justify-content:space-between;gap:8px;flex:1 1 125px;font-size:11px}
 #panel .grid-style-row{gap:3px;align-items:center;flex-wrap:nowrap}
 #panel .grid-style-row select{flex:1;min-width:40px;width:60px;padding:4px 2px;font-size:10px}
@@ -826,3 +826,6 @@ body.present .stage-reset,body.present .stage-help{display:none}
 .detail-camera-group>span{display:block;padding:6px 12px;font:500 10px var(--sans);color:var(--graphite)}
 .detail-camera-group[hidden],.detail-camera-menu button[hidden]{display:none}
 @media(max-width:600px){.placement-diagram{flex-basis:280px;max-width:280px;min-width:0;width:100%}.placement-choice-list{flex-basis:100%;grid-template-columns:repeat(2,minmax(0,1fr));margin-top:4px}.placement-options .placement-choice{font-size:10px;gap:5px;padding:5px 3px}.placement-options .pin-button{width:28px;min-height:28px;height:28px}}
+
+#panel #nightControls{align-items:center;margin:8px 0}
+#nightTraffic{font:inherit;min-width:90px;padding:5px 8px}

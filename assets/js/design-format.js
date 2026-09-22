@@ -1,7 +1,7 @@
 // Portable ORB files contain a versioned manifest and deduplicated image bytes.
 export const FORMAT_VERSION=2;
 export const LAYER_FIELDS=['id','assetId','sourceName','name','autoName','nameEdited','slot','defaultSlot','defaultMode','defaultScale','mode','inkCustom','tintCustom','solidCutoff','solidSoftness','solidInvert','defaultSolidInvert','fit','sleevePreset','visible','glow','uvReactive','emission','anchor','placementSpace','placement'];
-export const SETTING_FIELDS=['themeMode','blank','garmentCustom','artGlossiness','matchFabricToTheme','bg','dotGrid','gridType','gridColor','gridColorCustom','gridStroke','gridScale','gridCharSize','light','lightPower','blackLightPower','regularLightPower','lightLocked','nightGreen','nightMagenta','selfShadows','wind','inertia'];
+export const SETTING_FIELDS=['themeMode','blank','garmentCustom','artGlossiness','matchFabricToTheme','bg','dotGrid','gridType','gridColor','gridColorCustom','gridStroke','gridScale','gridCharSize','light','lightPower','blackLightPower','regularLightPower','nightLightPower','nightTraffic','nightPaused','lightLocked','nightGreen','nightMagenta','selfShadows','wind','inertia'];
 export function pick(object,keys){return Object.fromEntries(keys.filter(k=>object[k]!==undefined).map(k=>[k,object[k]]));}
 export function cleanFilename(value){return String(value||'Untitled design').replace(/[<>:"/\\|?*\x00-\x1f]/g,'').replace(/[. ]+$/,'').trim().slice(0,80)||'Untitled design';}
 const fail=message=>{throw new Error(message);};
@@ -38,6 +38,9 @@ export function validateProject(doc,{garments,slots}){
   for(const k of ['garmentCustom','bg','gridColor','nightGreen','nightMagenta'])if(!color(s[k]))fail('A design color is invalid.');
   for(const [k,min,max] of [['artGlossiness',0,100],['lightPower',0,10000],['blackLightPower',0,10000],['regularLightPower',0,10000],['gridStroke',.1,10],['gridScale',1,500],['gridCharSize',1,500],['wind',0,2]])if(!finite(s[k],min,max))fail('A design setting is out of range.');
   for(const k of ['matchFabricToTheme','dotGrid','gridColorCustom','lightLocked','selfShadows'])if(typeof s[k]!=='boolean')fail('A design option is invalid.');
+  if(s.nightLightPower!==undefined&&!finite(s.nightLightPower,0,10000))fail('City intensity is invalid.');
+  if(s.nightTraffic!==undefined&&!['off','subtle','active'].includes(s.nightTraffic))fail('Traffic setting is invalid.');
+  if(s.nightPaused!==undefined&&typeof s.nightPaused!=='boolean')fail('Traffic pause setting is invalid.');
   const inertia=s.inertia;
   if(!inertia||typeof inertia.enabled!=='boolean')fail('Motion settings are invalid.');
   for(const k of ['strength','ramp','settle','elasticity','overshoot','release','sensitivity','bias','sleeve','arc'])if(!finite(inertia[k],0,1000))fail('Motion settings are invalid.');

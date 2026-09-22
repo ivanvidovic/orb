@@ -1,8 +1,9 @@
+import {createCityTraffic} from './city-night.js?v=43';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=41';
 import {solidCoverageLut} from './artwork-export.js?v=38';
-import {installWorkspace} from './workspace.js?v=41';
+import {installWorkspace} from './workspace.js?v=43';
 import {installExports} from './presentation-export.js?v=40';
-import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=41';
+import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=43';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
 import {installColorPicker} from './color-picker.js?v=36';
 import {installSliderControls,RESET_ICON} from './controls.js?v=34';
@@ -114,7 +115,7 @@ scene.background=null;
 const camera=new THREE.PerspectiveCamera(34,1,0.05,40);
 
 // Small HDR environments provide broad reflections as well as direct lights.
-const NIGHT_DEFAULTS={green:'#73ff68',magenta:'#ee53bd'};
+const NIGHT_DEFAULTS={green:'#ffd6a0',magenta:'#a5b9ed'};
 const environmentTargets=new WeakMap();
 function makeEnvironment(kind,colors=NIGHT_DEFAULTS){
   const W=256,H=128,data=new Float32Array(W*H*4);
@@ -142,6 +143,8 @@ function makeEnvironment(kind,colors=NIGHT_DEFAULTS){
 const environments={studio:makeEnvironment('studio'),day:makeEnvironment('day'),night:makeEnvironment('night'),uv:makeEnvironment('uv')};
 scene.environment=environments.studio;
 const lightRig=new THREE.Group();scene.add(lightRig);
+const cityTraffic=createCityTraffic(THREE,scene);
+function updateCityTraffic(dt=0){cityTraffic.update(dt,{enabled:state.light==='night',mode:state.nightTraffic,paused:state.nightPaused,power:state.lightPower});}
 const hemi=new THREE.HemisphereLight(),key=new THREE.DirectionalLight(),fil=new THREE.DirectionalLight(),rim=new THREE.DirectionalLight();
 lightRig.add(hemi,key,fil,rim,key.target,fil.target,rim.target);
 const lightReference=new THREE.Quaternion(),lightInverse=new THREE.Quaternion();
@@ -178,11 +181,11 @@ const LIGHT_PRESETS={
     key:2.25,keyColor:'#fff1d7',keyPos:[1.5,2.4,1.3],
     fill:.30,fillColor:'#c2d8ff',fillPos:[-1.5,1.2,1.0],
     rim:.62,rimColor:'#e0eaff',rimPos:[-.7,1.5,-1.8]},
-  night:{label:'City night',description:'Green and magenta city lights. Edit either color below.',
-    exposure:1.0,hemi:.10,hemiSky:'#a5b9ed',hemiGround:'#433952',
-    key:1.65,keyColor:NIGHT_DEFAULTS.green,keyPos:[-1.7,1.3,1.4],
-    fill:.48,fillColor:NIGHT_DEFAULTS.magenta,fillPos:[1.5,.6,.95],
-    rim:1.15,rimColor:NIGHT_DEFAULTS.magenta,rimPos:[.8,1.1,-1.6]},
+  night:{label:'City night',description:'Dim streetlight and passing traffic. Lights stay fixed in the scene.',
+    exposure:1.0,hemi:.025,hemiSky:'#a5b9ed',hemiGround:'#252a38',
+    key:.4125,keyColor:NIGHT_DEFAULTS.green,keyPos:[-1.7,2.4,1.4],
+    fill:.12,fillColor:NIGHT_DEFAULTS.magenta,fillPos:[1.5,.6,.95],
+    rim:.2875,rimColor:NIGHT_DEFAULTS.magenta,rimPos:[.8,1.1,-1.6]},
   uv:{label:'Black light',description:'Black light with subtle fabric highlights and a gentle glow on pale fabric. Enter higher intensity values to extend the slider range.',
     exposure:1,hemi:.035,hemiSky:'#77718f',hemiGround:'#252030',
     key:.18,keyColor:'#824bff',keyPos:[-1.65,1.85,1.35],
@@ -211,20 +214,26 @@ function applyLightingPreset(){
   syncFabricColors();
   const p=LIGHT_PRESETS[state.light]||LIGHT_PRESETS.studio,power=state.lightPower/100*(state.light==='uv'?8:1);
   renderer.toneMappingExposure=p.exposure;scene.environment=environments[state.light]||environments.studio;
-  lightEnvironmentPower.value=power*(state.light==='studio'?.55:state.light==='day'?.65:.45);
+  lightEnvironmentPower.value=power*(state.light==='studio'?.55:state.light==='day'?.65:state.light==='night'?.1125:.45);
   effectUniforms.uBlackLight.value=state.light==='uv'?power:0;
   effectUniforms.uGlowSceneLevel.value=power*(.16*p.key+.12*p.fill+.08*p.rim+.75*p.hemi)+.20*lightEnvironmentPower.value;
-  document.getElementById('nightColors').hidden=state.light!=='night';
+  document.getElementById('nightControls').hidden=state.light!=='night';
+  document.getElementById('nightTraffic').value=state.nightTraffic;
+  document.getElementById('nightPaused').checked=state.nightPaused;
+  document.getElementById('nightPaused').disabled=state.nightTraffic==='off';
+  const lock=document.getElementById('lightLock');lock.disabled=state.light==='night';lock.checked=state.light==='night'||!state.lightLocked;
+  updateCityTraffic();
   shadowDirty=true;
   hemi.color.set(p.hemiSky);hemi.groundColor.set(p.hemiGround);hemi.intensity=p.hemi*power;
-  key.color.set(state.light==='night'?state.nightGreen:p.keyColor);key.intensity=p.key*power;key.position.set(...p.keyPos);
-  fil.color.set(state.light==='night'?state.nightMagenta:p.fillColor);fil.intensity=p.fill*power;fil.position.set(...p.fillPos);
-  rim.color.set(state.light==='night'?state.nightMagenta:p.rimColor);rim.intensity=p.rim*power;rim.position.set(...p.rimPos);
+  key.color.set(p.keyColor);key.intensity=p.key*power;key.position.set(...p.keyPos);
+  fil.color.set(p.fillColor);fil.intensity=p.fill*power;fil.position.set(...p.fillPos);
+  rim.color.set(p.rimColor);rim.intensity=p.rim*power;rim.position.set(...p.rimPos);
   document.getElementById('lightDescription').textContent=p.label+' · '+p.description;
 }
 function updateLightLock(){
   if(!lightReferenceReady){lightReference.copy(camera.quaternion);lightReferenceReady=true;}
-  if(state.lightLocked){
+  if(state.light==='night')lightRig.quaternion.identity();
+  else if(state.lightLocked){
     lightRig.quaternion.copy(camera.quaternion).multiply(lightInverse.copy(lightReference).invert());
   }
   lightRotationMatrix.makeRotationFromQuaternion(lightInverse.copy(lightRig.quaternion).invert());
@@ -1007,7 +1016,7 @@ const THEMES={
   dark:{bg:BRAND.dark.paper},
 };
 const systemColorScheme=matchMedia('(prefers-color-scheme: dark)');
-const state={ themeMode:'system', theme:'light', blank:0, garmentCustom:'#D8D8D8', artGlossiness:50, matchFabricToTheme:false, bg:THEMES.light.bg, dotGrid:true, gridType:'square', gridColor:BRAND.light.grid, gridColorCustom:false, gridStroke:0.5, gridScale:35, gridCharSize:45, light:'studio', lightPower:100, blackLightPower:100, regularLightPower:100, lightLocked:true, nightGreen:NIGHT_DEFAULTS.green, nightMagenta:NIGHT_DEFAULTS.magenta, selfShadows:true, wind:1, view:'angle',
+const state={ themeMode:'system', theme:'light', blank:0, garmentCustom:'#D8D8D8', artGlossiness:50, matchFabricToTheme:false, bg:THEMES.light.bg, dotGrid:true, gridType:'square', gridColor:BRAND.light.grid, gridColorCustom:false, gridStroke:0.5, gridScale:35, gridCharSize:45, light:'studio', lightPower:100, blackLightPower:100, regularLightPower:100, nightLightPower:100, nightTraffic:'subtle', nightPaused:REDUCED, lightLocked:true, nightGreen:NIGHT_DEFAULTS.green, nightMagenta:NIGHT_DEFAULTS.magenta, selfShadows:true, wind:1, view:'angle',
   inertia:{enabled:true,strength:15,ramp:100,settle:0.5,elasticity:60,overshoot:70,release:70,sensitivity:50,bias:25,sleeve:100,arc:100},
   focus:new THREE.Vector3(0,.02,0),focusTarget:new THREE.Vector3(0,.02,0),az:0.62, el:1.30, r:1.55, taz:0.62, tel:1.30, tr:1.55, present:false };
 const WIND_LEVELS=[0,0.011,0.024];
@@ -1538,7 +1547,7 @@ const staticTips=[
 
   ['#segLight button[data-v="studio"]','Soft neutral studio lighting for evaluating fabric and print.'],
   ['#segLight button[data-v="day"]','Warm outdoor daylight with cool sky fill.'],
-  ['#segLight button[data-v="night"]','Green and magenta city lights, with editable colors below.'],
+  ['#segLight button[data-v="night"]','Dim streetlight with passing headlights and occasional red brake lights.'],
   ['#segLight button[data-v="uv"]','Dark violet lighting for checking UV-reactive fabric and artwork.'],
 
   ['#segWind button[data-v="0"]','Wind 1: no continuous breeze deformation. Rotation inertia can still move the shirt.'],
@@ -1740,11 +1749,11 @@ function syncLightPowerControl(){
   if(uv)number.removeAttribute('max');else number.max='140';
 }
 segment('segLight',v=>{
-  state.light=v;state.lightPower=v==='uv'?state.blackLightPower:state.regularLightPower;
+  state.light=v;state.lightPower=v==='uv'?state.blackLightPower:v==='night'?state.nightLightPower:state.regularLightPower;
   syncLightPowerControl();applyLightingPreset();
 });
 document.getElementById('lightPower').addEventListener('input',event=>{
-  state.lightPower=Number(event.target.value);state[state.light==='uv'?'blackLightPower':'regularLightPower']=state.lightPower;document.getElementById('lightPowerValue').value=state.lightPower;applyLightingPreset();
+  state.lightPower=Number(event.target.value);state[state.light==='uv'?'blackLightPower':state.light==='night'?'nightLightPower':'regularLightPower']=state.lightPower;document.getElementById('lightPowerValue').value=state.lightPower;applyLightingPreset();
 });
 document.getElementById('lightLock').addEventListener('change',event=>{
   state.lightLocked=!event.target.checked;
@@ -1752,18 +1761,8 @@ document.getElementById('lightLock').addEventListener('change',event=>{
   lightReference.copy(lightRig.quaternion).invert().multiply(camera.quaternion);
   updateLightLock();shadowDirty=true;
 });
-let nightEnvironmentTimer;
-for(const [id,prop] of [['nightGreen','nightGreen'],['nightMagenta','nightMagenta']]){
-  document.getElementById(id).addEventListener('input',e=>{
-    state[prop]=e.target.value;document.getElementById(id+'Chip').style.background=e.target.value;
-    applyLightingPreset();clearTimeout(nightEnvironmentTimer);
-    nightEnvironmentTimer=setTimeout(()=>{
-      const old=environments.night;
-      environments.night=makeEnvironment('night',{green:state.nightGreen,magenta:state.nightMagenta});
-      applyLightingPreset();environmentTargets.get(old)?.dispose();environmentTargets.delete(old);
-    },140);
-  });
-}
+document.getElementById('nightTraffic').addEventListener('change',event=>{state.nightTraffic=event.target.value;applyLightingPreset();});
+document.getElementById('nightPaused').addEventListener('change',event=>{state.nightPaused=event.target.checked;});
 document.getElementById('selfShadows').addEventListener('change',e=>{
   state.selfShadows=e.target.checked;renderer.shadowMap.enabled=state.selfShadows;shadowDirty=true;
   scene.traverse(o=>{if(o.isMesh)for(const m of Array.isArray(o.material)?o.material:[o.material])m.needsUpdate=true;});
@@ -3170,6 +3169,7 @@ function tick(){
   const dt=Math.min(0.05,clock.getDelta());
   if(renderSuspended)return;
   uni.uTime.value+=dt;
+  updateCityTraffic(dt);
   if(intro<1){
     intro=Math.min(1,intro+dt/1.15);
     state.r=lerp(2.45,state.tr,1-Math.pow(1-intro,3));
@@ -3257,8 +3257,6 @@ function resetStudioColor(id,keepOpen=false){
   }else if(id==='gridColor'){
     state.gridColorCustom=false;state.gridColor=state.light==='uv'?UV_BACKDROP.gridColor:BRAND[state.theme].grid;document.getElementById(id).value=state.gridColor;drawPatternBackground();
   }else if(id==='bgCustom')setStudioInput(id,state.light==='uv'?UV_BACKDROP.bg:THEMES[state.theme].bg);
-  else if(id==='nightGreen')setStudioInput(id,NIGHT_DEFAULTS.green);
-  else if(id==='nightMagenta')setStudioInput(id,NIGHT_DEFAULTS.magenta);
   if(keepOpen)colorPicker?.refresh();
 }
 function installGroupResets(){
@@ -3268,10 +3266,10 @@ function installGroupResets(){
       colorPicker?.close();colorActions?.cancel();
       switch(button.dataset.resetGroup){
         case 'lighting':
-          state.blackLightPower=100;state.regularLightPower=100;
+          state.blackLightPower=100;state.regularLightPower=100;state.nightLightPower=100;state.nightTraffic='subtle';state.nightPaused=REDUCED;
           document.querySelector('#segLight [data-v="studio"]').click();setStudioInput('lightPower',100);
           setStudioInput('lightLock',false,'change');setStudioInput('selfShadows',true,'change');
-          resetStudioColor('nightGreen');resetStudioColor('nightMagenta');break;
+          break;
         case 'grid':
           setStudioInput('dotGrid',true,'change');setStudioInput('gridType','square','change');resetStudioColor('gridColor');
           applyGridScale(35);applyGridCharSize(45);applyGridStroke(.5);break;
@@ -3332,23 +3330,22 @@ function restoreDesignState(snapshot,restoreCamera=true){
   activeArtId=artLayers.some(e=>e.id===snapshot.active)?snapshot.active:null;
   if(artEntry())activeArtSlot=artEntry().slot;
   nextArtId=Math.max(nextArtId,...artLayers.map(e=>(Number(e.id.replace(/^art-/,''))||0)+1));
-  Object.assign(state,structuredClone(pick(snapshot.settings,SETTING_FIELDS)));
+  Object.assign(state,{nightLightPower:100,nightTraffic:'subtle',nightPaused:REDUCED},structuredClone(pick(snapshot.settings,SETTING_FIELDS)));
+  if(state.light==='night')state.lightPower=state.nightLightPower;
   document.getElementById('designName').value=snapshot.name||'Untitled design';
   regularBackdrop=snapshot.regularBackdrop?{...snapshot.regularBackdrop}:state.light==='uv'?{bg:THEMES.light.bg,gridColor:BRAND.light.grid,gridColorCustom:false}:null;
   applyTheme(false);
   // Theme application can choose a default grid; the saved preview takes precedence.
   state.bg=snapshot.settings.bg;state.gridColor=snapshot.settings.gridColor;
   if(snapshot.lighting){lightReference.fromArray(snapshot.lighting.reference);lightRig.quaternion.fromArray(snapshot.lighting.quaternion);lightReferenceReady=true;}
-  clearTimeout(nightEnvironmentTimer);
-  const old=environments.night;environments.night=makeEnvironment('night',{green:state.nightGreen,magenta:state.nightMagenta});
-  applyLightingPreset();environmentTargets.get(old)?.dispose();environmentTargets.delete(old);
+  applyLightingPreset();
   renderer.shadowMap.enabled=state.selfShadows;shadowDirty=true;
   scene.traverse(o=>{if(o.isMesh)for(const m of Array.isArray(o.material)?o.material:[o.material])m.needsUpdate=true;});
   if(restoreCamera&&snapshot.camera){const c=snapshot.camera;state.az=state.taz=c.az;state.el=state.tel=clamp(c.el,.25,2.8);state.r=state.tr=clamp(c.r,.2,10);state.focus.fromArray(c.focus);state.focusTarget.copy(state.focus);state.view=c.view;inspectionFocus=state.focusTarget.distanceTo(garmentCenter)>.03?{point:state.focusTarget.clone(),distance:state.tr}:null;}
   document.getElementById('garmentCustom').value=state.garmentCustom;document.querySelector('#swatches .custom i').style.background=state.garmentCustom;
-  for(const id of ['bgCustom','gridColor','nightGreen','nightMagenta']){document.getElementById(id).value=id==='bgCustom'?state.bg:state[id];const chip=document.getElementById(id==='bgCustom'?'bgColorChip':id+'Chip');if(chip)chip.style.background=id==='bgCustom'?state.bg:state[id];}
+  for(const id of ['bgCustom','gridColor']){document.getElementById(id).value=id==='bgCustom'?state.bg:state[id];const chip=document.getElementById(id==='bgCustom'?'bgColorChip':id+'Chip');if(chip)chip.style.background=id==='bgCustom'?state.bg:state[id];}
   for(const id of ['matchFabricToTheme','dotGrid','selfShadows'])document.getElementById(id).checked=state[id];
-  document.getElementById('lightLock').checked=!state.lightLocked;
+  document.getElementById('lightLock').checked=state.light==='night'||!state.lightLocked;
   document.getElementById('gridType').value=state.gridType;
   for(const [id,value] of [['segLight',state.light],['segWind',state.wind],['segView',state.view]])for(const b of document.querySelectorAll('#'+id+' button[data-v]'))b.setAttribute('aria-pressed',String(String(value)===b.dataset.v));
   for(const k of Object.keys(MOTION_APPLIERS))MOTION_APPLIERS[k](state.inertia[k]);
