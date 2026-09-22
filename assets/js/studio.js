@@ -3,7 +3,7 @@ import {decodeArtworkImage} from './artwork-decode.js?v=45';
 import {createCityTraffic} from './city-night.js?v=43';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=41';
 import {solidCoverageLut} from './artwork-export.js?v=45';
-import {installWorkspace} from './workspace.js?v=58';
+import {installWorkspace} from './workspace.js?v=59';
 import {installExports} from './presentation-export.js?v=45';
 import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=48';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
@@ -3448,14 +3448,23 @@ for(const [i,id] of cameraShortcutViews.entries()){
   const selector=id==='neck'?'[data-detail-view="neck"]':`#segView button[data-v="${id}"]`;
   for(const button of document.querySelectorAll(selector))button.setAttribute('aria-keyshortcuts',String(i+1));
 }
-setTip('#detailCameraToggle','Detail cameras · top-row 6: Artwork close-up; 7: Inside neck tag.');
+setTip('#detailCameraToggle','Detail cameras · top-row 6: Artwork close-up; 7: Inside neck tag; 8: Cycle other details.');
+function cycleDetailCamera(){
+  syncCameraUi();
+  const views=Array.from(detailMenu.querySelectorAll('[data-detail-view]'))
+    .filter(button=>button.dataset.detailView.startsWith('placement:')&&!button.hidden&&!button.disabled)
+    .map(button=>button.dataset.detailView);
+  if(!views.length)return;
+  const next=(views.indexOf(state.view)+1)%views.length;
+  closeDetailMenu();setView(views[next]);
+}
 function handlePresetShortcut(event){
   if(event.defaultPrevented||event.repeat||event.isComposing||event.ctrlKey||event.metaKey||event.altKey||event.shiftKey)return;
   if(event.target?.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"]'))return;
   if(designLocked||artLoading||modelLoading||workspace?.busy||document.querySelector('dialog[open]')||!document.getElementById('colorPopover').hidden)return;
-  const light=/^Numpad([1-5])$/.exec(event.code),view=/^Digit([1-7])$/.exec(event.code);
+  const light=/^Numpad([1-5])$/.exec(event.code),view=/^Digit([1-8])$/.exec(event.code);
   if(light){event.preventDefault();document.querySelector(`#segLight button[data-v="${lightShortcutViews[Number(light[1])-1]}"]`).click();}
-  else if(view){event.preventDefault();closeDetailMenu();setView(cameraShortcutViews[Number(view[1])-1]);}
+  else if(view){event.preventDefault();if(view[1]==='8')cycleDetailCamera();else{closeDetailMenu();setView(cameraShortcutViews[Number(view[1])-1]);}}
 }
 document.addEventListener('keydown',handlePresetShortcut);
 installExports({THREE,renderer,scene,camera,garment,presentGarment,shirtShadow,presentShadow,uni,state,current:()=>current,

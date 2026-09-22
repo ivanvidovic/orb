@@ -58,9 +58,9 @@ export function installWorkspace(api){
   }
   function openAssets(ctx={action:'choose'}){if(busy||api.busy())return;context=ctx;renderShelf();$('assetTitle').textContent=ctx.action==='replace'?'Replace artwork':ctx.action==='add'?'Add artwork here':'Add artwork';$('assetDialog').showModal();}
   async function importImages(files){
-    if(busy||api.busy())return;busy=true;$('shelfDrop').textContent='Adding artwork…';const failed=[];
+    if(busy||api.busy())return;busy=true;$('shelfDropLabel').textContent='Adding artwork…';$('shelfBrowse').disabled=$('folderBrowse').disabled=true;const failed=[];
     try{for(const file of files){if(!imageFile(file)){failed.push(file.name);continue;}try{if(shelfIds.size>=400)throw new Error('Library full');const entry=await register(await api.decode(file));if(!api.snapshot().layers.some(l=>l.assetId===entry.assetId))assets.get(entry.assetId).entry={...entry,source:null};}catch{failed.push(file.name);}await pause();}}
-    finally{busy=false;$('shelfDrop').innerHTML='Drop images or folders here, or <strong>browse images</strong>';renderShelf();notify();}
+    finally{busy=false;$('shelfDropLabel').textContent='Drop images or folders · Browse';$('shelfBrowse').disabled=$('folderBrowse').disabled=false;renderShelf();notify();}
     if(failed.length)status('Could not add: '+failed.join(', '));
   }
   async function dropFolder(transfer){
@@ -69,12 +69,11 @@ export function installWorkspace(api){
       const files=(await collectDrop(transfer)).map(item=>item.file).filter(imageFile);
       if(!files.length){status('No supported images found in this folder.');return;}
       await importImages(files);
-    }catch(error){status(error.message||'Could not read this folder. Try Add folder.');}
+    }catch(error){status(error.message||'Could not read this folder. Try Browse folder.');}
   }
   $('folderBrowse').onclick=()=>{if(!busy&&!api.busy()){$('folderFiles').value='';$('folderFiles').click();}};
   $('folderFiles').onchange=()=>importImages(Array.from($('folderFiles').files).filter(imageFile));
-  $('shelfDrop').onclick=()=>{if(!busy){$('shelfFile').value='';$('shelfFile').click();}};
-  $('shelfDrop').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();$('shelfDrop').click();}};
+  $('shelfBrowse').onclick=()=>{if(!busy&&!api.busy()){$('shelfFile').value='';$('shelfFile').click();}};
   $('shelfFile').onchange=()=>importImages(Array.from($('shelfFile').files));
   $('shelfSearch').oninput=renderShelf;
   $('artShelf').addEventListener('dragover',e=>{if(Array.from(e.dataTransfer?.types||[]).includes('Files')){e.preventDefault();e.stopPropagation();$('shelfDrop').classList.add('over');}});
