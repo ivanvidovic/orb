@@ -1,11 +1,11 @@
-import {hasDirectory} from './asset-rules.js?v=54';
+import {hasDirectory} from './folder-import.js?v=58';
 import {decodeArtworkImage} from './artwork-decode.js?v=45';
 import {createCityTraffic} from './city-night.js?v=43';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=41';
 import {solidCoverageLut} from './artwork-export.js?v=45';
-import {installWorkspace} from './workspace.js?v=57';
+import {installWorkspace} from './workspace.js?v=58';
 import {installExports} from './presentation-export.js?v=45';
-import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=54';
+import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=48';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
 import {installColorPicker} from './color-picker.js?v=36';
 import {installSliderControls,RESET_ICON} from './controls.js?v=44';
@@ -2374,7 +2374,6 @@ function syncArtControls(){
     button.setAttribute('aria-pressed',String(button.dataset.sleevePreset===(entry.sleevePreset||'patch')));
     button.disabled=artLoading;
   }
-  document.getElementById('artRandomLock').checked=!!entry.randomLocked;
   document.getElementById('artGlow').checked=!!entry.glow;
   document.getElementById('artUV').checked=!!entry.uvReactive;
   document.getElementById('artEmissionControl').hidden=!(entry.glow||entry.uvReactive);
@@ -2572,7 +2571,7 @@ function addArtworkEntries(slot,entries,action='add',targetId=null){
   });
   if(action==='replace'&&target){
     added[0].id=target.id;added[0].placement={...target.placement};added[0].visible=target.visible;
-    for(const prop of ['placementSpace','fit','mode','defaultMode','inkCustom','tintCustom','solidCutoff','solidSoftness','solidInvert','defaultSolidInvert','glow','uvReactive','emission','randomLocked'])added[0][prop]=target[prop];
+    for(const prop of ['placementSpace','fit','mode','defaultMode','inkCustom','tintCustom','solidCutoff','solidSoftness','solidInvert','defaultSolidInvert','glow','uvReactive','emission'])added[0][prop]=target[prop];
     if(target.nameEdited){added[0].name=target.name;added[0].nameEdited=true;}
     artLayers.splice(index,1,...added);
   }else artLayers.splice(index<0?0:index,0,...added);
@@ -2688,7 +2687,6 @@ document.getElementById('artClose').onclick=()=>{
 };
 document.getElementById('artRaise').onclick=()=>moveArtwork(activeArtId,-1);
 document.getElementById('artLower').onclick=()=>moveArtwork(activeArtId,1);
-document.getElementById('artRandomLock').onchange=e=>{const entry=artEntry();if(!entry||artLoading)return;recordArtUndo();entry.randomLocked=e.target.checked;workspace?.notify();};
 for(const [id,prop] of [['artGlow','glow'],['artUV','uvReactive']])document.getElementById(id).onchange=e=>{
   const entry=artEntry();if(artLoading||!entry)return;
   recordArtUndo();entry[prop]=e.target.checked;
@@ -2892,9 +2890,9 @@ document.addEventListener('drop',e=>{
   if(!hasDropFiles(e))return;
   e.preventDefault();dragDepth=0;dropEl.classList.remove('on');
   if(designLocked||modelLoading||artLoading||workspace?.busy)return;
-  if(hasDirectory(e.dataTransfer)){workspace.dropFolder(e.dataTransfer);return;}
   const files=Array.from(e.dataTransfer.files),project=files.find(f=>/\.(orb|zip)$/i.test(f.name)),model=files.find(f=>/\.glb$/i.test(f.name));
   if(project){workspace.dropProject(project);return;}
+  if(hasDirectory(e.dataTransfer)){workspace.dropFolder(e.dataTransfer);return;}
   if(model){loadModel(model);return;}
   const slot=e.target.closest?.('[data-art-card]')?.dataset.slot||activeArtSlot;
   openPlacementPicker(files,slot);
@@ -3416,21 +3414,7 @@ function installDesignHistory(){
   });
 }
 const defaultDesignSettings=structuredClone(pick(state,SETTING_FIELDS));
-function applyRandomArtwork(items){
-  const kept=artLayers.filter(l=>l.randomLocked);
-  if(kept.length+items.length>200)throw new Error('This variation would exceed the layer limit.');
-  const names=new Set(kept.map(l=>l.name.toLocaleLowerCase()));
-  const generated=items.map(item=>{
-    const layer=initializeLayer(item.entry,item.slot,null,names);
-    layer.placement={x:item.x,y:item.y,scale:ART_META[item.slot].scale/100*item.scale,rot:item.rot};
-    layer.randomLocked=false;return layer;
-  });
-  recordArtUndo();artLayers=[...kept,...generated];activeArtId=generated[0]?.id||kept[0]?.id||null;
-  if(artEntry())activeArtSlot=artEntry().slot;
-  requestArtworkRender();syncArtworkUi();artStatus('');
-}
 workspace=installWorkspace({
-  meta:ART_META,available:()=>isCustom?[]:Object.keys(UV_PROFILES),applyRandom:applyRandomArtwork,undo:()=>undoArtwork(),
   schema:{garments:GARMENT_CATALOG.map(g=>g.id),slots:ART_KEYS},busy:()=>artLoading||modelLoading||designLocked,
   snapshot:designSnapshot,modelFile:()=>customModelFile,decode:decodeArtworkFile,
   finish:()=>{finishArtworkRename(true);colorPicker?.close();},lock:setWorkspaceLock,

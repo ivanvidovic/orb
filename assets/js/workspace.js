@@ -1,11 +1,9 @@
-import {installCuration} from './library-curation.js?v=54';
-import {emptyRules,mergeRules} from './asset-rules.js?v=54';
-import {FORMAT_VERSION,LAYER_FIELDS,SETTING_FIELDS,pick,cleanFilename,canvasBlob,downloadBlob,validateProject} from './design-format.js?v=54';
+import {collectDrop} from './folder-import.js?v=58';
+import {FORMAT_VERSION,LAYER_FIELDS,SETTING_FIELDS,pick,cleanFilename,canvasBlob,downloadBlob,validateProject} from './design-format.js?v=48';
 const $=id=>document.getElementById(id);
 const imageFile=f=>f.type.startsWith('image/')||/\.(png|jpe?g|webp|gif|avif|svg)$/i.test(f.name);
 const pause=()=>new Promise(resolve=>setTimeout(resolve,0));
 export function installWorkspace(api){
-  let curation;
   const assets=new Map();let shelfIds=new Set(),ready=false,restoring=false,busy=false,saveTimer,dbPromise,saveChain=Promise.resolve(),revision=0,savedRevision=0,context={action:'choose'},pendingOpen=null;
   const scope=location.pathname.replace(/\/index\.html$/,'/');
   const dbName='orb-studio-36:'+scope;
@@ -23,33 +21,27 @@ export function installWorkspace(api){
   }
   async function dbGet(){const db=await database();return new Promise((resolve,reject)=>{const req=db.transaction('workspace').objectStore('workspace').get('current');req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
   async function dbPut(data){const db=await database();return new Promise((resolve,reject)=>{const tx=db.transaction('workspace','readwrite');tx.objectStore('workspace').put(data,'current');tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);});}
-  async function register(entry,{show=true,importing=false}={}){
+  async function register(entry,{show=true}={}){
     if(entry.assetId&&assets.has(entry.assetId)){const asset=assets.get(entry.assetId);if(!asset.entry.source&&entry.source)asset.entry={...asset.entry,source:entry.source};if(show)shelfIds.add(entry.assetId);renderShelf();return {...asset.entry,...entry};}
     let blob=entry.originalFile||await canvasBlob(entry.source);
     if(!blob.type){const ext=entry.sourceName.split('.').pop().toLowerCase(),type=({svg:'image/svg+xml',jpg:'image/jpeg',jpeg:'image/jpeg',webp:'image/webp',gif:'image/gif',avif:'image/avif'})[ext]||'image/png';blob=new Blob([blob],{type});}
     const bytes=await blob.arrayBuffer();
     const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).map(n=>n.toString(16).padStart(2,'0')).join('');
     const id='asset-'+hash;
-    if(importing&&!shelfIds.has(id)){
-      if(shelfIds.size>=400)throw new Error('Library full');
-      const live=new Set([...shelfIds,...api.snapshot().layers.map(l=>l.assetId)]);live.delete(id);
-      if(Array.from(live).reduce((n,key)=>n+(assets.get(key)?.blob.size||0),blob.size)>300*1024*1024)throw new Error('Library exceeds 300 MB');
-    }
-    if(!assets.has(id))assets.set(id,{id,name:entry.sourceName,blob,rules:emptyRules(),entry:{...entry,assetId:id}});
+    if(!assets.has(id))assets.set(id,{id,name:entry.sourceName,blob,entry:{...entry,assetId:id}});
     else if(!assets.get(id).entry.source)assets.get(id).entry={...assets.get(id).entry,source:entry.source};
     if(show)shelfIds.add(id);renderShelf();notify();return assets.get(id).entry;
   }
   function renderShelf(){
-    $('shelfCount').textContent=String(shelfIds.size);$('shelfSearch').hidden=shelfIds.size===0;curation?.refresh();
+    $('shelfCount').textContent=String(shelfIds.size);$('shelfSearch').hidden=shelfIds.size<7;
     for(const [grid,filter,remove] of [[$('shelfGrid'),$('shelfSearch').value,true],[$('assetGrid'),'',false]]){
       grid.replaceChildren();
-      for(const id of shelfIds){const a=assets.get(id);if(!a||!(curation?curation.match(a,filter):a.name.toLowerCase().includes(filter.toLowerCase())))continue;
+      for(const id of shelfIds){const a=assets.get(id);if(!a||!a.name.toLowerCase().includes(filter.toLowerCase()))continue;
         const card=document.createElement('div');card.className='shelf-card';
         const button=document.createElement('button');button.type='button';button.className='shelf-use';button.title=a.name;button.setAttribute('aria-label','Use '+a.name);
         const img=new Image();img.src=a.entry.thumb;img.alt='';const label=document.createElement('span');label.textContent=a.entry.name;
         button.append(img,label);button.onclick=()=>chooseAsset(a,grid===$('shelfGrid')?{action:'choose'}:context);card.append(button);
         if(remove){const x=document.createElement('button');x.type='button';x.className='shelf-remove';x.textContent='×';x.title='Remove from library (placed layers stay)';x.setAttribute('aria-label','Remove '+a.name+' from library');x.onclick=()=>{shelfIds.delete(id);renderShelf();notify();};card.append(x);}
-        if(remove)curation?.decorate(card,a);
         grid.append(card);
       }
       if(!grid.children.length){const empty=document.createElement('p');empty.className='muted';empty.textContent=filter?'No matching artwork.':'Your uploaded graphics will appear here.';grid.append(empty);}
@@ -67,37 +59,27 @@ export function installWorkspace(api){
   function openAssets(ctx={action:'choose'}){if(busy||api.busy())return;context=ctx;renderShelf();$('assetTitle').textContent=ctx.action==='replace'?'Replace artwork':ctx.action==='add'?'Add artwork here':'Add artwork';$('assetDialog').showModal();}
   async function importImages(files){
     if(busy||api.busy())return;busy=true;$('shelfDrop').textContent='Adding artwork…';const failed=[];
-    try{for(const item of files){const file=item.file||item;if(!imageFile(file)){continue;}
-      try{
-        if(file.size>50*1024*1024)throw new Error('Image too large');
-        const entry=await register(await api.decode(file),{importing:true});
-        if(item.rules)assets.get(entry.assetId).rules=mergeRules(assets.get(entry.assetId).rules,item.rules);
-        if(!api.snapshot().layers.some(l=>l.assetId===entry.assetId))assets.get(entry.assetId).entry={...entry,source:null};
-      }catch{failed.push(file.name);}await pause();}
-    }finally{busy=false;$('shelfDrop').innerHTML='Drop images or folders here, or <strong>browse images</strong>';renderShelf();notify();}
+    try{for(const file of files){if(!imageFile(file)){failed.push(file.name);continue;}try{if(shelfIds.size>=400)throw new Error('Library full');const entry=await register(await api.decode(file));if(!api.snapshot().layers.some(l=>l.assetId===entry.assetId))assets.get(entry.assetId).entry={...entry,source:null};}catch{failed.push(file.name);}await pause();}}
+    finally{busy=false;$('shelfDrop').innerHTML='Drop images or folders here, or <strong>browse images</strong>';renderShelf();notify();}
     if(failed.length)status('Could not add: '+failed.join(', '));
-    return {failed,processed:files.length-failed.length};
   }
-  async function randomize(plan){
-    if(busy||api.busy())return;api.finish();busy=true;api.lock(true,'Preparing variation…');
+  async function dropFolder(transfer){
+    if(busy||api.busy())return;
     try{
-      const entries=[];
-      // Stage every decode before changing any layers.
-      for(const item of plan){const a=assets.get(item.assetId);if(!a)throw new Error('An asset is no longer available.');
-        const entry=a.entry.source?a.entry:{...await api.decode(new File([a.blob],a.name,{type:a.blob.type})),assetId:a.id};
-        entries.push({...item,entry});
-      }
-      api.lock(false);api.applyRandom(entries);notify();
-    }finally{api.lock(false);busy=false;}
+      const files=(await collectDrop(transfer)).map(item=>item.file).filter(imageFile);
+      if(!files.length){status('No supported images found in this folder.');return;}
+      await importImages(files);
+    }catch(error){status(error.message||'Could not read this folder. Try Add folder.');}
   }
-  curation=installCuration({meta:api.meta,assets:()=>Array.from(shelfIds).map(id=>assets.get(id)).filter(Boolean),render:renderShelf,notify,busy:()=>busy||api.busy(),snapshot:api.snapshot,available:api.available,importImages,randomize,undo:api.undo});
+  $('folderBrowse').onclick=()=>{if(!busy&&!api.busy()){$('folderFiles').value='';$('folderFiles').click();}};
+  $('folderFiles').onchange=()=>importImages(Array.from($('folderFiles').files).filter(imageFile));
   $('shelfDrop').onclick=()=>{if(!busy){$('shelfFile').value='';$('shelfFile').click();}};
   $('shelfDrop').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();$('shelfDrop').click();}};
   $('shelfFile').onchange=()=>importImages(Array.from($('shelfFile').files));
   $('shelfSearch').oninput=renderShelf;
   $('artShelf').addEventListener('dragover',e=>{if(Array.from(e.dataTransfer?.types||[]).includes('Files')){e.preventDefault();e.stopPropagation();$('shelfDrop').classList.add('over');}});
   $('artShelf').addEventListener('dragleave',()=>{$('shelfDrop').classList.remove('over');});
-  $('artShelf').addEventListener('drop',e=>{e.preventDefault();e.stopPropagation();$('drop').classList.remove('on');$('shelfDrop').classList.remove('over');if(curation.drop)curation.drop(e.dataTransfer);else importImages(Array.from(e.dataTransfer.files));});
+  $('artShelf').addEventListener('drop',e=>{e.preventDefault();e.stopPropagation();$('drop').classList.remove('on');$('shelfDrop').classList.remove('over');dropFolder(e.dataTransfer);});
   $('assetBrowse').onclick=()=>{$('assetDialog').close();api.browse(context);};
   async function packageData(includeLibrary=false,finishEditing=true){
     if(finishEditing)api.finish();const snapshot=api.snapshot();
@@ -105,7 +87,7 @@ export function installWorkspace(api){
     for(const layer of snapshot.layers)if(!assets.has(layer.assetId)){const a=await register(layer,{show:false});layer.assetId=a.assetId;}
     const ids=new Set(snapshot.layers.map(l=>l.assetId));if(includeLibrary)for(const id of shelfIds)ids.add(id);
     const records=Array.from(ids).map(id=>assets.get(id));
-    const doc={format:'orb-design',version:FORMAT_VERSION,name:$('designName').value.trim()||'Untitled design',garmentId:snapshot.garmentId,settings:pick(snapshot.settings,SETTING_FIELDS),regularBackdrop:snapshot.regularBackdrop,lighting:snapshot.lighting,camera:snapshot.camera,customFlipped:snapshot.customFlipped,active:snapshot.active,layers:snapshot.layers.map(l=>pick(l,LAYER_FIELDS)),assets:records.map(a=>({id:a.id,name:a.name,rules:a.rules||emptyRules(),type:a.blob.type||'image/png',path:'artwork/'+a.id+'.'+(a.blob.type==='image/svg+xml'?'svg':a.blob.type==='image/jpeg'?'jpg':a.blob.type==='image/webp'?'webp':a.blob.type==='image/gif'?'gif':a.blob.type==='image/avif'?'avif':'png')})),shelf:includeLibrary?Array.from(shelfIds):Array.from(ids)};
+    const doc={format:'orb-design',version:FORMAT_VERSION,name:$('designName').value.trim()||'Untitled design',garmentId:snapshot.garmentId,settings:pick(snapshot.settings,SETTING_FIELDS),regularBackdrop:snapshot.regularBackdrop,lighting:snapshot.lighting,camera:snapshot.camera,customFlipped:snapshot.customFlipped,active:snapshot.active,layers:snapshot.layers.map(l=>pick(l,LAYER_FIELDS)),assets:records.map(a=>({id:a.id,name:a.name,type:a.blob.type||'image/png',path:'artwork/'+a.id+'.'+(a.blob.type==='image/svg+xml'?'svg':a.blob.type==='image/jpeg'?'jpg':a.blob.type==='image/webp'?'webp':a.blob.type==='image/gif'?'gif':a.blob.type==='image/avif'?'avif':'png')})),shelf:includeLibrary?Array.from(shelfIds):Array.from(ids)};
     const model=api.modelFile();if(doc.garmentId==='custom'){if(!model)throw new Error('Please re-upload the custom GLB before saving.');doc.modelPath='model/garment.glb';}
     const artworkSize=records.reduce((sum,a)=>sum+a.blob.size,0),modelSize=doc.garmentId==='custom'?model.size:0;
     if(artworkSize>300*1024*1024||modelSize>250*1024*1024||artworkSize+modelSize>340*1024*1024)throw new Error('This design is too large to save. Use smaller artwork files or exclude unused library graphics.');
@@ -134,7 +116,7 @@ export function installWorkspace(api){
     validateProject(data.doc,api.schema);
     const staged=new Map();
     for(const a of data.doc.assets){const record=data.records.find(r=>r.id===a.id);if(!record?.blob)throw new Error('An artwork file is missing.');
-      const entry=await api.decode(new File([record.blob],a.name,{type:a.type}));entry.assetId=a.id;if(!data.doc.layers.some(l=>l.assetId===a.id))entry.source=null;staged.set(a.id,{...record,name:a.name,rules:a.rules||emptyRules(),entry});
+      const entry=await api.decode(new File([record.blob],a.name,{type:a.type}));entry.assetId=a.id;if(!data.doc.layers.some(l=>l.assetId===a.id))entry.source=null;staged.set(a.id,{...record,name:a.name,entry});
     }
     const layers=data.doc.layers.map(l=>({...staged.get(l.assetId).entry,...pick(l,LAYER_FIELDS),solidInvert:l.solidInvert}));
     return {staged,layers};
@@ -144,7 +126,7 @@ export function installWorkspace(api){
     const snapshot={...data.doc,layers};
     // Decode and validate everything before replacing the active design.
     await api.restore(snapshot,data.model);
-    for(const [id,a] of staged){if(mergeLibrary&&assets.has(id))a.rules=mergeRules(assets.get(id).rules,a.rules);assets.set(id,a);}
+    for(const [id,a] of staged)assets.set(id,a);
     const incoming=(data.doc.shelf||Array.from(staged.keys())).filter(id=>staged.has(id));
     shelfIds=mergeLibrary?new Set([...shelfIds,...incoming]):new Set(incoming);
     $('designName').value=data.doc.name;api.clearHistory();renderShelf();
@@ -183,7 +165,7 @@ export function installWorkspace(api){
   document.addEventListener('click',e=>{if(e.target.closest('#panel,header,#colorPopover'))queueMicrotask(notify);});
   window.addEventListener('beforeunload',e=>{if(ready&&revision!==savedRevision){e.preventDefault();e.returnValue='';}});
   document.addEventListener('visibilitychange',()=>{if(document.hidden)autosave();});
-  return {register,openAssets,notify,makeArchive,dropFolder:transfer=>curation.drop?.(transfer),artworkData:()=>packageData(false),dropProject:file=>confirmAction({file}),get busy(){return busy;},
+  return {register,openAssets,notify,makeArchive,dropFolder,artworkData:()=>packageData(false),dropProject:file=>confirmAction({file}),get busy(){return busy;},
     async ready(){
       restoring=true;try{
         const data=await dbGet();if(data){await applyPackage(data,{mergeLibrary:false});status('Restored your last design');}
