@@ -1,3 +1,4 @@
+import {decodeArtworkImage} from './artwork-decode.js?v=45';
 import {canvasBlob,cleanFilename} from './design-format.js?v=37';
 export function solidCoverageLut(settings={}){
   const cutoff=(settings.solidCutoff??12)/100,width=Math.max(.0001,(1-cutoff)*(settings.solidSoftness??65)/100),lut=new Float32Array(256);
@@ -23,14 +24,8 @@ export function treatPixels(data,layer,color){
   }
 }
 const turn=()=>new Promise(resolve=>requestAnimationFrame(resolve));
-async function decode(blob){
-  // Image handles SVG as well as raster uploads. Never use the reduced preview.
-  const url=URL.createObjectURL(blob);
-  try{return await new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(new Error('Could not decode original artwork.'));img.src=url;});}
-  finally{URL.revokeObjectURL(url);}
-}
 export async function treatedPng(blob,layer,color,check=()=>{}){
-  const img=await decode(blob),width=img.naturalWidth||img.width,height=img.naturalHeight||img.height;
+  const img=await decodeArtworkImage(blob),width=img.naturalWidth||img.width,height=img.naturalHeight||img.height;
   if(!width||!height||width>16384||height>16384||width*height>32000000)throw new Error('Artwork is too large for a full-resolution PNG on this device. Export without artwork or use a smaller source.');
   const cv=document.createElement('canvas');cv.width=width;cv.height=height;
   try{

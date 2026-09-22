@@ -1,8 +1,9 @@
+import {decodeArtworkImage} from './artwork-decode.js?v=45';
 import {createCityTraffic} from './city-night.js?v=43';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=41';
-import {solidCoverageLut} from './artwork-export.js?v=38';
+import {solidCoverageLut} from './artwork-export.js?v=45';
 import {installWorkspace} from './workspace.js?v=44';
-import {installExports} from './presentation-export.js?v=40';
+import {installExports} from './presentation-export.js?v=45';
 import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=44';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
 import {installColorPicker} from './color-picker.js?v=36';
@@ -2512,12 +2513,9 @@ function openArtUpload(id,action='add'){
   const entry=artEntry(id);if(artLoading||!entry)return;
   workspace.openAssets({action,slot:entry.slot,target:id});
 }
-function decodeArtworkFile(file){
-  return new Promise((resolve,reject)=>{
-    const url=URL.createObjectURL(file),img=new Image();
-    img.onload=()=>{try{resolve({...makeArtworkEntry(img,file.name),originalFile:file});}catch(e){reject(e);}finally{URL.revokeObjectURL(url);}};
-    img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('Unsupported or damaged image'));};img.src=url;
-  });
+async function decodeArtworkFile(file){
+  const img=await decodeArtworkImage(file,{longEdge:Math.max(1,Math.min(4096,renderer.capabilities.maxTextureSize-8))});
+  return {...makeArtworkEntry(img,file.name),originalFile:file};
 }
 async function loadArtFiles(slot,files,action='add',targetId=null){
   if(artLoading)return [];
