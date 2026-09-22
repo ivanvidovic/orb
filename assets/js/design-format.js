@@ -28,7 +28,7 @@ export function validateProject(doc,{garments,slots}){
     for(const [k,min,max] of [['solidCutoff',0,95],['solidSoftness',1,100]])if(l[k]!==undefined&&!finite(l[k],min,max))fail('A Solid setting is invalid.');
     for(const k of ['solidInvert','defaultSolidInvert','fit','visible','glow','uvReactive','nameEdited'])if(l[k]!==undefined&&typeof l[k]!=='boolean')fail('A layer option is invalid.');
     if(l.printPattern!==undefined&&!['none','dots','lines','grain'].includes(l.printPattern))fail('A print pattern is invalid.');
-    for(const [key,min,max] of [['printSize',1,100],['printAngle',0,180],['printStrength',0,100]])if(l[key]!==undefined&&!finite(l[key],min,max))fail('A print texture setting is invalid.');
+    for(const [key,min,max] of [['printSize',.001,100],['printAngle',0,180],['printStrength',0,100]])if(l[key]!==undefined&&!finite(l[key],min,max))fail('A print texture setting is invalid.');
     if(l.sleevePreset!==undefined&&!['patch','full'].includes(l.sleevePreset))fail('A sleeve setting is invalid.');
     if(l.anchor){
       for(const [k,n] of [['point',3],['normal',3],['origin',2],['basis',4]])if(!Array.isArray(l.anchor[k])||l.anchor[k].length!==n||!l.anchor[k].every(v=>finite(v,-1e6,1e6)))fail('A custom placement is invalid.');

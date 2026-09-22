@@ -1,6 +1,6 @@
-import {applyPrintTexture,hasPrintTexture} from './print-texture.js?v=65';
+import {applyPrintTexture,hasPrintTexture} from './print-texture.js?v=66';
 import {decodeArtworkImage} from './artwork-decode.js?v=45';
-import {canvasBlob,cleanFilename} from './design-format.js?v=37';
+import {canvasBlob,cleanFilename} from './design-format.js?v=66';
 export function solidCoverageLut(settings={}){
   const cutoff=(settings.solidCutoff??12)/100,width=Math.max(.0001,(1-cutoff)*(settings.solidSoftness??65)/100),lut=new Float32Array(256);
   for(let i=0;i<256;i++){const level=settings.solidInvert?1-i/255:i/255,t=Math.max(0,Math.min(1,(level-cutoff)/width));lut[i]=t*t*(3-2*t);}

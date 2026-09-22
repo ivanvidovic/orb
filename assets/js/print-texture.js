@@ -2,11 +2,14 @@
 export const hasPrintTexture=l=>['dots','lines','grain'].includes(l.printPattern)&&(l.printStrength??100)>0;
 export function applyPrintTexture(data,width,height,layer,{fullWidth=width,fullHeight=height,offsetX=0,offsetY=0}={}){
   if(!hasPrintTexture(layer))return;
-  const size=Math.max(1,Math.min(100,layer.printSize??40));
+  const size=Math.max(.001,Math.min(100,layer.printSize??40));
   // Extend the fine range logarithmically; default size 40 and coarser stay unchanged.
-  const join=140-120*39/99,cells=size<40?1120*Math.pow(join/1120,(size-1)/39):140-120*(size-1)/99;
-  const period=Math.max(1,Math.min(fullWidth,fullHeight)/cells);
-  const angle=(layer.printAngle??45)*Math.PI/180,c=Math.cos(angle),s=Math.sin(angle),mix=(layer.printStrength??100)/100,aa=Math.min(.25,.65/period);
+  const join=140-120*39/99,cells=size<1?1120/size:size<40?1120*Math.pow(join/1120,(size-1)/39):140-120*(size-1)/99;
+  const period=Math.min(fullWidth,fullHeight)/cells;
+  // Below pixel resolution, retain average ink coverage instead of aliasing.
+  const resolved=Math.max(0,Math.min(1,(period-.5)/1.5));
+  if(resolved===0)return;
+  const angle=(layer.printAngle??45)*Math.PI/180,c=Math.cos(angle),s=Math.sin(angle),mix=(layer.printStrength??100)/100*resolved,aa=Math.min(.25,.65/period);
   const hash=(x,y)=>{let n=Math.imul(x,374761393)+Math.imul(y,668265263);n=Math.imul(n^(n>>>13),1274126177);return ((n^(n>>>16))>>>0)/4294967296;};
   for(let y=0;y<height;y++)for(let x=0;x<width;x++){
     const i=(y*width+x)*4+3,a=data[i]/255;if(a===0||a===1)continue;
