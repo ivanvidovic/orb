@@ -1,12 +1,12 @@
-import {applyPrintTexture,hasPrintTexture,capturePrintTone} from './print-texture.js?v=68';
+import {applyPrintTexture,hasPrintTexture,capturePrintTone,pixelateArtwork} from './print-texture.js?v=69';
 import {hasDirectory} from './folder-import.js?v=58';
 import {decodeArtworkImage} from './artwork-decode.js?v=45';
 import {createCityTraffic} from './city-night.js?v=43';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=41';
-import {solidCoverageLut} from './artwork-export.js?v=68';
-import {installWorkspace} from './workspace.js?v=68';
-import {installExports} from './presentation-export.js?v=68';
-import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=68';
+import {solidCoverageLut} from './artwork-export.js?v=69';
+import {installWorkspace} from './workspace.js?v=69';
+import {installExports} from './presentation-export.js?v=69';
+import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=69';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
 import {installColorPicker} from './color-picker.js?v=36';
 import {installSliderControls,RESET_ICON} from './controls.js?v=44';
@@ -115,7 +115,7 @@ renderer.shadowMap.autoUpdate=false;
 
 const scene=new THREE.Scene();
 scene.background=null;
-const camera=new THREE.PerspectiveCamera(34,1,0.05,40);
+const camera=new THREE.PerspectiveCamera(34,1,0.003,40);
 
 // Small HDR environments provide broad reflections as well as direct lights.
 const NIGHT_DEFAULTS={green:'#ffd6a0',magenta:'#a5b9ed'};
@@ -1409,7 +1409,7 @@ canvas.addEventListener('keydown',e=>{
 let inspectionFocus=null;
 const garmentCenter=new THREE.Vector3(0,.02,0);
 function zoomGarment(delta){
-  state.tr=clamp(state.tr+delta,inspectionFocus?.3:.72,2.6);
+  state.tr=clamp(state.tr+delta,inspectionFocus?.08:.38,2.6);
   updateInspectionFocus();
 }
 function updateInspectionFocus(){
@@ -1428,9 +1428,9 @@ const VIEWS={front:[0,1.45],angle:[.62,1.30],side:[Math.PI/2,1.45],backangle:[Ma
 function viewArtwork(slot){
   const meta=ART_META[slot],q=UV_PROFILES[slot];
   setView(meta.detail&&!isCustom?'placement:'+slot:meta.view);
-  if(q&&['Hood','Inside'].includes(meta.side)){
+  if(q&&!isCustom){
     state.focusTarget.fromArray(q.point);state.focusTarget.y-=.350;
-    state.tr=meta.side==='Inside'?.48:.68;
+    state.tr=meta.side==='Inside'?.48:.60;
     inspectionFocus={point:state.focusTarget.clone(),distance:state.tr};
   }
 }
@@ -1720,10 +1720,12 @@ function syncInkUi(){
     const input=document.getElementById(id);input.value=entry?.[key]??fallback;input.disabled=disabled;
     const number=document.getElementById(id+'Value');if(number){number.value=input.value;number.disabled=disabled;}
   }
-  for(const [id,fallback] of [['printPattern','none'],['printSize',40],['printAngle',45],['printMarkSize',50],['printTone',100],['printErosion',0]]){
+  for(const [id,fallback] of [['printPattern','none'],['printSize',40],['printAngle',45],['printMarkSize',50],['printTone',100],['printErosion',0],['printPixelScale',35]]){
     const input=document.getElementById(id);input.value=entry?.[id]??fallback;input.disabled=disabled;
     const number=document.getElementById(id+'Value');if(number){number.value=input.value;number.disabled=disabled;}
   }
+  for(const id of ['printSize','printAngle','printMarkSize','printTone','printErosion'])document.getElementById(id).parentElement.hidden=entry?.printPattern==='pixel';
+  document.getElementById('printPixelScale').parentElement.hidden=entry?.printPattern!=='pixel';
   document.querySelector('label[for=printMarkSize]').textContent=entry?.printPattern==='lines'?'Line width':entry?.printPattern==='grain'?'Grain size':'Dot size';
   document.getElementById('printTextureControls').hidden=!entry||!hasPrintTexture({...entry,printStrength:100});
   document.getElementById('solidInvert').checked=!!entry?.solidInvert;
@@ -2052,7 +2054,7 @@ function resetArtworkMaps(){
   requestArtworkRender();
 }
 function artworkSourceKey(layer){
-  return `${layer.printVersion??1}/${layer.printMarkSize??50}/${layer.printTone??100}/${layer.printErosion??0}/${layer.printPattern||'none'}/${layer.printSize??40}/${layer.printAngle??45}/${layer.printStrength??100}/${layer.fit?1:0}/${layer.mode==='ink'?`ink/${layer.solidCutoff??12}/${layer.solidSoftness??65}/${!!layer.solidInvert}`:'color'}`;
+  return `${layer.printPixelScale??35}/${layer.printVersion??1}/${layer.printMarkSize??50}/${layer.printTone??100}/${layer.printErosion??0}/${layer.printPattern||'none'}/${layer.printSize??40}/${layer.printAngle??45}/${layer.printStrength??100}/${layer.fit?1:0}/${layer.mode==='ink'?`ink/${layer.solidCutoff??12}/${layer.solidSoftness??65}/${!!layer.solidInvert}`:'color'}`;
 }
 function artworkSource(layer){
   let cached=artworkSources.get(layer.source);
@@ -2060,8 +2062,10 @@ function artworkSource(layer){
   const source=layer.fit?(cached.fitted||(cached.fitted=fitVisibleArtwork(layer.source))):layer.source;
   const key=artworkSourceKey(layer);
   if(!cached.textures.has(key)){
-    let raster=layer.mode==='ink'?makeArtworkMask(source,layer):source;
-    if(layer.mode!=='ink'&&hasPrintTexture(layer)){
+    const pixelSource=layer.printPattern==='pixel'?pixelateArtwork(layer.source,layer):null;
+    const renderSource=pixelSource?(layer.fit?fitVisibleArtwork(pixelSource):pixelSource):source;
+    let raster=layer.mode==='ink'?makeArtworkMask(renderSource,layer):renderSource;
+    if(layer.mode!=='ink'&&hasPrintTexture(layer)&&layer.printPattern!=='pixel'){
       raster=document.createElement('canvas');raster.width=source.width;raster.height=source.height;
       const cx=raster.getContext('2d');cx.drawImage(source,0,0);const pixels=cx.getImageData(0,0,raster.width,raster.height);
       applyPrintTexture(pixels.data,raster.width,raster.height,layer,source.orbCrop);cx.putImageData(pixels,0,0);
@@ -2589,7 +2593,7 @@ function addArtworkEntries(slot,entries,action='add',targetId=null){
   });
   if(action==='replace'&&target){
     added[0].id=target.id;added[0].placement={...target.placement};added[0].visible=target.visible;
-    for(const prop of ['placementSpace','fit','mode','defaultMode','inkCustom','tintCustom','solidCutoff','solidSoftness','solidInvert','defaultSolidInvert','printPattern','printSize','printAngle','printStrength','printVersion','printMarkSize','printTone','printErosion','glow','uvReactive','emission'])added[0][prop]=target[prop];
+    for(const prop of ['placementSpace','fit','mode','defaultMode','inkCustom','tintCustom','solidCutoff','solidSoftness','solidInvert','defaultSolidInvert','printPattern','printSize','printAngle','printStrength','printVersion','printMarkSize','printTone','printErosion','printPixelScale','glow','uvReactive','emission'])added[0][prop]=target[prop];
     if(target.nameEdited){added[0].name=target.name;added[0].nameEdited=true;}
     artLayers.splice(index,1,...added);
   }else artLayers.splice(index<0?0:index,0,...added);
@@ -2726,7 +2730,7 @@ document.getElementById('printPattern').onchange=e=>{
   const entry=artEntry();if(!entry||artLoading)return;recordArtUndo();entry.printPattern=e.target.value;entry.printVersion=2;
   requestArtworkRender(entry);syncInkUi();workspace?.notify();
 };
-for(const id of ['printSize','printAngle','printMarkSize','printTone','printErosion']){
+for(const id of ['printSize','printAngle','printMarkSize','printTone','printErosion','printPixelScale']){
   const input=document.getElementById(id);
   input.addEventListener('input',()=>{const entry=artEntry();if(!entry||artLoading)return;
     if(printEditing!==input){recordArtUndo();printEditing=input;}
@@ -3327,7 +3331,7 @@ function installGroupResets(){
           applyGridScale(35);applyGridCharSize(45);applyGridStroke(.5);break;
         case 'artwork':{
           const entry=artEntry();if(!entry||artLoading)return;recordArtUndo();
-          Object.assign(entry,{mode:entry.defaultMode||'original',inkCustom:null,tintCustom:null,solidCutoff:12,solidSoftness:65,solidInvert:!!entry.defaultSolidInvert,printPattern:'none',printSize:40,printAngle:45,printStrength:100,printVersion:2,printMarkSize:50,printTone:100,printErosion:0,glow:false,uvReactive:false,emission:100,fit:hasFullSleeve(entry)&&entry.sleevePreset==='full'});
+          Object.assign(entry,{mode:entry.defaultMode||'original',inkCustom:null,tintCustom:null,solidCutoff:12,solidSoftness:65,solidInvert:!!entry.defaultSolidInvert,printPattern:'none',printSize:40,printAngle:45,printStrength:100,printVersion:2,printMarkSize:50,printTone:100,printErosion:0,printPixelScale:35,glow:false,uvReactive:false,emission:100,fit:hasFullSleeve(entry)&&entry.sleevePreset==='full'});
           requestArtworkRender(entry);syncArtworkUi();break;
         }
       }
@@ -3399,7 +3403,7 @@ function restoreDesignState(snapshot,restoreCamera=true){
   applyLightingPreset();
   renderer.shadowMap.enabled=state.selfShadows;shadowDirty=true;
   scene.traverse(o=>{if(o.isMesh)for(const m of Array.isArray(o.material)?o.material:[o.material])m.needsUpdate=true;});
-  if(restoreCamera&&snapshot.camera){const c=snapshot.camera;state.az=state.taz=c.az;state.el=state.tel=clamp(c.el,.25,2.8);state.r=state.tr=clamp(c.r,.2,10);state.focus.fromArray(c.focus);state.focusTarget.copy(state.focus);state.view=c.view;inspectionFocus=state.focusTarget.distanceTo(garmentCenter)>.03?{point:state.focusTarget.clone(),distance:state.tr}:null;}
+  if(restoreCamera&&snapshot.camera){const c=snapshot.camera;state.az=state.taz=c.az;state.el=state.tel=clamp(c.el,.25,2.8);state.r=state.tr=clamp(c.r,.08,10);state.focus.fromArray(c.focus);state.focusTarget.copy(state.focus);state.view=c.view;inspectionFocus=state.focusTarget.distanceTo(garmentCenter)>.03?{point:state.focusTarget.clone(),distance:state.tr}:null;}
   document.getElementById('garmentCustom').value=state.garmentCustom;document.querySelector('#swatches .custom i').style.background=state.garmentCustom;
   for(const id of ['bgCustom','gridColor']){document.getElementById(id).value=id==='bgCustom'?state.bg:state[id];const chip=document.getElementById(id==='bgCustom'?'bgColorChip':id+'Chip');if(chip)chip.style.background=id==='bgCustom'?state.bg:state[id];}
   for(const id of ['matchFabricToTheme','dotGrid','selfShadows'])document.getElementById(id).checked=state[id];

@@ -1,6 +1,7 @@
 // Deterministic artwork-space coverage patterns, shared by preview and export.
-export const hasPrintTexture=l=>['dots','lines','grain'].includes(l.printPattern)&&(l.printVersion===2||(l.printStrength??100)>0);
+export const hasPrintTexture=l=>['dots','lines','grain','pixel'].includes(l.printPattern)&&(l.printVersion===2||(l.printStrength??100)>0);
 export function applyPrintTexture(data,width,height,layer,{fullWidth=width,fullHeight=height,offsetX=0,offsetY=0,sourceTone=null}={}){
+  if(layer.printPattern==='pixel')return;
   if(layer.printVersion===2)return applyTextureV2(data,width,height,layer,{fullWidth,fullHeight,offsetX,offsetY,sourceTone});
   if(!hasPrintTexture(layer))return;
   const size=Math.max(.001,Math.min(100,layer.printSize??40));
@@ -35,7 +36,7 @@ export function applyPrintTexture(data,width,height,layer,{fullWidth=width,fullH
 
 // Capture before Solid cutoff or Tint recoloring. Alpha is the tone in color modes.
 export function capturePrintTone(data,layer){
-  if(layer.printVersion!==2||!hasPrintTexture(layer))return null;
+  if(layer.printPattern==='pixel'||layer.printVersion!==2||!hasPrintTexture(layer))return null;
   const tone=new Float32Array(data.length/4);
   for(let i=0,j=0;i<data.length;i+=4,j++){
     const light=(data[i]*.299+data[i+1]*.587+data[i+2]*.114)/255;
@@ -81,4 +82,26 @@ function applyTextureV2(data,width,height,layer,{fullWidth,fullHeight,offsetX,of
     // Final mask is authoritative: texture never restores cut-off ink or alpha.
     data[i]=Math.round(255*a*screen);
   }
+}
+
+// Pixelate the original before color treatment, using premultiplied block averages.
+// Both preview and export use the full source so fitted crops do not shift the grid.
+export function pixelateArtwork(source,layer){
+  if(layer.printPattern!=='pixel')return source;
+  const width=source.naturalWidth||source.width,height=source.naturalHeight||source.height;
+  const out=document.createElement('canvas');out.width=width;out.height=height;
+  const ctx=out.getContext('2d',{willReadFrequently:true});ctx.drawImage(source,0,0,width,height);
+  const pixels=ctx.getImageData(0,0,width,height),d=pixels.data;
+  const scale=Math.max(0,Math.min(100,layer.printPixelScale??35));
+  const block=Math.max(1,Math.round(Math.min(width,height)/1024*Math.pow(128,scale/100)));
+  for(let y=0;y<height;y+=block)for(let x=0;x<width;x+=block){
+    const right=Math.min(width,x+block),bottom=Math.min(height,y+block),count=(right-x)*(bottom-y);
+    let r=0,g=0,b=0,a=0;
+    for(let yy=y;yy<bottom;yy++)for(let xx=x;xx<right;xx++){
+      const i=(yy*width+xx)*4,alpha=d[i+3];a+=alpha;r+=d[i]*alpha;g+=d[i+1]*alpha;b+=d[i+2]*alpha;
+    }
+    r=a?Math.round(r/a):0;g=a?Math.round(g/a):0;b=a?Math.round(b/a):0;const alpha=Math.round(a/count);
+    for(let yy=y;yy<bottom;yy++)for(let xx=x;xx<right;xx++){const i=(yy*width+xx)*4;d[i]=r;d[i+1]=g;d[i+2]=b;d[i+3]=alpha;}
+  }
+  ctx.putImageData(pixels,0,0);return out;
 }
