@@ -128,7 +128,7 @@ function makeEnvironment(kind,colors=NIGHT_DEFAULTS){
     :[[-.9,.4,.22,.6,.55,green],[1.1,.25,.2,.55,.4,magenta],[2.8,.4,.35,.3,.35,magenta]];
   for(let y=0;y<H;y++)for(let x=0;x<W;x++){
     const az=x/W*Math.PI*2-Math.PI,el=Math.PI/2-y/H*Math.PI,sky=Math.max(0,Math.sin(el));
-    const base=kind==='softbox'?[.24+.06*sky,.24+.06*sky,.24+.06*sky]
+    const base=kind==='softbox'?[.16+.06*sky,.16+.06*sky,.16+.06*sky]
       :kind==='studio'?[.08+.12*sky,.08+.12*sky,.08+.12*sky]
       :kind==='day'?[.14+.31*sky,.15+.43*sky,.17+.65*sky]:kind==='uv'?[.001,.001,.004]:[.006+.008*sky,.008+.01*sky,.012+.015*sky];
     for(const [a,e,w,h,power,color] of boxes){
@@ -175,10 +175,10 @@ function updateShadowMap(){
 
 const LIGHT_PRESETS={
   softbox:{label:'Softbox',description:'Even neutral light with gentle highlights and filled shadows for reviewing artwork.',
-    exposure:.98,hemi:.85,hemiSky:'#ffffff',hemiGround:'#dedede',
-    key:.65,keyColor:'#ffffff',keyPos:[-1.65,1.85,1.35],
-    fill:.60,fillColor:'#ffffff',fillPos:[1.65,1.85,1.35],
-    rim:.55,rimColor:'#ffffff',rimPos:[0,1.6,-1.8]},
+    exposure:.98,hemi:.42,hemiSky:'#ffffff',hemiGround:'#dedede',
+    key:1.25,keyColor:'#ffffff',keyPos:[-1.65,1.85,1.35],
+    fill:.42,fillColor:'#ffffff',fillPos:[1.65,1.85,1.35],
+    rim:.60,rimColor:'#ffffff',rimPos:[0,1.6,-1.8]},
   studio:{label:'Studio',description:'Soft neutral studio light for judging fabric and print.',
     exposure:.98,hemi:.32,hemiSky:'#ffffff',hemiGround:'#c2bdb6',
     key:2.05,keyColor:'#fff5e9',keyPos:[-1.65,1.85,1.35],
@@ -222,7 +222,7 @@ function applyLightingPreset(){
   syncFabricColors();
   const p=LIGHT_PRESETS[state.light]||LIGHT_PRESETS.studio,power=state.lightPower/100*(state.light==='uv'?8:1);
   renderer.toneMappingExposure=p.exposure;scene.environment=environments[state.light]||environments.studio;
-  lightEnvironmentPower.value=power*(state.light==='softbox'?.70:state.light==='studio'?.55:state.light==='day'?.65:state.light==='night'?.1125:.45);
+  lightEnvironmentPower.value=power*(state.light==='softbox'?.55:state.light==='studio'?.55:state.light==='day'?.65:state.light==='night'?.1125:.45);
   effectUniforms.uBlackLight.value=state.light==='uv'?power:0;
   effectUniforms.uGlowSceneLevel.value=power*(.16*p.key+.12*p.fill+.08*p.rim+.75*p.hemi)+.20*lightEnvironmentPower.value;
   document.getElementById('nightControls').hidden=state.light!=='night';
@@ -3428,7 +3428,28 @@ document.getElementById('resetView').onclick=()=>setView('angle');
 const cameraLabels={front:'Front',angle:'Front ¾',side:'Left',backangle:'Back ¾',back:'Back',detail:'Detail'};
 for(const button of document.querySelectorAll('#segView button[data-v]'))button.textContent=cameraLabels[button.dataset.v];
 for(const button of document.querySelectorAll('#segWind button'))button.textContent=['Still','Gentle','Breezy'][Number(button.dataset.v)];
-for(const button of document.querySelectorAll('#segLight button'))button.textContent=LIGHT_PRESETS[button.dataset.v].label;
+const lightShortLabels={studio:'Studio',softbox:'Soft',day:'Day',night:'Night',uv:'UV'};
+const lightShortcutViews=['studio','softbox','day','night','uv'];
+const cameraShortcutViews=['front','angle','side','backangle','back','detail','neck'];
+for(const button of document.querySelectorAll('#segLight button')){
+  const id=button.dataset.v,n=lightShortcutViews.indexOf(id)+1;
+  button.textContent=lightShortLabels[id];button.setAttribute('aria-label',`${LIGHT_PRESETS[id].label}, numpad ${n}`);
+  setTip(`#segLight button[data-v="${id}"]`,`${LIGHT_PRESETS[id].label} · Numpad ${n}. ${LIGHT_PRESETS[id].description}`);
+}
+for(const [i,id] of cameraShortcutViews.entries()){
+  const selector=id==='neck'?'[data-detail-view="neck"]':`#segView button[data-v="${id}"]`;
+  for(const button of document.querySelectorAll(selector))button.setAttribute('aria-keyshortcuts',String(i+1));
+}
+setTip('#detailCameraToggle','Detail cameras · top-row 6: Artwork close-up; 7: Inside neck tag.');
+function handlePresetShortcut(event){
+  if(event.defaultPrevented||event.repeat||event.isComposing||event.ctrlKey||event.metaKey||event.altKey||event.shiftKey)return;
+  if(event.target?.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"]'))return;
+  if(designLocked||artLoading||modelLoading||workspace?.busy||document.querySelector('dialog[open]')||!document.getElementById('colorPopover').hidden)return;
+  const light=/^Numpad([1-5])$/.exec(event.code),view=/^Digit([1-7])$/.exec(event.code);
+  if(light){event.preventDefault();document.querySelector(`#segLight button[data-v="${lightShortcutViews[Number(light[1])-1]}"]`).click();}
+  else if(view){event.preventDefault();closeDetailMenu();setView(cameraShortcutViews[Number(view[1])-1]);}
+}
+document.addEventListener('keydown',handlePresetShortcut);
 installExports({THREE,renderer,scene,camera,garment,presentGarment,shirtShadow,presentShadow,uni,state,current:()=>current,
   artworkColor:inkHex,snapshot:designSnapshot,workspace,busy:()=>artLoading||modelLoading||designLocked||workspace.busy,
   lock:setWorkspaceLock,pause:value=>renderSuspended=value,flush:flushArtwork,draw,resize,
