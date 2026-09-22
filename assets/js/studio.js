@@ -1,8 +1,8 @@
 import {solidCoverageLut} from './artwork-export.js?v=38';
 import {installWorkspace} from './workspace.js?v=38';
-import {installExports} from './presentation-export.js?v=38';
+import {installExports} from './presentation-export.js?v=40';
 import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=37';
-import {renderPlacementDiagram} from './placement-diagrams.js?v=23';
+import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
 import {installColorPicker} from './color-picker.js?v=36';
 import {installSliderControls,RESET_ICON} from './controls.js?v=34';
 import {installColorActions} from './color-actions.js?v=34';
@@ -70,6 +70,17 @@ Object.assign(ART_META,{
   hoodrightinside:{label:'Right hood · inside',side:'Inside',view:'insideright',w:.05,scale:100,code:'L',hoodie:true},
   necktag:{label:'Inside neck tag',side:'Inside',view:'neck',w:.045,scale:100,code:'M'}
 });
+Object.assign(ART_META,{
+  backneck:{label:'Back neck',side:'Back',view:'back',w:.065,scale:100,code:'N',detail:true},
+  leftblade:{label:'Left shoulder blade',side:'Back',view:'back',w:.095,scale:100,code:'O',detail:true},
+  rightblade:{label:'Right shoulder blade',side:'Back',view:'back',w:.095,scale:100,code:'P',detail:true},
+  leftwrist:{label:'Left wrist',side:'Sleeve',view:'left',w:.05,scale:100,code:'Q',hoodie:true,detail:true},
+  rightwrist:{label:'Right wrist',side:'Sleeve',view:'right',w:.05,scale:100,code:'R',hoodie:true,detail:true},
+  lefthem:{label:'Left front hem',side:'Front',view:'front',w:.065,scale:100,code:'S',detail:true},
+  righthem:{label:'Right front hem',side:'Front',view:'front',w:.065,scale:100,code:'T',detail:true},
+  centerchest:{label:'Center chest',side:'Front',view:'front',w:.12,scale:100,code:'U',detail:true}
+});
+ART_META.lowerback.detail=true;
 const STANDARD_PLACEMENTS=['chest','rightchest','front','back','lowerback','leftshoulder','rightshoulder'];
 const ART_KEYS=Object.keys(ART_META);
 let UV_PROFILES={}, modelKind='catalog';
@@ -787,7 +798,7 @@ function trimCatalogCache(){
 }
 let placementCalibrationPromise=null;
 function getPlacementCalibration(){
-  if(!placementCalibrationPromise)placementCalibrationPromise=fetch(new URL('../calibration/placements-24.json',import.meta.url)).then(response=>{
+  if(!placementCalibrationPromise)placementCalibrationPromise=fetch(new URL('../calibration/placements-40.json',import.meta.url)).then(response=>{
     if(!response.ok)throw new Error('Placement calibration could not load.');return response.json();
   }).catch(error=>{placementCalibrationPromise=null;throw error;});
   return placementCalibrationPromise;
@@ -937,7 +948,7 @@ async function loadCatalog(id){
     document.getElementById('modelName').dataset.garmentId=id;
     document.getElementById('modelName').dataset.triangles=res.tris;
     garment.rotation.y=0;
-    requestArtworkRender();syncArtworkUi();applyLook();if(initialLoad)setView('angle');else if(state.view==='neck')setView('neck');
+    requestArtworkRender();syncArtworkUi();applyLook();if(initialLoad)setView('angle');else if(state.view==='neck'||state.view?.startsWith('placement:'))setView(state.view);
     modelStatus.textContent='';artStatus('');workspace?.notify();
     return true;
   }catch(error){
@@ -977,7 +988,7 @@ async function loadModel(file){
     document.getElementById('modelName').dataset.garmentId='custom';
     document.getElementById('fitNote').textContent=`H 74cm · W ${Math.round(res.size.x*100)}cm`;
     document.getElementById('rowFit').hidden=false;
-    modelStatus.textContent='';if(initialLoad)setView('front');else if(state.view==='neck')setView('detail');return true;
+    modelStatus.textContent='';if(initialLoad)setView('front');else if(state.view==='neck'||state.view?.startsWith('placement:'))setView('detail');return true;
   }catch(error){
     console.error(error);
     if(imported){if(res)disposeImported(imported);else disposeModel(imported);}
@@ -1393,19 +1404,35 @@ function leaveInspection(){
 const VIEWS={front:[0,1.45],angle:[.62,1.30],side:[Math.PI/2,1.45],backangle:[Math.PI-.62,1.30],back:[Math.PI,1.45],detail:[.45,1.35]};
 function viewArtwork(slot){
   const meta=ART_META[slot],q=UV_PROFILES[slot];
-  setView(meta.view);
+  setView(meta.detail&&!isCustom?'placement:'+slot:meta.view);
   if(q&&['Hood','Inside'].includes(meta.side)){
     state.focusTarget.fromArray(q.point);state.focusTarget.y-=.350;
     state.tr=meta.side==='Inside'?.48:.68;
     inspectionFocus={point:state.focusTarget.clone(),distance:state.tr};
   }
 }
+function detailCamera(view){
+  const slot=view==='neck'?'necktag':view?.startsWith('placement:')?view.slice(10):null;
+  if(!slot||isCustom||!UV_PROFILES[slot])return null;
+  const q=UV_PROFILES[slot],meta=ART_META[slot],wrist=slot.endsWith('wrist');
+  const az=wrist?Math.atan2(q.normal[0],q.normal[2]):meta.side==='Back'?Math.PI:0;
+  return {point:[q.point[0],q.point[1]-.350,q.point[2]],angles:[az,slot==='necktag'?1.12:wrist?1.4:1.35],distance:slot==='necktag'?.48:wrist?.40:slot==='backneck'?.46:slot==='lowerback'?.80:.60};
+}
 function setView(v){
+  const placement=v?.startsWith('placement:')?v.slice(10):null;
+  if(placement&&(isCustom||!UV_PROFILES[placement]))v='detail';
   if(v==='neck'&&(isCustom||!UV_PROFILES.necktag))v='detail';
   state.view=v;syncCameraUi();
   if(!v) return;
   inspectionFocus=null;state.focusTarget.set(0,.02,0);
   state.tr=GARMENT_CATALOG.find(g=>g.id===activeGarmentId)?.distance||1.55;
+  if(v.startsWith('placement:')){
+    const shot=detailCamera(v),[az,el]=shot.angles;
+    state.focusTarget.fromArray(shot.point);
+    state.taz=az+Math.round((state.taz-az)/(Math.PI*2))*Math.PI*2;
+    state.tel=el;state.tr=shot.distance;
+    inspectionFocus={point:state.focusTarget.clone(),distance:state.tr};return;
+  }
   const special={insideleft:[-.1,1.45],insideright:[.1,1.45],neck:[0,1.12]};
   const [az,el]=special[v]||(v==='left'?[Math.PI/2,1.3]:v==='right'?[-Math.PI/2,1.3]:VIEWS[v]);
   state.taz=az+Math.round((state.taz-az)/(Math.PI*2))*Math.PI*2;
@@ -1739,15 +1766,24 @@ document.getElementById('selfShadows').addEventListener('change',e=>{
 });
 segment('segView',v=>setView(v));
 const detailToggle=document.getElementById('detailCameraToggle'),detailMenu=document.getElementById('detailCameraMenu');
+for(const [label,slots] of [['Front',['centerchest','lefthem','righthem']],['Back',['backneck','leftblade','rightblade','lowerback']],['Sleeves',['leftwrist','rightwrist']]]){
+  const group=document.createElement('div');group.className='detail-camera-group';
+  const heading=document.createElement('span');heading.textContent=label;group.append(heading);
+  for(const slot of slots){const button=document.createElement('button');button.type='button';button.dataset.detailView='placement:'+slot;button.textContent=ART_META[slot].label;button.setAttribute('aria-pressed','false');group.append(button);}
+  detailMenu.append(group);
+}
 function syncCameraUi(){
   document.querySelectorAll('#segView button[data-v]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===state.view)));
   const toggle=document.getElementById('detailCameraToggle');
-  toggle.classList.toggle('camera-active',['detail','neck'].includes(state.view));
+  toggle.classList.toggle('camera-active',['detail','neck'].includes(state.view)||!!state.view?.startsWith('placement:'));
+  toggle.title=state.view?.startsWith('placement:')?ART_META[state.view.slice(10)]?.label||'Detail camera views':'Detail camera views';
   toggle.textContent=state.view==='neck'?'Neck tag':'Detail';
   document.querySelectorAll('[data-detail-view]').forEach(b=>{
     b.setAttribute('aria-pressed',String(b.dataset.detailView===state.view));
+    if(b.dataset.detailView.startsWith('placement:')){const slot=b.dataset.detailView.slice(10);b.hidden=!!ART_META[slot]?.hoodie&&!UV_PROFILES[slot];b.disabled=isCustom||!UV_PROFILES[slot];}
     if(b.dataset.detailView==='neck'){b.disabled=isCustom||!UV_PROFILES.necktag;b.title=b.disabled?'Neck tag view is available on the built-in garments':'';}
   });
+  document.querySelectorAll('.detail-camera-group').forEach(g=>g.hidden=!Array.from(g.querySelectorAll('button')).some(b=>!b.hidden));
 }
 function closeDetailMenu(restore=false){detailMenu.hidden=true;detailToggle.setAttribute('aria-expanded','false');if(restore)detailToggle.focus();}
 function positionDetailMenu(){
@@ -2742,7 +2778,8 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&anchorPickId){cance
 
 // Global image drop and manual Add artwork share the same placement chooser.
 const placementDialog=document.getElementById('placementDialog');
-let placementMode='outside',placementSuggested='front';
+let placementMode='front',placementSuggested='front';
+const placementSide=slot=>ART_META[slot]?.side==='Inside'?'inside':ART_META[slot]?.side==='Back'?'back':'front';
 function renderPlacements(){
   const kind=GARMENT_CATALOG.find(g=>g.id===activeGarmentId)?.type||'tee';
   const available=isCustom?ART_KEYS.filter(k=>!ART_META[k].hoodie||kind==='hoodie'):Object.keys(UV_PROFILES);
@@ -2760,7 +2797,8 @@ for(const button of placementDialog.querySelectorAll('[data-placement-side]'))bu
 placementDialog.querySelector('.placement-tabs').addEventListener('keydown',event=>{
   if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
   event.preventDefault();
-  const next=event.key==='Home'?'outside':event.key==='End'?'inside':placementMode==='outside'?'inside':'outside';
+  const sides=['front','back','inside'],index=sides.indexOf(placementMode);
+  const next=event.key==='Home'?'front':event.key==='End'?'inside':sides[(index+(event.key==='ArrowLeft'?2:1))%3];
   const button=placementDialog.querySelector(`[data-placement-side="${next}"]`);button.click();button.focus();
 });
 let placementFiles=[],placementEntries=[],placementMoveId=null,placementThumbUrl=null,placementReturnFocus=null;
@@ -2774,7 +2812,7 @@ function openPlacementPicker(files,suggested=activeArtSlot){
   placementThumbUrl=URL.createObjectURL(images[0]);
   document.getElementById('placementImage').src=placementThumbUrl;
   document.getElementById('placementFileName').textContent=images.length===1?images[0].name:`${images.length} images`;
-  placementSuggested=suggested;placementMode=ART_META[suggested]?.side==='Inside'?'inside':'outside';renderPlacements();
+  placementSuggested=suggested;placementMode=placementSide(suggested);renderPlacements();
   if(!placementDialog.open)placementDialog.showModal();
 }
 function closePlacementPicker(){placementDialog.close();}
@@ -2795,14 +2833,14 @@ function openEntryPicker(entries){
   document.getElementById('placementTitle').textContent='Choose a placement';
   document.getElementById('placementImage').src=entries[0].thumb;
   document.getElementById('placementFileName').textContent=entries.length===1?entries[0].name:`${entries.length} images`;
-  placementSuggested=activeArtSlot;placementMode=ART_META[activeArtSlot]?.side==='Inside'?'inside':'outside';renderPlacements();placementDialog.showModal();
+  placementSuggested=activeArtSlot;placementMode=placementSide(activeArtSlot);renderPlacements();placementDialog.showModal();
 }
 function openMovePicker(){
   const entry=artEntry();if(artLoading||!entry)return;
   placementFiles=[];placementEntries=[];placementMoveId=entry.id;placementReturnFocus=document.activeElement;
   document.getElementById('placementTitle').textContent='Change placement';
   document.getElementById('placementImage').src=entry.thumb;document.getElementById('placementFileName').textContent=entry.name;
-  placementSuggested=entry.slot;placementMode=ART_META[entry.slot].side==='Inside'?'inside':'outside';renderPlacements();placementDialog.showModal();
+  placementSuggested=entry.slot;placementMode=placementSide(entry.slot);renderPlacements();placementDialog.showModal();
 }
 placementDialog.querySelector('.placement-options').addEventListener('click',async event=>{
   const button=event.target.closest('[data-place]');if(!button||button.disabled)return;
@@ -3377,7 +3415,8 @@ installExports({THREE,renderer,scene,camera,garment,presentGarment,shirtShadow,p
   restoreLighting:s=>{lightReference.copy(s.reference);lightRig.quaternion.copy(s.quaternion);},
   finish:()=>{finishArtworkRename(true);colorPicker?.close();colorActions?.cancel();},
   name:()=>document.getElementById('designName').value,
-  viewAngles:v=>v==='right'?[-Math.PI/2,1.45]:VIEWS[v],
+  detailView:detailCamera,detailViews:[{id:'neck',label:'Inside neck tag'},...ART_KEYS.filter(k=>ART_META[k].detail).map(k=>({id:'placement:'+k,label:ART_META[k].label}))],
+  viewAngles:v=>detailCamera(v)?.angles||(v==='right'?[-Math.PI/2,1.45]:VIEWS[v]),
   label:()=>GARMENT_CATALOG.find(g=>g.id===activeGarmentId)?.label||'Custom garment'
 });
 

@@ -15,6 +15,10 @@ export function fitDistance(THREE,points,center,angles,aspect,fov,padding=1.20){
 }
 export function installExports(api){
   const {THREE,renderer,camera,scene,garment,presentGarment,presentShadow,shirtShadow,uni,state}=api;
+  const detailOptions=api.detailViews||[],detailLabels=new Map(detailOptions.map(v=>[v.id,v.label]));
+  const viewLabel=view=>detailLabels.get(view)||VIEW_NAMES[view];
+  for(const view of detailOptions){const label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.name='exportView';input.value=view.id;input.dataset.detailExport='true';label.append(input,document.createTextNode(view.label));$('exportPlacementViews').append(label);}
+  function syncDetailExports(){for(const input of document.querySelectorAll('[data-detail-export]')){input.disabled=!api.detailView(input.value);input.closest('label').hidden=input.disabled;if(input.disabled)input.checked=false;}}
   let working=false,cancelled=false;
   const message=text=>{$('exportStatus').textContent=text;};
   const check=()=>{if(cancelled)throw new Error('Export cancelled.');};
@@ -62,7 +66,7 @@ export function installExports(api){
     for(let i=0;i<images.length;i++){
       const image=images[i],bitmap=await createImageBitmap(image.blob),x=margin+(i%cols)*(cellWidth+gap),y=header+Math.floor(i/cols)*(cellHeight+label+gap);
       ctx.fillStyle=options.background==='current'?state.bg:'#fff';ctx.fillRect(x,y,cellWidth,cellHeight);ctx.drawImage(bitmap,x,y,cellWidth,cellHeight);bitmap.close();
-      ctx.fillStyle='#444';ctx.font='22px Rubik, sans-serif';ctx.fillText(VIEW_NAMES[image.view],x,y+cellHeight+32,cellWidth);
+      ctx.fillStyle='#444';ctx.font='22px Rubik, sans-serif';ctx.fillText(viewLabel(image.view),x,y+cellHeight+32,cellWidth);
     }
     ctx.font='18px Rubik, sans-serif';ctx.fillStyle='#777';ctx.fillText(window.BRAND.title,margin,cv.height-28);
     return canvasBlob(cv);
@@ -86,12 +90,14 @@ export function installExports(api){
       const distance=fitDistance(THREE,points,center,fullViews.map(api.viewAngles),camera.aspect,camera.fov);
       const images=[],zip=new window.JSZip();
       for(const [i,view] of views.entries()){
-        check();message(`Rendering ${VIEW_NAMES[view]} · ${i+1} of ${views.length}`);await turn();
-        const [az,el]=api.viewAngles(view),focus=center.clone(),d=view==='detail'?distance*.66:distance;
+        check();message(`Rendering ${viewLabel(view)} · ${i+1} of ${views.length}`);await turn();
+        const [az,el]=api.viewAngles(view),focus=center.clone(),shot=api.detailView?.(view);
+        const d=shot?shot.distance/Math.min(1,camera.aspect):view==='detail'?distance*.66:distance;
+        if(shot)focus.fromArray(shot.point);
         if(view==='detail')focus.y+=box.getSize(new THREE.Vector3()).y*.17;
         camera.position.set(focus.x+d*Math.sin(el)*Math.sin(az),focus.y+d*Math.cos(el),focus.z+d*Math.sin(el)*Math.cos(az));camera.lookAt(focus);
         const canvas=frame(width,height,options),blob=await canvasBlob(canvas);canvas.width=canvas.height=1;check();
-        images.push({view,blob});zip.file(name+'_'+VIEW_NAMES[view].replaceAll(' ','-')+'.png',await blob.arrayBuffer());
+        images.push({view,blob});zip.file(name+'_'+viewLabel(view).replaceAll(' ','-')+'.png',await blob.arrayBuffer());
       }
       session.finish();session=null;
       if($('exportSheet').checked){message('Building presentation sheet…');await document.fonts.ready;const sheet=await presentationSheet(images,options);check();zip.file(name+'_Presentation.png',await sheet.arrayBuffer());}
@@ -100,9 +106,9 @@ export function installExports(api){
 
       message('Packaging PNGs…');const blob=await zip.generateAsync({type:'blob',compression:'STORE'},check);check();downloadBlob(blob,name+'_Presentation.zip');message(`${views.length} views exported${$('exportSheet').checked?' with presentation sheet':''}.`);
     }catch(error){message(error.message||'The export could not finish. Try a smaller image size.');}
-    finally{session?.finish();working=false;api.lock(false);$('exportConfirm').disabled=false;$('exportCancel').hidden=true;for(const el of $('exportDialog').querySelectorAll('input,select'))el.disabled=false;}
+    finally{session?.finish();working=false;api.lock(false);$('exportConfirm').disabled=false;$('exportCancel').hidden=true;for(const el of $('exportDialog').querySelectorAll('input,select'))el.disabled=false;syncDetailExports();}
   }
-  $('btnExportAll').onclick=()=>{if(api.busy()||working)return;message('');$('exportDialog').showModal();};
+  $('btnExportAll').onclick=()=>{if(api.busy()||working)return;message('');syncDetailExports();$('exportDialog').showModal();};
   $('exportConfirm').onclick=exportAll;$('exportCancel').onclick=()=>{cancelled=true;message('Cancelling…');};
   $('exportDialog').addEventListener('cancel',e=>{if(working){e.preventDefault();cancelled=true;}});
   $('exportDialog').querySelector('[data-close-dialog]').onclick=()=>{if(working){cancelled=true;message('Cancelling…');}else $('exportDialog').close();};

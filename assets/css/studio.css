@@ -811,3 +811,18 @@ body.present .stage-reset,body.present .stage-help{display:none}
 .detail-camera-menu button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
 .detail-camera-menu button:disabled{opacity:.45;cursor:default}
 #segView #detailCameraToggle.camera-active{background:var(--ink);color:var(--paper)}
+
+/* v40: one readable garment surface at a time, paired with named choices. */
+.placement-options{gap:0 16px;align-items:center}
+.placement-diagram{flex:0 1 290px;max-width:290px;min-width:240px}
+.placement-choice-list{flex:1 1 170px;min-width:160px;display:grid;gap:3px;margin-top:18px}
+.placement-options .placement-choice{display:flex;align-items:center;gap:8px;min-height:31px;padding:5px 7px;text-align:left;border:0;border-radius:4px;background:transparent;color:var(--ink);font:400 11px/1.4 var(--sans);cursor:pointer}
+.placement-choice>span{display:grid;place-items:center;flex:0 0 20px;width:20px;height:20px;border:1px solid var(--rule-mid);border-radius:50%;font-size:9px}
+.placement-choice small{margin-left:auto;color:var(--graphite)}
+.placement-options .placement-hover,.placement-options .placement-choice:hover,.placement-options .placement-choice:focus-visible,.placement-options .placement-choice.suggested{background:var(--ink);color:var(--paper)}
+.placement-choice:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.detail-camera-menu{width:210px;max-height:min(70vh,560px);overflow-y:auto;overscroll-behavior:contain}
+.detail-camera-group{border-top:1px solid var(--rule);margin-top:5px;padding-top:5px}
+.detail-camera-group>span{display:block;padding:6px 12px;font:500 10px var(--sans);color:var(--graphite)}
+.detail-camera-group[hidden],.detail-camera-menu button[hidden]{display:none}
+@media(max-width:600px){.placement-diagram{flex-basis:280px;max-width:280px;min-width:0;width:100%}.placement-choice-list{flex-basis:100%;grid-template-columns:repeat(2,minmax(0,1fr));margin-top:4px}.placement-options .placement-choice{font-size:10px;gap:5px;padding:5px 3px}.placement-options .pin-button{width:28px;min-height:28px;height:28px}}
