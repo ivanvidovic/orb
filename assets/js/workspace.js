@@ -9,7 +9,13 @@ export function installWorkspace(api){
   const assets=new Map();let shelfIds=new Set(),ready=false,restoring=false,busy=false,saveTimer,dbPromise,saveChain=Promise.resolve(),revision=0,savedRevision=0,context={action:'choose'},pendingOpen=null;
   const scope=location.pathname.replace(/\/index\.html$/,'/');
   const dbName='orb-studio-36:'+scope;
-  const status=(text)=>{$('designStatus').textContent=text;};
+  const status=(text)=>{
+    const el=$('designStatus');
+    const state=['Saved on this device','Design opened','Design file downloaded','Restored your last design'].includes(text)?'saved':
+      ['Saving on this device…','Opening design…'].includes(text)?'saving':text==='Your work stays on this device.'?'info':'error';
+    el.textContent=text;el.title=text;el.setAttribute('aria-label',text);el.dataset.state=state;
+    el.dataset.icon=({saved:'✓',saving:'…',info:'○',error:'!'})[state];
+  };
   const notify=()=>{revision++;if(ready&&!restoring){status('Saving on this device…');clearTimeout(saveTimer);saveTimer=setTimeout(autosave,900);}};
   function database(){
     if(!dbPromise)dbPromise=new Promise((resolve,reject)=>{const req=indexedDB.open(dbName,1);req.onupgradeneeded=()=>req.result.createObjectStore('workspace');req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});
