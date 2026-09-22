@@ -799,7 +799,7 @@ function trimCatalogCache(){
 }
 let placementCalibrationPromise=null;
 function getPlacementCalibration(){
-  if(!placementCalibrationPromise)placementCalibrationPromise=fetch(new URL('../calibration/placements-41.json',import.meta.url)).then(response=>{
+  if(!placementCalibrationPromise)placementCalibrationPromise=fetch(new URL('../calibration/placements-42.json',import.meta.url)).then(response=>{
     if(!response.ok)throw new Error('Placement calibration could not load.');return response.json();
   }).catch(error=>{placementCalibrationPromise=null;throw error;});
   return placementCalibrationPromise;
