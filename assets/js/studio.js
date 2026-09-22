@@ -1020,7 +1020,7 @@ async function loadModel(file){
 /* ================================= state ================================= */
 
 const THEMES={
-  light:{bg:BRAND.light.paper},
+  light:{bg:BRAND.light.wash||BRAND.light.paper},
   dark:{bg:BRAND.dark.paper},
 };
 const systemColorScheme=matchMedia('(prefers-color-scheme: dark)');
@@ -3355,6 +3355,12 @@ function restoreDesignState(snapshot,restoreCamera=true){
   applyTheme(false);
   // Theme application can choose a default grid; the saved preview takes precedence.
   state.bg=snapshot.settings.bg;state.gridColor=snapshot.settings.gridColor;
+  // Refresh earlier light-theme defaults restored by browser autosave.
+  const oldLightDefaults=['#f4f4f4','#dbd9d3'];
+  if(state.theme==='light'){
+    if(state.light!=='uv'&&oldLightDefaults.includes(state.bg.toLowerCase()))state.bg=THEMES.light.bg;
+    if(regularBackdrop&&oldLightDefaults.includes(regularBackdrop.bg.toLowerCase()))regularBackdrop.bg=THEMES.light.bg;
+  }
   if(snapshot.lighting){lightReference.fromArray(snapshot.lighting.reference);lightRig.quaternion.fromArray(snapshot.lighting.quaternion);lightReferenceReady=true;}
   applyLightingPreset();
   renderer.shadowMap.enabled=state.selfShadows;shadowDirty=true;
