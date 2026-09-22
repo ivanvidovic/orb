@@ -1,7 +1,8 @@
+import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=41';
 import {solidCoverageLut} from './artwork-export.js?v=38';
-import {installWorkspace} from './workspace.js?v=38';
+import {installWorkspace} from './workspace.js?v=41';
 import {installExports} from './presentation-export.js?v=40';
-import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=37';
+import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=41';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
 import {installColorPicker} from './color-picker.js?v=36';
 import {installSliderControls,RESET_ICON} from './controls.js?v=34';
@@ -798,7 +799,7 @@ function trimCatalogCache(){
 }
 let placementCalibrationPromise=null;
 function getPlacementCalibration(){
-  if(!placementCalibrationPromise)placementCalibrationPromise=fetch(new URL('../calibration/placements-40.json',import.meta.url)).then(response=>{
+  if(!placementCalibrationPromise)placementCalibrationPromise=fetch(new URL('../calibration/placements-41.json',import.meta.url)).then(response=>{
     if(!response.ok)throw new Error('Placement calibration could not load.');return response.json();
   }).catch(error=>{placementCalibrationPromise=null;throw error;});
   return placementCalibrationPromise;
@@ -822,9 +823,6 @@ async function prepareCatalog(item){
       const extra=(await getPlacementCalibration())[item.id];
       if(!extra?.necktag)throw new Error('Additional garment placements are missing.');
       res.profiles={...calibratePlacements(res.group,item.type),...extra};
-      // Bake the requested chest corrections into each garment's zero point.
-      const chest=res.profiles.chest,offset=({'mens-hoodie':20,'womens-hoodie':35,'mens-tee':-15,'womens-tee':-10}[item.id]||0)*.0018;
-      if(chest){chest.origin=[chest.origin[0]-chest.basis[1]*offset,chest.origin[1]-chest.basis[3]*offset];}
       if(item.type==='hoodie')res.group.traverse(mesh=>{
         if(!mesh.isMesh)return;
         for(const mat of Array.isArray(mesh.material)?mesh.material:[mesh.material]){
@@ -940,6 +938,7 @@ async function loadCatalog(id){
     UV_PROFILES=res.profiles;modelKind='catalog';
     setGarment(res.group,false);trimCatalogCache();
     selectedCatalogId=id;activeGarmentId=id;customModelFile=null;customFlipped=false;
+    for(const layer of artLayers)migratePlacement(layer,layerProfile(layer));
 
     garmentSelect.querySelector('option[value="custom"]')?.remove();
     garmentSelect.value=id;
@@ -1194,7 +1193,7 @@ applyTheme(true);
 applyLightingPreset();
 
 
-// Placement controls retain their calibrated garment-unit scale.
+// Movement controls use a shared proportional placement reference.
 const ART_INPUT_META={
   x:{min:-100,max:100,step:1},
   y:{min:-100,max:100,step:1},
@@ -1221,12 +1220,17 @@ function artScaleMax(entry){
   // Retain an enlarged sleeve value when switching to a short-sleeved garment.
   return ART_META[entry?.slot]?.side==='Sleeve'&&entry?.sleevePreset==='full'?600:200;
 }
+function artInputBounds(entry,prop){
+  const meta=ART_INPUT_META[prop],value=entry?.placement?.[prop];
+  const current=value===undefined?0:prop==='scale'?value*100:(prop==='x'||prop==='y')?value/.0018:value;
+  return {min:Math.min(meta.min,Math.floor(current)),max:Math.max(prop==='scale'?artScaleMax(entry):meta.max,Math.ceil(current))};
+}
 function normalizeArtValue(slotForNormalize,prop,raw,entry=artEntry()){
-  const meta=ART_INPUT_META[prop],max=prop==='scale'?artScaleMax(entry):meta.max;
+  const meta=ART_INPUT_META[prop],{min,max}=artInputBounds(entry,prop);
   let v=Number(raw);
   if(!Number.isFinite(v)) v=artDefault(slotForNormalize, prop);
   v=Math.round(v/meta.step)*meta.step;
-  v=clamp(v, meta.min, max);
+  v=clamp(v, min, max);
   if(prop!=='scale' && Math.abs(v)<meta.step) v=0;
   return v;
 }
@@ -2121,11 +2125,11 @@ function updateArtworkQuad(map,layer,index,total){
   const full=hasFullSleeve(layer)&&layer.sleevePreset==='full',limits=UV_PROFILES[layer.slot]?.full;
   const width=full?limits.printLength/aspect*A.scale:
     meta.w*A.scale*(q.printScale||1)/(!isCustom&&meta.side==='Sleeve'?Math.max(1,aspect):1);
-  const height=width*aspect;
+  const height=width*aspect,[offsetX,offsetY]=placementOffsets(layer,q);
   const [a,b,d,e]=q.basis,c=Math.cos(A.rot*Math.PI/180),s=Math.sin(A.rot*Math.PI/180),k=tile.density;
   mesh.matrix.set(
-    k*(a*c+b*s)*width,k*(-a*s+b*c)*height,0,tile.x+(q.origin[0]-tile.minU+a*A.x-b*A.y)*k,
-    k*(d*c+e*s)*width,k*(-d*s+e*c)*height,0,tile.y+(q.origin[1]-tile.minV+d*A.x-e*A.y)*k,
+    k*(a*c+b*s)*width,k*(-a*s+b*c)*height,0,tile.x+(q.origin[0]-tile.minU+a*offsetX-b*offsetY)*k,
+    k*(d*c+e*s)*width,k*(-d*s+e*c)*height,0,tile.y+(q.origin[1]-tile.minV+d*offsetX-e*offsetY)*k,
     0,0,1,0,0,0,0,1
   );
   mesh.matrixWorldNeedsUpdate=true;
@@ -2292,7 +2296,7 @@ function uniqueArtworkName(name,names){
 }
 function initializeLayer(entry,slot,anchor=null,names=new Set(artLayers.map(e=>e.name.toLocaleLowerCase()))){
   const name=uniqueArtworkName(entry.name,names);
-  return {...entry,tintCustom:entry.tintCustom??null,defaultMode:entry.mode,defaultSlot:slot,defaultScale:ART_META[slot].scale,name,autoName:name,nameEdited:false,id:'art-'+nextArtId++,slot,sleevePreset:'patch',visible:true,glow:false,uvReactive:false,emission:100,anchor:anchor?structuredClone(anchor):null,
+  return {...entry,placementSpace:PLACEMENT_SPACE,tintCustom:entry.tintCustom??null,defaultMode:entry.mode,defaultSlot:slot,defaultScale:ART_META[slot].scale,name,autoName:name,nameEdited:false,id:'art-'+nextArtId++,slot,sleevePreset:'patch',visible:true,glow:false,uvReactive:false,emission:100,anchor:anchor?structuredClone(anchor):null,
     placement:{x:0,y:0,scale:ART_META[slot].scale/100,rot:0}};
 }
 function beginArtworkRename(id){
@@ -2372,6 +2376,8 @@ function syncArtControls(){
   const A=entry.placement,vals={x:A.x/.0018,y:A.y/.0018,scale:A.scale*100,rot:A.rot};
   for(const prop of ['x','y','scale','rot']){
     const pair=artControlPair(entry.slot,prop),value=Math.round(vals[prop]);
+    const bounds=artInputBounds(entry,prop);
+    for(const input of [pair.range,pair.num]){input.min=String(bounds.min);input.max=String(bounds.max);}
     pair.range.value=value;pair.num.value=value;
   }
 }
@@ -2545,7 +2551,7 @@ function addArtworkEntries(slot,entries,action='add',targetId=null){
   });
   if(action==='replace'&&target){
     added[0].id=target.id;added[0].placement={...target.placement};added[0].visible=target.visible;
-    for(const prop of ['fit','mode','defaultMode','inkCustom','tintCustom','solidCutoff','solidSoftness','solidInvert','defaultSolidInvert','glow','uvReactive','emission'])added[0][prop]=target[prop];
+    for(const prop of ['placementSpace','fit','mode','defaultMode','inkCustom','tintCustom','solidCutoff','solidSoftness','solidInvert','defaultSolidInvert','glow','uvReactive','emission'])added[0][prop]=target[prop];
     if(target.nameEdited){added[0].name=target.name;added[0].nameEdited=true;}
     artLayers.splice(index,1,...added);
   }else artLayers.splice(index<0?0:index,0,...added);
@@ -3322,6 +3328,7 @@ function restoreDesignState(snapshot,restoreCamera=true){
     layer.solidInvert=(layer.mode==='ink'||layer.defaultMode==='ink')?legacySolidInvert(layer.source):false;
     layer.defaultSolidInvert=layer.defaultMode==='ink'&&layer.solidInvert;
   }
+  for(const layer of artLayers)migratePlacement(layer,layerProfile(layer));
   activeArtId=artLayers.some(e=>e.id===snapshot.active)?snapshot.active:null;
   if(artEntry())activeArtSlot=artEntry().slot;
   nextArtId=Math.max(nextArtId,...artLayers.map(e=>(Number(e.id.replace(/^art-/,''))||0)+1));

@@ -1,1 +1,0 @@
-Apply over v39, preserving folders. Removes old automatic margins from Move and Close, plus a forced Move padding override. index.html refreshes the stylesheet cache. No JavaScript or functionality changes.
