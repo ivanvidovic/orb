@@ -1,4 +1,4 @@
-import {addArtworkPackage} from './artwork-export.js?v=64';
+import {addArtworkPackage} from './artwork-export.js?v=65';
 import {canvasBlob,downloadBlob,cleanFilename} from './design-format.js?v=36';
 const $=id=>document.getElementById(id);
 const VIEW_NAMES={front:'Front',angle:'Front three-quarter',side:'Left side',right:'Right side',backangle:'Back three-quarter',back:'Back',detail:'Detail'};

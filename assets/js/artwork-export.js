@@ -1,4 +1,4 @@
-import {applyPrintTexture,hasPrintTexture} from './print-texture.js?v=64';
+import {applyPrintTexture,hasPrintTexture} from './print-texture.js?v=65';
 import {decodeArtworkImage} from './artwork-decode.js?v=45';
 import {canvasBlob,cleanFilename} from './design-format.js?v=37';
 export function solidCoverageLut(settings={}){

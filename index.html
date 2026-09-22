@@ -160,7 +160,7 @@
   <details class="solid-settings" id="printTextureSettings"><summary>Print texture</summary>
     <div class="grid-style-row"><label for="printPattern">Pattern</label><select id="printPattern"><option value="none">None</option><option value="dots">Dots</option><option value="lines">Lines</option><option value="grain">Grain</option></select></div>
     <div id="printTextureControls" hidden>
-      <div class="inline-range"><label for="printSize">Size</label><input id="printSize" type="range" min="1" max="100" step="1" value="40" title="Fine to coarse"></div>
+      <div class="inline-range"><label for="printSize">Size</label><input id="printSize" type="range" min="1" max="100" step="1" value="40" title="Extra fine to coarse; lower values create smaller, tighter patterns"></div>
       <div class="inline-range"><label for="printAngle">Angle</label><input id="printAngle" type="range" min="0" max="180" step="1" value="45"></div>
       <div class="inline-range"><label for="printStrength">Strength</label><input id="printStrength" type="range" min="0" max="100" step="1" value="100"></div>
       <p>Patterns turn partial ink coverage into texture. Use Solid with Softness for tonal artwork. Original and Tint texture transparency, keeping their colors.</p>
@@ -333,7 +333,7 @@
     <details class="guideAdvanced"><summary>Saving &amp; exporting</summary><dl class="guideRows"><div><dt>Save design</dt><dd>Download an editable .orb file. Reopen with Open or drag it into the studio.</dd></div><div><dt>Save Image</dt><dd>Export the current view as a PNG.</dd></div><div><dt>Export All</dt><dd>Package framed views, treated artwork and originals in one ZIP, with an optional presentation sheet and editable design.</dd></div><div><dt>Browser memory</dt><dd>Your design and library stay in this browser. Save a design file to take them elsewhere or keep a backup.</dd></div></dl></details>
     <details class="guideAdvanced"><summary>Using your own 3D model</summary><dl class="guideRows"><div><dt>Upload</dt><dd>Use a GLB with embedded textures and non-overlapping UVs.</dd></div><div><dt>Set position</dt><dd>Select a layer, choose Set position, then tap the model.</dd></div><div><dt>Orientation</dt><dd>Turn around corrects the model direction. Restore selection returns to the built-in garment.</dd></div></dl></details>
   </div>
-  <div class="helpFooter"><span><kbd>Esc</kbd> to close</span><span>ORB Studio 64</span></div>
+  <div class="helpFooter"><span><kbd>Esc</kbd> to close</span><span>ORB Studio 65</span></div>
 </dialog>
 
 <dialog id="assetDialog" class="workspace-dialog" aria-labelledby="assetTitle"><div class="workspace-head"><h2 id="assetTitle">Add artwork</h2><button type="button" data-close-dialog aria-label="Close">×</button></div><div class="workspace-body"><button id="assetBrowse" type="button">Upload images</button><p class="muted">Or choose a graphic from your library.</p><div id="assetGrid" class="shelf-grid"></div></div></dialog>
@@ -375,6 +375,6 @@
 </script>
 
 <script src="./assets/vendor/jszip/jszip.min.js"></script>
-<script type="module" src="./assets/js/studio.js?v=64"></script>
+<script type="module" src="./assets/js/studio.js?v=65"></script>
 </body>
 </html>
