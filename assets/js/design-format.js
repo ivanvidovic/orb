@@ -1,4 +1,4 @@
-import {CREATIVE_DEFAULTS} from './creative-lighting.js?v=73';
+import {CREATIVE_DEFAULTS} from './creative-lighting.js?v=74';
 // Portable ORB files contain a versioned manifest and deduplicated image bytes.
 export const FORMAT_VERSION=2;
 export const LAYER_FIELDS=['id','assetId','sourceName','name','autoName','nameEdited','slot','defaultSlot','defaultMode','defaultScale','mode','inkCustom','tintCustom','solidCutoff','solidSoftness','solidMaskSource','solidSpread','solidEdgeSoftness','solidInvert','defaultSolidInvert','printPattern','printSize','printAngle','printStrength','printVersion','printMarkSize','printTone','printErosion','printPixelScale','fit','sleevePreset','visible','glow','uvReactive','emission','anchor','placementSpace','placement'];
@@ -46,7 +46,7 @@ export function validateProject(doc,{garments,slots}){
   if(s.nightLightPower!==undefined&&!finite(s.nightLightPower,0,Number.MAX_VALUE))fail('City intensity is invalid.');
   if(s.nightTraffic!==undefined&&!['off','subtle','active'].includes(s.nightTraffic))fail('Traffic setting is invalid.');
   for(const [k,def] of Object.entries(CREATIVE_DEFAULTS)){if(s[k]===undefined)continue;if(typeof def==='boolean'){if(typeof s[k]!=='boolean')fail('A lighting option is invalid.');}else if(typeof def==='number'){if(!finite(s[k],0,Number.MAX_VALUE))fail('A lighting value is invalid.');}}
-  if(s.runwayActivity!==undefined&&!['gentle','active'].includes(s.runwayActivity))fail('Runway activity is invalid.');
+  if(s.runwayActivity!==undefined&&!['gentle','standard','active'].includes(s.runwayActivity))fail('Runway activity is invalid.');
   if(s.projectorPattern!==undefined&&!['caustics','stripes','geometry'].includes(s.projectorPattern))fail('Projector pattern is invalid.');
   if(s.nightPaused!==undefined&&typeof s.nightPaused!=='boolean')fail('Traffic pause setting is invalid.');
   const inertia=s.inertia;

@@ -1,4 +1,4 @@
-import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=73';
+import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=74';
 import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE} from './sleeve-camera.js?v=71';
 import {applyPrintTexture,hasPrintTexture,capturePrintTone,pixelateArtwork} from './print-texture.js?v=70';
 import {hasDirectory} from './folder-import.js?v=58';
@@ -6,9 +6,9 @@ import {decodeArtworkImage} from './artwork-decode.js?v=45';
 import {createCityTraffic} from './city-night.js?v=43';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=41';
 import {applySolidMask} from './solid-mask.js?v=70';
-import {installWorkspace} from './workspace.js?v=73';
-import {installExports} from './presentation-export.js?v=73';
-import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=73';
+import {installWorkspace} from './workspace.js?v=74';
+import {installExports} from './presentation-export.js?v=74';
+import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=74';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
 import {installColorPicker} from './color-picker.js?v=36';
 import {installSliderControls,RESET_ICON} from './controls.js?v=44';
@@ -157,8 +157,8 @@ lightRig.add(hemi,key,fil,rim,key.target,fil.target,rim.target);
 const lightReference=new THREE.Quaternion(),lightInverse=new THREE.Quaternion();
 const lightEnvironmentRotation={value:new THREE.Matrix3()},lightEnvironmentPower={value:1};
 const lightRotationMatrix=new THREE.Matrix4();
-const effectUniforms={uBlackLight:{value:0},uGlowSceneLevel:{value:0},uAfterglow:{value:0},uAfterPhase:{value:0},uAfterFade:{value:4},uAfterSpeed:{value:1},uAfterPower:{value:1}};
-const creativeLighting=createCreativeLighting(THREE,scene,effectUniforms);
+const effectUniforms={uBlackLight:{value:0},uGlowSceneLevel:{value:0},uAfterRotation:{value:new THREE.Matrix3()},uAfterglow:{value:0},uAfterPhase:{value:0},uAfterFade:{value:4},uAfterSpeed:{value:1},uAfterPower:{value:1}};
+const creativeLighting=createCreativeLighting(THREE,scene,effectUniforms,renderer);
 function updateCreativeLighting(dt=0){creativeLighting.update(dt,state);if(state.selfShadows&&isCreative(state.light)&&performance.now()-lastShadowTime>1000/30)shadowDirty=true;}
 let lightReferenceReady=false,shadowDirty=true,lastShadowTime=-Infinity,lastShadowSignature='';
 key.castShadow=true;
@@ -180,7 +180,7 @@ function updateShadowMap(){
 }
 
 const LIGHT_PRESETS={
-  runway:{label:'Runway',description:'Irregular camera flashes over dim fashion-show lighting. Pause to hold a moment.',exposure:1,hemi:.035,hemiSky:'#bfcce3',hemiGround:'#25252d',key:.20,keyColor:'#fff5e9',keyPos:[-1,2,1],fill:.06,fillColor:'#e0e9ff',fillPos:[1,.5,1],rim:.3,rimColor:'#ffffff',rimPos:[0,1,-2]},
+  runway:{label:'Runway',description:'An overhead stage spotlight and irregular camera flashes. Pause to hold a moment.',exposure:1,hemi:.035,hemiSky:'#bfcce3',hemiGround:'#25252d',key:.20,keyColor:'#fff5e9',keyPos:[-1,2,1],fill:.06,fillColor:'#e0e9ff',fillPos:[1,.5,1],rim:.3,rimColor:'#ffffff',rimPos:[0,1,-2]},
   afterglow:{label:'Afterglow',description:'A circling light charges Glow in the dark artwork, leaving a fading trail. Enable Glow on a layer.',exposure:1,hemi:.008,hemiSky:'#a2acc3',hemiGround:'#161820',key:.025,keyColor:'#c5d4ee',keyPos:[-1,2,1],fill:.008,fillColor:'#ced8f0',fillPos:[1,.5,1],rim:.065,rimColor:'#9aaada',rimPos:[0,1,-2]},
   projector:{label:'Projector',description:'Moving caustics, stripes or geometric light projected onto fabric. Self-shadows block projection behind folds.',exposure:1,hemi:.018,hemiSky:'#c2cede',hemiGround:'#20252d',key:.075,keyColor:'#c4d2e8',keyPos:[-1,2,1],fill:.02,fillColor:'#c5d1ed',fillPos:[1,.5,1],rim:.16,rimColor:'#acbfdf',rimPos:[0,1,-2]},
   softbox:{label:'Softbox',description:'Even neutral light with gentle highlights and filled shadows for reviewing artwork.',
@@ -198,7 +198,7 @@ const LIGHT_PRESETS={
     key:2.25,keyColor:'#fff1d7',keyPos:[1.5,2.4,1.3],
     fill:.30,fillColor:'#c2d8ff',fillPos:[-1.5,1.2,1.0],
     rim:.62,rimColor:'#e0eaff',rimPos:[-.7,1.5,-1.8]},
-  night:{label:'City night',description:'Dim streetlight and passing traffic. Lights stay fixed in the scene.',
+  night:{label:'City night',description:'Dim streetlight and passing traffic. Use Fix lights in scene to hold the light rig.',
     exposure:1.0,hemi:.025,hemiSky:'#a5b9ed',hemiGround:'#252a38',
     key:.4125,keyColor:NIGHT_DEFAULTS.green,keyPos:[-1.7,2.4,1.4],
     fill:.12,fillColor:NIGHT_DEFAULTS.magenta,fillPos:[1.5,.6,.95],
@@ -240,7 +240,7 @@ function applyLightingPreset(){
   document.getElementById('nightPaused').disabled=state.nightTraffic==='off';
   for(const mode of ['runway','afterglow','projector'])document.getElementById(mode+'Controls').hidden=state.light!==mode;
   for(const id of Object.keys(CREATIVE_DEFAULTS)){const input=document.getElementById(id);if(!input)continue;if(input.type==='checkbox')input.checked=state[id];else{input.value=state[id];const number=document.getElementById(id+'Value');if(number)number.value=input.value;}}
-  const fixed=state.light==='night'||isCreative(state.light),lock=document.getElementById('lightLock');lock.disabled=fixed;lock.checked=fixed||!state.lightLocked;
+  const lock=document.getElementById('lightLock');lock.disabled=false;lock.checked=!state.lightLocked;
   updateCityTraffic();updateCreativeLighting();
   shadowDirty=true;
   hemi.color.set(p.hemiSky);hemi.groundColor.set(p.hemiGround);hemi.intensity=p.hemi*power;
@@ -251,12 +251,13 @@ function applyLightingPreset(){
 }
 function updateLightLock(){
   if(!lightReferenceReady){lightReference.copy(camera.quaternion);lightReferenceReady=true;}
-  if(state.light==='night'||isCreative(state.light))lightRig.quaternion.identity();
-  else if(state.lightLocked){
+  if(state.lightLocked){
     lightRig.quaternion.copy(camera.quaternion).multiply(lightInverse.copy(lightReference).invert());
   }
   lightRotationMatrix.makeRotationFromQuaternion(lightInverse.copy(lightRig.quaternion).invert());
   lightEnvironmentRotation.value.setFromMatrix4(lightRotationMatrix);
+  cityTraffic.rig.quaternion.copy(lightRig.quaternion);creativeLighting.rig.quaternion.copy(lightRig.quaternion);
+  effectUniforms.uAfterRotation.value.copy(lightEnvironmentRotation.value);
 
 }
 
@@ -379,6 +380,7 @@ const FRAG_HEAD=`
 uniform float uArtRough,uHasArtwork;
 uniform sampler2D uArtwork,uArtworkEffects,uSpillGlow,uSpillUV;
 uniform float uHasEffects,uBlackLight,uFabricReactive,uGlowSceneLevel,uAfterglow,uAfterPhase,uAfterFade,uAfterSpeed,uAfterPower;
+uniform mat3 uAfterRotation;
 varying vec3 vChargePosition;
 float kIlluminance=0.0,kUVExposure=0.0,kUVVisibility=1.0,kHardVisibility=1.0;
 vec3 kFabricColor=vec3(0.0),kArtColor=vec3(0.0),kEffectNormal=vec3(0.0);
@@ -416,7 +418,8 @@ float kDark=exp(-kVisible/.055)*(1.0-smoothstep(.18,.45,kVisible))/(1.0+4.0*uGlo
 float kUV=1.25*(1.0-exp(-1.8*(.14*uBlackLight+.86*kUVExposure)))/(1.0+4.0*kVisible*kVisible+2.0*uGlowSceneLevel*uGlowSceneLevel);
 // Stylized periodic charging around the garment, retained independently of camera angle.
 if(uAfterglow>.5){
- float surfacePhase=atan(vChargePosition.x,vChargePosition.z);
+ vec3 chargePosition=uAfterRotation*vec3(vChargePosition.x,vChargePosition.y-.350,vChargePosition.z);
+ float surfacePhase=atan(chargePosition.x,chargePosition.z);
  float elapsed=mod(uAfterPhase-surfacePhase+6.2831853,6.2831853)*12.0/(6.2831853*max(.05,uAfterSpeed));
  float charge=exp(-elapsed/max(.25,uAfterFade))*uAfterPower;
  kDark*=charge;
@@ -3540,7 +3543,7 @@ installExports({THREE,renderer,scene,camera,garment,presentGarment,shirtShadow,p
   lock:setWorkspaceLock,pause:value=>renderSuspended=value,flush:flushArtwork,draw,resize,
   updateLights:updateLightLock,updateShadows:()=>{shadowDirty=true;updateShadowMap();},
   backdrop:drawPatternBackground,lighting:()=>({reference:lightReference.clone(),quaternion:lightRig.quaternion.clone()}),
-  restoreLighting:s=>{lightReference.copy(s.reference);lightRig.quaternion.copy(s.quaternion);},
+  restoreLighting:s=>{lightReference.copy(s.reference);lightRig.quaternion.copy(s.quaternion);updateLightLock();},
   finish:()=>{finishArtworkRename(true);colorPicker?.close();colorActions?.cancel();},
   name:()=>document.getElementById('designName').value,
   detailView:detailCamera,detailViews:[{id:'neck',label:'Inside neck tag'},...ART_KEYS.filter(k=>ART_META[k].detail).map(k=>({id:'placement:'+k,label:ART_META[k].label}))],

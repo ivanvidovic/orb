@@ -35,7 +35,7 @@
   }
   *{box-sizing:border-box}
   html,body{height:100%;margin:0;overflow:hidden;background:var(--paper)}
-  body{font-family:var(--sans);color:var(--ink);-webkit-font-smoothing:antialiased;display:flex;flex-direction:column}
+  body{font-size:12px;font-family:var(--sans);color:var(--ink);-webkit-font-smoothing:antialiased;display:flex;flex-direction:column}
 
   .lbl{font-size:9.5px;letter-spacing:var(--track);text-transform:uppercase;font-weight:400;color:var(--graphite);line-height:1;opacity:.88}
   .lbl-ink{color:var(--graphite)}
@@ -854,3 +854,10 @@ body.present .stage-reset,body.present .stage-help{display:none}
 #shelfDrop{cursor:default}
 #artWorkspace #shelfDrop button{display:inline;min-height:0;padding:0;border:0;border-radius:0;background:none;color:inherit;font:inherit;font-weight:500;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
 #artWorkspace #shelfDrop button:hover:not(:disabled){color:var(--ink)}
+
+/* Safe compact defaults for all sidebar additions, using the existing type scale. */
+#panel{font-size:11px;line-height:1.45}
+#panel :where(p){font-size:11px;line-height:1.5;color:var(--graphite);margin:6px 0}
+#panel :where(button,input,select,textarea){font-family:var(--sans);font-size:11px}
+#panel :where(label,legend){font-size:11px}
+#panel :where(h1,h2,h3,h4,h5,h6){font-size:12px;line-height:1.4}
