@@ -1,6 +1,6 @@
 // Portable ORB files contain a versioned manifest and deduplicated image bytes.
 export const FORMAT_VERSION=2;
-export const LAYER_FIELDS=['id','assetId','sourceName','name','autoName','nameEdited','slot','defaultSlot','defaultMode','defaultScale','mode','inkCustom','tintCustom','solidCutoff','solidSoftness','solidInvert','defaultSolidInvert','printPattern','printSize','printAngle','printStrength','printVersion','printMarkSize','printTone','printErosion','printPixelScale','fit','sleevePreset','visible','glow','uvReactive','emission','anchor','placementSpace','placement'];
+export const LAYER_FIELDS=['id','assetId','sourceName','name','autoName','nameEdited','slot','defaultSlot','defaultMode','defaultScale','mode','inkCustom','tintCustom','solidCutoff','solidSoftness','solidMaskSource','solidSpread','solidEdgeSoftness','solidInvert','defaultSolidInvert','printPattern','printSize','printAngle','printStrength','printVersion','printMarkSize','printTone','printErosion','printPixelScale','fit','sleevePreset','visible','glow','uvReactive','emission','anchor','placementSpace','placement'];
 export const SETTING_FIELDS=['themeMode','blank','garmentCustom','artGlossiness','matchFabricToTheme','bg','dotGrid','gridType','gridColor','gridColorCustom','gridStroke','gridScale','gridCharSize','light','lightPower','blackLightPower','regularLightPower','nightLightPower','nightTraffic','nightPaused','lightLocked','nightGreen','nightMagenta','selfShadows','wind','inertia'];
 export function pick(object,keys){return Object.fromEntries(keys.filter(k=>object[k]!==undefined).map(k=>[k,object[k]]));}
 export function cleanFilename(value){return String(value||'Untitled design').replace(/[<>:"/\\|?*\x00-\x1f]/g,'').replace(/[. ]+$/,'').trim().slice(0,80)||'Untitled design';}
@@ -25,7 +25,8 @@ export function validateProject(doc,{garments,slots}){
     if(!l.placement||!finite(l.placement.x,-offsetLimit,offsetLimit)||!finite(l.placement.y,-offsetLimit,offsetLimit)||!finite(l.placement.scale,relative?.000001:.001,relative?1000:100)||!finite(l.placement.rot,-360,360))fail('A layer has an invalid position.');
     if(!finite(l.emission??100,0,10000)||!finite(l.defaultScale??100,.1,10000))fail('A layer has an invalid appearance.');
     for(const k of ['inkCustom','tintCustom'])if(l[k]!=null&&!color(l[k]))fail('A layer color is invalid.');
-    for(const [k,min,max] of [['solidCutoff',0,95],['solidSoftness',1,100]])if(l[k]!==undefined&&!finite(l[k],min,max))fail('A Solid setting is invalid.');
+    if(l.solidMaskSource!==undefined&&!['auto','brightness','alpha'].includes(l.solidMaskSource))fail('A mask source is invalid.');
+    for(const [k,min,max] of [['solidCutoff',0,95],['solidSoftness',1,100],['solidSpread',-20,20],['solidEdgeSoftness',0,20]])if(l[k]!==undefined&&!finite(l[k],min,max))fail('A Solid setting is invalid.');
     for(const k of ['solidInvert','defaultSolidInvert','fit','visible','glow','uvReactive','nameEdited'])if(l[k]!==undefined&&typeof l[k]!=='boolean')fail('A layer option is invalid.');
     if(l.printPattern!==undefined&&!['none','dots','lines','grain','pixel'].includes(l.printPattern))fail('A print pattern is invalid.');
     if(l.printVersion!==undefined&&l.printVersion!==2)fail('A print texture version is invalid.');

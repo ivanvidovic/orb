@@ -1,12 +1,12 @@
-import {applyPrintTexture,hasPrintTexture,capturePrintTone,pixelateArtwork} from './print-texture.js?v=69';
+import {applyPrintTexture,hasPrintTexture,capturePrintTone,pixelateArtwork} from './print-texture.js?v=70';
 import {hasDirectory} from './folder-import.js?v=58';
 import {decodeArtworkImage} from './artwork-decode.js?v=45';
 import {createCityTraffic} from './city-night.js?v=43';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=41';
-import {solidCoverageLut} from './artwork-export.js?v=69';
-import {installWorkspace} from './workspace.js?v=69';
-import {installExports} from './presentation-export.js?v=69';
-import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=69';
+import {applySolidMask} from './solid-mask.js?v=70';
+import {installWorkspace} from './workspace.js?v=70';
+import {installExports} from './presentation-export.js?v=70';
+import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=70';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
 import {installColorPicker} from './color-picker.js?v=36';
 import {installSliderControls,RESET_ICON} from './controls.js?v=44';
@@ -1716,20 +1716,22 @@ function syncInkUi(){
     const color=inkHex(entry,mode);input.value=color;swatch.style.setProperty('--swatch',color);swatch.dataset.sampleColor=color;
   }
   document.getElementById('solidSettings').hidden=!entry||entry.mode!=='ink';
-  for(const [id,key,fallback] of [['solidCutoff','solidCutoff',12],['solidSoftness','solidSoftness',65]]){
+  for(const [id,key,fallback] of [['solidCutoff','solidCutoff',12],['solidSoftness','solidSoftness',65],['solidSpread','solidSpread',0],['solidEdgeSoftness','solidEdgeSoftness',0]]){
     const input=document.getElementById(id);input.value=entry?.[key]??fallback;input.disabled=disabled;
     const number=document.getElementById(id+'Value');if(number){number.value=input.value;number.disabled=disabled;}
   }
+  document.getElementById('solidMaskSource').value=entry?.solidMaskSource||'brightness';
+  document.getElementById('solidMaskSource').disabled=disabled;
   for(const [id,fallback] of [['printPattern','none'],['printSize',40],['printAngle',45],['printMarkSize',50],['printTone',100],['printErosion',0],['printPixelScale',35]]){
     const input=document.getElementById(id);input.value=entry?.[id]??fallback;input.disabled=disabled;
     const number=document.getElementById(id+'Value');if(number){number.value=input.value;number.disabled=disabled;}
   }
-  for(const id of ['printSize','printAngle','printMarkSize','printTone','printErosion'])document.getElementById(id).parentElement.hidden=entry?.printPattern==='pixel';
+  for(const id of ['printSize','printAngle','printMarkSize','printTone','printErosion'])document.getElementById(id).parentElement.hidden=entry?.printPattern==='pixel'||(entry?.printPattern==='grain'&&['printSize','printAngle'].includes(id));
   document.getElementById('printPixelScale').parentElement.hidden=entry?.printPattern!=='pixel';
   document.querySelector('label[for=printMarkSize]').textContent=entry?.printPattern==='lines'?'Line width':entry?.printPattern==='grain'?'Grain size':'Dot size';
   document.getElementById('printTextureControls').hidden=!entry||!hasPrintTexture({...entry,printStrength:100});
   document.getElementById('solidInvert').checked=!!entry?.solidInvert;
-  document.getElementById('solidInvert').disabled=disabled;
+  document.getElementById('solidInvert').disabled=disabled||entry?.solidMaskSource==='alpha';
   document.getElementById('artEyedropper').disabled=disabled||entry.mode==='original';
   document.getElementById('artColorReset').disabled=disabled||entry.mode==='original';
   document.getElementById('artAppearanceReset').disabled=disabled;
@@ -2054,16 +2056,17 @@ function resetArtworkMaps(){
   requestArtworkRender();
 }
 function artworkSourceKey(layer){
-  return `${layer.printPixelScale??35}/${layer.printVersion??1}/${layer.printMarkSize??50}/${layer.printTone??100}/${layer.printErosion??0}/${layer.printPattern||'none'}/${layer.printSize??40}/${layer.printAngle??45}/${layer.printStrength??100}/${layer.fit?1:0}/${layer.mode==='ink'?`ink/${layer.solidCutoff??12}/${layer.solidSoftness??65}/${!!layer.solidInvert}`:'color'}`;
+  return `${layer.solidMaskSource??'brightness'}/${layer.solidSpread??0}/${layer.solidEdgeSoftness??0}/${layer.printPixelScale??35}/${layer.printVersion??1}/${layer.printMarkSize??50}/${layer.printTone??100}/${layer.printErosion??0}/${layer.printPattern||'none'}/${layer.printSize??40}/${layer.printAngle??45}/${layer.printStrength??100}/${layer.fit?1:0}/${layer.mode==='ink'?`ink/${layer.solidCutoff??12}/${layer.solidSoftness??65}/${!!layer.solidInvert}`:'color'}`;
 }
 function artworkSource(layer){
   let cached=artworkSources.get(layer.source);
   if(!cached){cached={fitted:null,textures:new Map()};artworkSources.set(layer.source,cached);}
-  const source=layer.fit?(cached.fitted||(cached.fitted=fitVisibleArtwork(layer.source))):layer.source;
+  const edgeMargin=layer.mode==='ink'?Math.ceil((Math.abs(layer.solidSpread??0)+3*(layer.solidEdgeSoftness??0))*Math.min(layer.source.width,layer.source.height)/1024):0;
+  const source=layer.fit?(edgeMargin?fitVisibleArtwork(layer.source,edgeMargin):(cached.fitted||(cached.fitted=fitVisibleArtwork(layer.source)))):layer.source;
   const key=artworkSourceKey(layer);
   if(!cached.textures.has(key)){
     const pixelSource=layer.printPattern==='pixel'?pixelateArtwork(layer.source,layer):null;
-    const renderSource=pixelSource?(layer.fit?fitVisibleArtwork(pixelSource):pixelSource):source;
+    const renderSource=pixelSource?(layer.fit?fitVisibleArtwork(pixelSource,edgeMargin):pixelSource):source;
     let raster=layer.mode==='ink'?makeArtworkMask(renderSource,layer):renderSource;
     if(layer.mode!=='ink'&&hasPrintTexture(layer)&&layer.printPattern!=='pixel'){
       raster=document.createElement('canvas');raster.width=source.width;raster.height=source.height;
@@ -2541,15 +2544,16 @@ function makeArtworkEntry(img,name){
   const scale=Math.min(72/source.width,72/source.height);
   thumb.getContext('2d').drawImage(source,(72-source.width*scale)/2,(72-source.height*scale)/2,source.width*scale,source.height*scale);
   const solidInvert=detectSolidInvert(source);
-  return {source,sourceName:String(name||'Artwork'),name:suggestArtworkName(name),mode:'original',inkCustom:null,solidCutoff:12,solidSoftness:65,solidInvert,defaultSolidInvert:solidInvert,fit:false,thumb:thumb.toDataURL('image/png')};
+  return {source,sourceName:String(name||'Artwork'),name:suggestArtworkName(name),mode:'original',inkCustom:null,solidCutoff:12,solidSoftness:65,solidMaskSource:'auto',solidSpread:0,solidEdgeSoftness:0,solidInvert,defaultSolidInvert:solidInvert,fit:false,thumb:thumb.toDataURL('image/png')};
 }
-function fitVisibleArtwork(source){
+function fitVisibleArtwork(source,margin=0){
   const w=source.width,h=source.height,d=source.getContext('2d').getImageData(0,0,w,h).data;
   let left=w,top=h,right=-1,bottom=-1;
   for(let y=0;y<h;y++)for(let x=0;x<w;x++)if(d[(y*w+x)*4+3]>0){
     left=Math.min(left,x);right=Math.max(right,x);top=Math.min(top,y);bottom=Math.max(bottom,y);
   }
   if(right<left||(left===0&&top===0&&right===w-1&&bottom===h-1))return source;
+  left=Math.max(0,left-margin);top=Math.max(0,top-margin);right=Math.min(w-1,right+margin);bottom=Math.min(h-1,bottom+margin);
   const cv=document.createElement('canvas');cv.width=right-left+1;cv.height=bottom-top+1;
   const cx=cv.getContext('2d');cx.imageSmoothingEnabled=false;
   cx.drawImage(source,left,top,cv.width,cv.height,0,0,cv.width,cv.height);cv.orbCrop={fullWidth:w,fullHeight:h,offsetX:left,offsetY:top};return cv;
@@ -2593,7 +2597,7 @@ function addArtworkEntries(slot,entries,action='add',targetId=null){
   });
   if(action==='replace'&&target){
     added[0].id=target.id;added[0].placement={...target.placement};added[0].visible=target.visible;
-    for(const prop of ['placementSpace','fit','mode','defaultMode','inkCustom','tintCustom','solidCutoff','solidSoftness','solidInvert','defaultSolidInvert','printPattern','printSize','printAngle','printStrength','printVersion','printMarkSize','printTone','printErosion','printPixelScale','glow','uvReactive','emission'])added[0][prop]=target[prop];
+    for(const prop of ['placementSpace','fit','mode','defaultMode','inkCustom','tintCustom','solidCutoff','solidSoftness','solidMaskSource','solidSpread','solidEdgeSoftness','solidInvert','defaultSolidInvert','printPattern','printSize','printAngle','printStrength','printVersion','printMarkSize','printTone','printErosion','printPixelScale','glow','uvReactive','emission'])added[0][prop]=target[prop];
     if(target.nameEdited){added[0].name=target.name;added[0].nameEdited=true;}
     artLayers.splice(index,1,...added);
   }else artLayers.splice(index<0?0:index,0,...added);
@@ -2739,7 +2743,8 @@ for(const id of ['printSize','printAngle','printMarkSize','printTone','printEros
   for(const event of ['change','blur'])input.addEventListener(event,()=>printEditing=null);
 }
 let solidEditing=null;
-for(const id of ['solidCutoff','solidSoftness']){
+document.getElementById('solidMaskSource').onchange=e=>{const entry=artEntry();if(!entry||artLoading)return;recordArtUndo();entry.solidMaskSource=e.target.value;requestArtworkRender(entry);syncInkUi();workspace?.notify();};
+for(const id of ['solidCutoff','solidSoftness','solidSpread','solidEdgeSoftness']){
   const input=document.getElementById(id);
   input.addEventListener('input',()=>{
     const entry=artEntry();if(!entry||artLoading)return;
@@ -2792,12 +2797,9 @@ function makeArtworkMask(img,settings={}){
   const out=document.createElement('canvas');out.width=srcW+pad*2;out.height=srcH+pad*2;
   const cx=out.getContext('2d',{willReadFrequently:true});cx.drawImage(img,pad,pad);
   const im=cx.getImageData(pad,pad,srcW,srcH),d=im.data;
-  const sourceTone=capturePrintTone(d,settings),coverage=solidCoverageLut(settings);
-  for(let i=0;i<d.length;i+=4){
-    const brightness=Math.round(d[i]*.299+d[i+1]*.587+d[i+2]*.114);
-    d[i+3]=Math.round(d[i+3]*coverage[brightness]);
-    d[i]=255;d[i+1]=255;d[i+2]=255;
-  }
+  const sourceTone=capturePrintTone(d,settings);
+  applySolidMask(d,srcW,srcH,settings,img.orbCrop);
+  for(let i=0;i<d.length;i+=4)d[i]=d[i+1]=d[i+2]=255;
   applyPrintTexture(d,srcW,srcH,settings,{...img.orbCrop,sourceTone});
   cx.putImageData(im,pad,pad);return out;
 }
@@ -3331,7 +3333,7 @@ function installGroupResets(){
           applyGridScale(35);applyGridCharSize(45);applyGridStroke(.5);break;
         case 'artwork':{
           const entry=artEntry();if(!entry||artLoading)return;recordArtUndo();
-          Object.assign(entry,{mode:entry.defaultMode||'original',inkCustom:null,tintCustom:null,solidCutoff:12,solidSoftness:65,solidInvert:!!entry.defaultSolidInvert,printPattern:'none',printSize:40,printAngle:45,printStrength:100,printVersion:2,printMarkSize:50,printTone:100,printErosion:0,printPixelScale:35,glow:false,uvReactive:false,emission:100,fit:hasFullSleeve(entry)&&entry.sleevePreset==='full'});
+          Object.assign(entry,{mode:entry.defaultMode||'original',inkCustom:null,tintCustom:null,solidCutoff:12,solidSoftness:65,solidMaskSource:'auto',solidSpread:0,solidEdgeSoftness:0,solidInvert:!!entry.defaultSolidInvert,printPattern:'none',printSize:40,printAngle:45,printStrength:100,printVersion:2,printMarkSize:50,printTone:100,printErosion:0,printPixelScale:35,glow:false,uvReactive:false,emission:100,fit:hasFullSleeve(entry)&&entry.sleevePreset==='full'});
           requestArtworkRender(entry);syncArtworkUi();break;
         }
       }
