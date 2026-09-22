@@ -797,3 +797,7 @@ body.present .stage-reset,body.present .stage-help{display:none}
 .solid-settings summary{font-size:11px;cursor:pointer}.solid-settings p{font-size:10px;line-height:1.5;color:var(--graphite);margin:8px 0}
 .solid-settings .inline-range{margin:8px 0}.solid-settings .check-option{margin-top:10px}
 @media(max-width:480px){.guideRows>div{grid-template-columns:1fr;gap:2px}}
+
+/* v37.1: keep library captions independent of inherited sidebar button type. */
+#artWorkspace .shelf-use,#assetGrid .shelf-use{font:400 10px/1.35 var(--sans);letter-spacing:0;text-transform:none}
+#artWorkspace .shelf-use>span,#assetGrid .shelf-use>span{font:400 10px/1.35 var(--sans);letter-spacing:0;text-transform:none;width:100%;min-width:0}
