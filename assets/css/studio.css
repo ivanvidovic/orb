@@ -857,7 +857,7 @@ body.present .stage-reset,body.present .stage-help{display:none}
 
 /* Safe compact defaults for all sidebar additions, using the existing type scale. */
 #panel{font-size:11px;line-height:1.45}
-#panel :where(p){font-size:11px;line-height:1.5;color:var(--graphite);margin:6px 0}
-#panel :where(button,input,select,textarea){font-family:var(--sans);font-size:11px}
-#panel :where(label,legend){font-size:11px}
-#panel :where(h1,h2,h3,h4,h5,h6){font-size:12px;line-height:1.4}
+:where(#panel) :where(p){font-size:11px;line-height:1.5;color:var(--graphite);margin:6px 0}
+:where(#panel) :where(button,input,select,textarea){font-family:var(--sans);font-size:11px}
+:where(#panel) :where(label,legend){font-size:11px}
+:where(#panel) :where(h1,h2,h3,h4,h5,h6){font-size:12px;line-height:1.4}

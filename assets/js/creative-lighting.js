@@ -1,13 +1,13 @@
 export const CREATIVE_DEFAULTS={runwayActivity:'standard',runwayFlash:100,runwayPaused:false,runwayTime:0,runwayPower:100,afterglowSpeed:100,afterglowFade:4,afterglowPaused:false,afterglowTime:4,afterglowPower:100,projectorPattern:'caustics',projectorScale:100,projectorSpeed:35,projectorPaused:false,projectorTime:0,projectorPower:100};
 export const isCreative=id=>['runway','afterglow','projector'].includes(id);
 export function runwaySample(time,activity='standard'){
- const events=activity==='gentle'?[1.2,5.8,9.6,15.3]:activity==='active'?[.5,1.2,2,3.1,3.8,4.6,5.8,6.5,7.4,8.6,9.3,10.2,11.5,12.2,13.1,14.4,15.1,16.2,17,18.3,19]:[.8,2.1,3.4,5.9,7.2,9.5,11.2,14.1,16.7,18.2];
+ const events=activity==='gentle'?[1.2,6.8,13.1]:activity==='active'?[.5,.68,.96,2.8,3.04,5.2,5.39,5.72,8.1,8.32,10.6,10.84,11.1,14.3,14.49,14.8,17.2,17.41,18.6]:[1.2,1.44,4.9,8.1,8.37,12.6,15.8,16.02];
  const t=((time%20)+20)%20,result=[0,0,0];
- events.forEach((start,i)=>{const d=t-start;if(d>=0&&d<.65)result[i%3]=Math.sin(Math.PI*Math.min(1,d/.09))*Math.exp(-d*5)+Math.exp(-Math.pow((d-.12)/.11,2))*.7;});
+ events.forEach((start,i)=>{const d=(t-start+20)%20;if(d<.48){const pulse=Math.sin(Math.PI*Math.min(1,d/.065))*Math.exp(-d*7)+Math.exp(-Math.pow((d-.10)/.07,2))*.65;result[(i*7+Math.floor(i/3))%3]+=pulse;}});
  return result.map(v=>v*(activity==='active'?1.25:1));
 }
 export function projectorValue(x,y,t,pattern,scale){
- const u=(x-.5)/Math.max(.01,scale),v=(y-.5)/Math.max(.01,scale);
+ const u=(x-.5)/Math.max(.0001,scale),v=(y-.5)/Math.max(.0001,scale);
  if(pattern==='stripes')return .5+.5*Math.sin(u*32+t*.7);
  if(pattern==='geometry'){const a=u*Math.cos(t*.12)-v*Math.sin(t*.12),b=u*Math.sin(t*.12)+v*Math.cos(t*.12);return Math.sin(a*19+t*.3)*Math.cos(b*15-t*.2)>.25?1:.025;}
  const wave=Math.sin(u*17+t*.4+Math.sin(v*11-t*.25))+Math.sin(v*19-t*.33+Math.sin(u*13+t*.22));
@@ -25,13 +25,18 @@ export function createCreativeLighting(THREE,scene,uniforms,renderer){
  const patternMaterial=new THREE.ShaderMaterial({uniforms:patternUniforms,depthTest:false,depthWrite:false,toneMapped:false,extensions:{derivatives:true},
  vertexShader:'varying vec2 v;void main(){v=uv;gl_Position=vec4(position.xy,0.0,1.0);}',
  fragmentShader:`varying vec2 v;uniform float time,scale,pattern;
- void main(){vec2 p=(v-.5)/max(.01,scale);float t=time,n;
- if(pattern<.5){float wave=sin(p.x*17.+t*.4+sin(p.y*11.-t*.25))+sin(p.y*19.-t*.33+sin(p.x*13.+t*.22));float width=max(fwidth(wave),.015);n=.04+.96*pow(max(0.,1.-max(0.,abs(wave)-width*.25)*1.5),3.);}
- else if(pattern<1.5){n=.5+.5*sin(p.x*32.+t*.7);}
- else{float a=p.x*cos(t*.12)-p.y*sin(t*.12),b=p.x*sin(t*.12)+p.y*cos(t*.12),f=sin(a*19.+t*.3)*cos(b*15.-t*.2);float aa=max(fwidth(f),.002);n=mix(.025,1.,smoothstep(.25-aa,.25+aa,f));}
- gl_FragColor=vec4(vec3(pow(clamp(n,0.,1.),2.2)),1.);}`});
+ void main(){vec2 p=(v-.5)/max(.0001,scale);float t=time,n;
+ // Fade frequencies before the projection map undersamples them. Mipmaps
+ // handle subsequent minification on the garment, including angled surfaces.
+ float footprint=max(length(dFdx(p)),length(dFdy(p)));
+ float resolved=1.-smoothstep(.025,.14,footprint);
+ float meanValue;
+ if(pattern<.5){meanValue=.15;float wave=sin(p.x*17.+t*.4+sin(p.y*11.-t*.25))+sin(p.y*19.-t*.33+sin(p.x*13.+t*.22));float width=max(fwidth(wave),.015);n=.04+.96*pow(max(0.,1.-max(0.,abs(wave)-width*.25)*1.5),3.);}
+ else if(pattern<1.5){meanValue=.36;n=.5+.5*sin(p.x*32.+t*.7);}
+ else{meanValue=.31;float a=p.x*cos(t*.12)-p.y*sin(t*.12),b=p.x*sin(t*.12)+p.y*cos(t*.12),f=sin(a*19.+t*.3)*cos(b*15.-t*.2);float aa=max(fwidth(f),.002);n=mix(.025,1.,smoothstep(.25-aa,.25+aa,f));}
+ gl_FragColor=vec4(vec3(mix(meanValue,pow(clamp(n,0.,1.),2.2),resolved)),1.);}`});
  patternScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),patternMaterial));
- const target=new THREE.WebGLRenderTarget(512,512,{depthBuffer:false,stencilBuffer:false,minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,generateMipmaps:false});projector.map=target.texture;
+ const target=new THREE.WebGLRenderTarget(512,512,{depthBuffer:false,stencilBuffer:false,minFilter:THREE.LinearMipmapLinearFilter,magFilter:THREE.LinearFilter,generateMipmaps:true});projector.map=target.texture;
  let lastPattern='',lastFrame=-1;
  const viewport=new THREE.Vector4(),scissor=new THREE.Vector4();
  function renderPattern(size,t,pattern,scale){
@@ -42,14 +47,26 @@ export function createCreativeLighting(THREE,scene,uniforms,renderer){
   finally{renderer.setRenderTarget(oldTarget);renderer.setViewport(viewport);renderer.setScissor(scissor);renderer.setScissorTest(oldScissor);}
  }
  return {rig,projector,charger,stage,flashes,target,patternMaterial,update(dt,state){
-  const mode=state.light;rig.visible=isCreative(mode);for(const l of flashes)l.intensity=0;projector.visible=mode==='projector';charger.visible=mode==='afterglow';stage.visible=mode==='runway';
+  const mode=state.light;rig.visible=isCreative(mode);for(const l of flashes)l.intensity=0;projector.visible=mode==='projector';charger.visible=mode==='afterglow'||mode==='runway';stage.visible=mode==='runway';
   uniforms.uAfterglow.value=mode==='afterglow'?1:0;
   if(!rig.visible)return;
   const paused=state[mode+'Paused'],delta=Math.max(0,Math.min(.05,dt));
   if(!paused)state[mode+'Time']+=delta;
   const time=state[mode+'Time'],gain=state.lightPower/100;
-  if(mode==='runway'){stage.intensity=2.8*gain;const sample=runwaySample(time,state.runwayActivity);flashes.forEach((l,i)=>l.intensity=sample[i]*5*gain*state.runwayFlash/100);}
+  if(mode==='runway'){
+   const pace=state.runwayActivity==='active'?1.65:state.runwayActivity==='gentle'?.65:1;
+   const phase=time*pace*.42;
+   stage.angle=.23;stage.penumbra=.8;stage.position.set(-.5,1.65,1.1);
+   stage.target.position.set(Math.sin(phase)*.48,.04+Math.sin(phase*.63)*.12,0);
+   stage.intensity=(3.4+1.2*Math.sin(phase-.5))*gain;
+   // Reuse the charge spotlight as a second pool, not an additional light.
+   charger.angle=.20;charger.penumbra=.85;charger.position.set(1.25,.85,-1.0);
+   charger.target.position.set(Math.sin(phase+2.2)*.42,-.08+Math.cos(phase*.77)*.16,0);
+   charger.intensity=(2.8+1.3*Math.cos(phase+1))*gain;
+   const sample=runwaySample(time,state.runwayActivity);flashes.forEach((l,i)=>l.intensity=sample[i]*5*gain*state.runwayFlash/100);
+  }
   if(mode==='afterglow'){
+   charger.angle=.35;charger.penumbra=.55;charger.target.position.set(0,.02,0);
    const phase=time*state.afterglowSpeed/100/12*Math.PI*2;
    charger.position.set(Math.sin(phase)*1.7,.35,Math.cos(phase)*1.7);charger.intensity=4*gain;
    uniforms.uAfterPhase.value=phase;uniforms.uAfterFade.value=state.afterglowFade;uniforms.uAfterSpeed.value=state.afterglowSpeed/100;uniforms.uAfterPower.value=gain;

@@ -1,4 +1,4 @@
-import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=74';
+import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=76';
 import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE} from './sleeve-camera.js?v=71';
 import {applyPrintTexture,hasPrintTexture,capturePrintTone,pixelateArtwork} from './print-texture.js?v=70';
 import {hasDirectory} from './folder-import.js?v=58';
@@ -409,9 +409,11 @@ const FRAG_EMISSION=`
 // Macro normals drive the response; weave normals still shade the material.
 float kAmbient=dot(irradiance+iblIrradiance,vec3(.2126,.7152,.0722));
 float kVisible=max(0.0,kIlluminance+kAmbient);
-// No flat on/off plateau: a long, faint tail preserves a gentle transition,
-// while strong visible glow is reserved for the deepest darkness.
-float kDark=exp(-kVisible/.055)*(1.0-smoothstep(.18,.45,kVisible))/(1.0+4.0*uGlowSceneLevel*uGlowSceneLevel);
+// A broad, low-brightness shoulder suppresses ordinary folds. Scene light
+// provides a conservative floor, so a lit garment does not glow in every crease.
+// This is spatial visibility, independent of Afterglow's charge/decay clock.
+float kDarkness=1.0-smoothstep(0.0,.09,kVisible+.012*uGlowSceneLevel);
+float kDark=exp(-kVisible/.035)*kDarkness*kDarkness*kDarkness/(1.0+12.0*uGlowSceneLevel*uGlowSceneLevel);
 // Scattered room UV keeps the fluorescence alive in directional UV shadows.
 // Weak shape fill barely suppresses it; strong ordinary light reduces contrast.
 // UV strength is calibrated to half the previous output at a 100% slider.
@@ -538,7 +540,7 @@ function patchFabricMaterial(mat){
     sh.fragmentShader = sh.fragmentShader.replace('#include <roughnessmap_fragment>',
       '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, clamp(uArtRough, 0.02, 1.0), clamp(kArtworkMask, 0.0, 1.0));');
   };
-  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v73-afterglow';
+  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v76-glow';
   mat.needsUpdate=true;
   return mat;
 }
