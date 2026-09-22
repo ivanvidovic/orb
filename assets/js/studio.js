@@ -1,3 +1,4 @@
+import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE} from './sleeve-camera.js?v=71';
 import {applyPrintTexture,hasPrintTexture,capturePrintTone,pixelateArtwork} from './print-texture.js?v=70';
 import {hasDirectory} from './folder-import.js?v=58';
 import {decodeArtworkImage} from './artwork-decode.js?v=45';
@@ -967,6 +968,9 @@ async function loadCatalog(id){
     document.getElementById('modelName').dataset.triangles=res.tris;
     garment.rotation.y=0;
     requestArtworkRender();syncArtworkUi();applyLook();if(initialLoad)setView('angle');else if(state.view==='neck'||state.view?.startsWith('placement:'))setView(state.view);
+    if(inspectionFocus?.slot&&SLEEVE_CAMERA_PIVOTS[id]?.[inspectionFocus.slot]){
+      inspectionFocus.point.fromArray(cameraPlacementPoint(inspectionFocus.slot));inspectionFocus.point.y-=.350;updateInspectionFocus();
+    }
     modelStatus.textContent='';artStatus('');workspace?.notify();
     return true;
   }catch(error){
@@ -1409,7 +1413,7 @@ canvas.addEventListener('keydown',e=>{
 let inspectionFocus=null;
 const garmentCenter=new THREE.Vector3(0,.02,0);
 function zoomGarment(delta){
-  state.tr=clamp(state.tr+delta,inspectionFocus?.08:.38,2.6);
+  state.tr=clamp(state.tr+delta,inspectionFocus?(SLEEVE_CAMERA_CLEARANCE[activeGarmentId]?.[inspectionFocus.slot]??.08):.38,2.6);
   updateInspectionFocus();
 }
 function updateInspectionFocus(){
@@ -1425,21 +1429,25 @@ function leaveInspection(){
   state.tr=GARMENT_CATALOG.find(g=>g.id===activeGarmentId)?.distance||1.55;
 }
 const VIEWS={front:[0,1.45],angle:[.62,1.30],side:[Math.PI/2,1.45],backangle:[Math.PI-.62,1.30],back:[Math.PI,1.45],detail:[.45,1.35]};
+function cameraPlacementPoint(slot){
+  return SLEEVE_CAMERA_PIVOTS[activeGarmentId]?.[slot]||UV_PROFILES[slot]?.point;
+}
 function viewArtwork(slot){
   const meta=ART_META[slot],q=UV_PROFILES[slot];
   setView(meta.detail&&!isCustom?'placement:'+slot:meta.view);
   if(q&&!isCustom){
-    state.focusTarget.fromArray(q.point);state.focusTarget.y-=.350;
+    state.focusTarget.fromArray(cameraPlacementPoint(slot));state.focusTarget.y-=.350;
     state.tr=meta.side==='Inside'?.48:.60;
-    inspectionFocus={point:state.focusTarget.clone(),distance:state.tr};
+    inspectionFocus={point:state.focusTarget.clone(),distance:state.tr,slot};
   }
 }
 function detailCamera(view){
   const slot=view==='neck'?'necktag':view?.startsWith('placement:')?view.slice(10):null;
   if(!slot||isCustom||!UV_PROFILES[slot])return null;
   const q=UV_PROFILES[slot],meta=ART_META[slot],wrist=slot.endsWith('wrist');
+  const point=cameraPlacementPoint(slot);
   const az=wrist?Math.atan2(q.normal[0],q.normal[2]):meta.side==='Back'?Math.PI:0;
-  return {point:[q.point[0],q.point[1]-.350,q.point[2]],angles:[az,slot==='necktag'?1.12:wrist?1.4:1.35],distance:slot==='necktag'?.48:wrist?.40:slot==='backneck'?.46:slot==='lowerback'?.80:.60};
+  return {point:[point[0],point[1]-.350,point[2]],angles:[az,slot==='necktag'?1.12:wrist?1.4:1.35],distance:slot==='necktag'?.48:wrist?.40:slot==='backneck'?.46:slot==='lowerback'?.80:.60};
 }
 function setView(v){
   const placement=v?.startsWith('placement:')?v.slice(10):null;
@@ -1454,12 +1462,16 @@ function setView(v){
     state.focusTarget.fromArray(shot.point);
     state.taz=az+Math.round((state.taz-az)/(Math.PI*2))*Math.PI*2;
     state.tel=el;state.tr=shot.distance;
-    inspectionFocus={point:state.focusTarget.clone(),distance:state.tr};return;
+    inspectionFocus={point:state.focusTarget.clone(),distance:state.tr,slot:placement};return;
   }
   const special={insideleft:[-.1,1.45],insideright:[.1,1.45],neck:[0,1.12]};
   const [az,el]=special[v]||(v==='left'?[Math.PI/2,1.3]:v==='right'?[-Math.PI/2,1.3]:VIEWS[v]);
   state.taz=az+Math.round((state.taz-az)/(Math.PI*2))*Math.PI*2;
   state.tel=el;
+  if(!isCustom&&(v==='left'||v==='right')){
+    const slot=v==='left'?'leftshoulder':'rightshoulder',point=cameraPlacementPoint(slot);
+    if(point){state.focusTarget.fromArray(point);state.focusTarget.y-=.350;state.tr=.60;inspectionFocus={point:state.focusTarget.clone(),distance:state.tr,slot};}
+  }
   if(v==='neck'){
     state.focusTarget.fromArray(UV_PROFILES.necktag.point);state.focusTarget.y-=.350;state.tr=.48;
     inspectionFocus={point:state.focusTarget.clone(),distance:state.tr};
