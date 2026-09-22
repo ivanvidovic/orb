@@ -2394,7 +2394,7 @@ function createLayerRow(layer){
   const wrap=document.createElement('div');wrap.className='art-layer';wrap.dataset.layerId=layer.id;
   wrap.innerHTML=`<div class="art-slot" data-art-card="${layer.id}" data-slot="${layer.slot}">
     <button class="art-drag" type="button" title="Drag to reorder; use ↑ or ↓ with the keyboard"><svg viewBox="0 0 12 20" aria-hidden="true"><path d="M3 4h.01M9 4h.01M3 10h.01M9 10h.01M3 16h.01M9 16h.01"/></svg></button>
-    <button class="art-thumb" type="button" aria-controls="artEditor"><img alt="" draggable="false"></button>
+    <button class="art-thumb" type="button"><img alt="" draggable="false"></button>
     <div class="art-labels">
       <button class="art-select" type="button" aria-controls="artEditor" aria-expanded="false"><span class="art-layer-name"></span><span class="art-layer-placement"></span></button>
       <button class="art-rename" type="button" title="Rename layer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15z"/></svg></button>
@@ -2416,7 +2416,10 @@ function createLayerRow(layer){
     }
   });
   nameInput.addEventListener('blur',()=>{if(renamingArtId===layer.id)finishArtworkRename(true);});
-  wrap.querySelector('.art-thumb').onclick=toggle;
+  wrap.querySelector('.art-thumb').onclick=()=>{
+    const entry=artEntry(layer.id);if(artLoading||designLocked||modelLoading||!entry)return;
+    viewArtwork(entry.slot);
+  };
   wrap.querySelector('.art-remove').onclick=()=>clearArtwork(layer.id);
   wrap.querySelector('.art-eye').onclick=()=>{
     const entry=artEntry(layer.id);if(artLoading||!entry)return;
@@ -2459,10 +2462,13 @@ function syncArtworkUi(){
     row.querySelector('.art-layer-placement').textContent=label+(isCustom&&!layer.anchor?' · Set position':!isCustom&&!UV_PROFILES[layer.slot]?' · Hoodie only':'');
     const img=row.querySelector('img');if(img.getAttribute('src')!==layer.thumb)img.src=layer.thumb;
     for(const button of row.querySelectorAll('button'))button.disabled=artLoading;
-    for(const button of row.querySelectorAll('.art-select,.art-thumb')){
+    for(const button of row.querySelectorAll('.art-select')){
       button.setAttribute('aria-expanded',String(selected));
       button.setAttribute('aria-label',`Edit ${layer.name}, ${label}`);
     }
+    const thumbnail=row.querySelector('.art-thumb');
+    thumbnail.setAttribute('aria-label',`View ${layer.name} on garment, ${label}`);
+    thumbnail.title=`View on garment · ${layer.name}`;
     row.querySelector('.art-drag').setAttribute('aria-label',`Reorder ${layer.name}, ${label}`);
     row.querySelector('.art-remove').setAttribute('aria-label',`Remove ${layer.name}, ${label}`);
     const eye=row.querySelector('.art-eye');
