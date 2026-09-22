@@ -39,6 +39,6 @@ window.BRAND = {
 </g>
 </svg>
 `),
-  light: {"paper": "#F4F4F4", "ink": "#181818", "grid": "#E0E0E0", "accent": "#333333"},
+  light: {"paper": "#DBD9D3", "wash": "#D2D0CA", "ink": "#2E2D29", "grid": "#C5C3BC", "accent": "#45443F"},
   dark: {"paper": "#1C1C1C", "ink": "#F2F2F2", "grid": "#2C2C2C", "accent": "#C6C6C6"}
 };

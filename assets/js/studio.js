@@ -2,9 +2,9 @@ import {decodeArtworkImage} from './artwork-decode.js?v=45';
 import {createCityTraffic} from './city-night.js?v=43';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=41';
 import {solidCoverageLut} from './artwork-export.js?v=45';
-import {installWorkspace} from './workspace.js?v=44';
+import {installWorkspace} from './workspace.js?v=48';
 import {installExports} from './presentation-export.js?v=45';
-import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=44';
+import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=48';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
 import {installColorPicker} from './color-picker.js?v=36';
 import {installSliderControls,RESET_ICON} from './controls.js?v=44';
@@ -121,13 +121,15 @@ const environmentTargets=new WeakMap();
 function makeEnvironment(kind,colors=NIGHT_DEFAULTS){
   const W=256,H=128,data=new Float32Array(W*H*4);
   const green=new THREE.Color(colors.green).toArray(),magenta=new THREE.Color(colors.magenta).toArray();
-  const boxes=kind==='studio'?[[-.8,.65,.45,.5,2.8,[1,1,1]],[2.25,.3,.22,.65,1.8,[1,1,1]],[.9,1.2,.8,.22,1.2,[1,1,1]]]
+  const boxes=kind==='softbox'?[[-.8,.55,1.0,.8,.55,[1,1,1]],[.8,.55,1.0,.8,.55,[1,1,1]],[2.35,.55,1.0,.8,.55,[1,1,1]],[-2.35,.55,1.0,.8,.55,[1,1,1]]]
+    :kind==='studio'?[[-.8,.65,.45,.5,2.8,[1,1,1]],[2.25,.3,.22,.65,1.8,[1,1,1]],[.9,1.2,.8,.22,1.2,[1,1,1]]]
     :kind==='day'?[[-.8,.85,.16,.16,5,[1,.91,.75]]]
     :kind==='uv'?[[-.8,.65,.5,.5,.16,[.32,.12,1]]]
     :[[-.9,.4,.22,.6,.55,green],[1.1,.25,.2,.55,.4,magenta],[2.8,.4,.35,.3,.35,magenta]];
   for(let y=0;y<H;y++)for(let x=0;x<W;x++){
     const az=x/W*Math.PI*2-Math.PI,el=Math.PI/2-y/H*Math.PI,sky=Math.max(0,Math.sin(el));
-    const base=kind==='studio'?[.08+.12*sky,.08+.12*sky,.08+.12*sky]
+    const base=kind==='softbox'?[.24+.06*sky,.24+.06*sky,.24+.06*sky]
+      :kind==='studio'?[.08+.12*sky,.08+.12*sky,.08+.12*sky]
       :kind==='day'?[.14+.31*sky,.15+.43*sky,.17+.65*sky]:kind==='uv'?[.001,.001,.004]:[.006+.008*sky,.008+.01*sky,.012+.015*sky];
     for(const [a,e,w,h,power,color] of boxes){
       const distance=Math.atan2(Math.sin(az-a),Math.cos(az-a));
@@ -141,7 +143,7 @@ function makeEnvironment(kind,colors=NIGHT_DEFAULTS){
   const pm=new THREE.PMREMGenerator(renderer),target=pm.fromEquirectangular(t),env=target.texture;
   environmentTargets.set(env,target);pm.dispose();t.dispose();return env;
 }
-const environments={studio:makeEnvironment('studio'),day:makeEnvironment('day'),night:makeEnvironment('night'),uv:makeEnvironment('uv')};
+const environments={softbox:makeEnvironment('softbox'),studio:makeEnvironment('studio'),day:makeEnvironment('day'),night:makeEnvironment('night'),uv:makeEnvironment('uv')};
 scene.environment=environments.studio;
 const lightRig=new THREE.Group();scene.add(lightRig);
 const cityTraffic=createCityTraffic(THREE,scene);
@@ -172,6 +174,11 @@ function updateShadowMap(){
 }
 
 const LIGHT_PRESETS={
+  softbox:{label:'Softbox',description:'Even neutral light with gentle highlights and filled shadows for reviewing artwork.',
+    exposure:.98,hemi:.85,hemiSky:'#ffffff',hemiGround:'#dedede',
+    key:.65,keyColor:'#ffffff',keyPos:[-1.65,1.85,1.35],
+    fill:.60,fillColor:'#ffffff',fillPos:[1.65,1.85,1.35],
+    rim:.55,rimColor:'#ffffff',rimPos:[0,1.6,-1.8]},
   studio:{label:'Studio',description:'Soft neutral studio light for judging fabric and print.',
     exposure:.98,hemi:.32,hemiSky:'#ffffff',hemiGround:'#c2bdb6',
     key:2.05,keyColor:'#fff5e9',keyPos:[-1.65,1.85,1.35],
@@ -215,7 +222,7 @@ function applyLightingPreset(){
   syncFabricColors();
   const p=LIGHT_PRESETS[state.light]||LIGHT_PRESETS.studio,power=state.lightPower/100*(state.light==='uv'?8:1);
   renderer.toneMappingExposure=p.exposure;scene.environment=environments[state.light]||environments.studio;
-  lightEnvironmentPower.value=power*(state.light==='studio'?.55:state.light==='day'?.65:state.light==='night'?.1125:.45);
+  lightEnvironmentPower.value=power*(state.light==='softbox'?.70:state.light==='studio'?.55:state.light==='day'?.65:state.light==='night'?.1125:.45);
   effectUniforms.uBlackLight.value=state.light==='uv'?power:0;
   effectUniforms.uGlowSceneLevel.value=power*(.16*p.key+.12*p.fill+.08*p.rim+.75*p.hemi)+.20*lightEnvironmentPower.value;
   document.getElementById('nightControls').hidden=state.light!=='night';
@@ -1041,7 +1048,7 @@ function applyTheme(resetStage=true){
   document.documentElement.dataset.theme=state.theme;
   document.documentElement.style.colorScheme=state.theme;
   const palette=BRAND[state.theme];
-  for(const [property,value] of Object.entries({paper:palette.paper,wash:palette.paper,ink:palette.ink,accent:palette.accent}))document.body.style.setProperty('--'+property,value);
+  for(const [property,value] of Object.entries({paper:palette.paper,wash:palette.wash||palette.paper,ink:palette.ink,accent:palette.accent}))document.body.style.setProperty('--'+property,value);
   if(state.light!=='uv'&&!state.gridColorCustom){state.gridColor=palette.grid;document.getElementById('gridColor').value=state.gridColor;}
   document.querySelectorAll('[data-theme-mode]').forEach(button=>{
     button.setAttribute('aria-pressed',String(button.dataset.themeMode===state.themeMode));
@@ -1547,6 +1554,7 @@ const staticTips=[
   ['#segView button[data-v="detail"]','Camera 6: Detail. Inspect chest fabric and print; zoom out to recenter.'],
 
   ['#segLight button[data-v="studio"]','Soft neutral studio lighting for evaluating fabric and print.'],
+  ['#segLight button[data-v="softbox"]','Even neutral illumination with gentle highlights and filled shadows.'],
   ['#segLight button[data-v="day"]','Warm outdoor daylight with cool sky fill.'],
   ['#segLight button[data-v="night"]','Dim streetlight with passing headlights and occasional red brake lights.'],
   ['#segLight button[data-v="uv"]','Dark violet lighting for checking UV-reactive fabric and artwork.'],

@@ -22,9 +22,9 @@
 }
 
   :root{
-    --paper:#F4F4F4; --wash:#F4F4F4; --ink:#181818; --graphite:rgba(24,24,24,.72);
-    --rule:rgba(24,24,24,.14); --rule-mid:rgba(24,24,24,.28); --rule-strong:rgba(24,24,24,.56);
-    --accent:#333333;--on-accent:#FFFFFF;
+    --paper:#DBD9D3; --wash:#D2D0CA; --ink:#2E2D29; --graphite:rgba(46,45,41,.78);
+    --rule:rgba(46,45,41,.16); --rule-mid:rgba(46,45,41,.30); --rule-strong:rgba(46,45,41,.56);
+    --accent:#45443F;--on-accent:#F1EFE9;
     --pad:22px; --track:.22em;
     --sans:"Rubik",-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
   }
@@ -829,3 +829,5 @@ body.present .stage-reset,body.present .stage-help{display:none}
 
 #panel #nightControls{align-items:center;margin:8px 0}
 #nightTraffic{font:inherit;min-width:90px;padding:5px 8px}
+
+#segLight button:last-child:nth-child(odd){grid-column:1 / -1}
