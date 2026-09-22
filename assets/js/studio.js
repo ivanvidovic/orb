@@ -2492,11 +2492,25 @@ function prepareArtworkSource(img){
   const cx=cv.getContext('2d');cx.imageSmoothingEnabled=scale<1;cx.imageSmoothingQuality='high';
   cx.drawImage(img,0,0,cv.width,cv.height);return cv;
 }
+function detectSolidInvert(source){
+  // Only confidently dark artwork with meaningful transparency gets inverted.
+  // Ignore invisible RGB and weight antialiased edges by their coverage.
+  const data=source.getContext('2d').getImageData(0,0,source.width,source.height).data;
+  let transparent=0,coverage=0,dark=0;
+  for(let i=0;i<data.length;i+=4){
+    const alpha=data[i+3];
+    if(alpha===0){transparent++;continue;}
+    coverage+=alpha;
+    if(data[i]*.299+data[i+1]*.587+data[i+2]*.114<=64)dark+=alpha;
+  }
+  return coverage>0&&transparent/(data.length/4)>=.01&&dark/coverage>=.90;
+}
 function makeArtworkEntry(img,name){
   const source=prepareArtworkSource(img),thumb=document.createElement('canvas');thumb.width=72;thumb.height=72;
   const scale=Math.min(72/source.width,72/source.height);
   thumb.getContext('2d').drawImage(source,(72-source.width*scale)/2,(72-source.height*scale)/2,source.width*scale,source.height*scale);
-  return {source,sourceName:String(name||'Artwork'),name:suggestArtworkName(name),mode:'original',inkCustom:null,solidCutoff:12,solidSoftness:65,solidInvert:false,fit:false,thumb:thumb.toDataURL('image/png')};
+  const solidInvert=detectSolidInvert(source);
+  return {source,sourceName:String(name||'Artwork'),name:suggestArtworkName(name),mode:'original',inkCustom:null,solidCutoff:12,solidSoftness:65,solidInvert,defaultSolidInvert:solidInvert,fit:false,thumb:thumb.toDataURL('image/png')};
 }
 function fitVisibleArtwork(source){
   const w=source.width,h=source.height,d=source.getContext('2d').getImageData(0,0,w,h).data;
