@@ -1,12 +1,12 @@
 import {createCityTraffic} from './city-night.js?v=43';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=41';
 import {solidCoverageLut} from './artwork-export.js?v=38';
-import {installWorkspace} from './workspace.js?v=43';
+import {installWorkspace} from './workspace.js?v=44';
 import {installExports} from './presentation-export.js?v=40';
-import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=43';
+import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=44';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
 import {installColorPicker} from './color-picker.js?v=36';
-import {installSliderControls,RESET_ICON} from './controls.js?v=34';
+import {installSliderControls,RESET_ICON} from './controls.js?v=44';
 import {installColorActions} from './color-actions.js?v=34';
 let colorPicker=null,colorActions=null,workspace=null;
 let renderSuspended=false,designLocked=false,historyRestoring=false,customModelFile=null,customFlipped=false;
@@ -1742,11 +1742,11 @@ for(const button of document.querySelectorAll('[data-art-color]'))button.onclick
 
 segment('segWind',v=>{state.wind=+v;});
 function syncLightPowerControl(){
-  const uv=state.light==='uv',range=document.getElementById('lightPower'),number=document.getElementById('lightPowerValue');
-  range.dataset.expandRange=String(uv);range.dataset.baseMax='200';
-  range.max=String(uv?Math.max(200,Math.ceil(state.lightPower/100)*100+100):140);
+  const range=document.getElementById('lightPower'),number=document.getElementById('lightPowerValue');
+  range.dataset.expandRange='true';range.dataset.baseMax='200';
+  range.max=String(Math.min(Number.MAX_VALUE,Math.max(200,Math.ceil(state.lightPower/100)*100+100)));
   range.value=state.lightPower;number.value=state.lightPower;
-  if(uv)number.removeAttribute('max');else number.max='140';
+  number.removeAttribute('max');
 }
 segment('segLight',v=>{
   state.light=v;state.lightPower=v==='uv'?state.blackLightPower:v==='night'?state.nightLightPower:state.regularLightPower;

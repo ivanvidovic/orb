@@ -25,7 +25,7 @@ export function installSliderControls(defaultArtworkValue){
       number.addEventListener('change',()=>{number.value=range.value;range.dispatchEvent(new Event('change',{bubbles:true}));});
     }
     number.addEventListener('blur',()=>number.value=range.value);
-    number.min=range.min;number.max=range.max;number.step=range.step||'1';number.value=range.value;
+    number.min=range.min;if(range.dataset.expandRange==='true')number.removeAttribute('max');else number.max=range.max;number.step=range.step||'1';number.value=range.value;
     number.inputMode=Number(number.step)<1?'decimal':'numeric';
     const label=unitLabels[range.id]||row.querySelector('label')?.childNodes[0]?.textContent?.trim()||range.getAttribute('aria-label')||range.id;
     number.setAttribute('aria-label',label+' value');range.setAttribute('aria-label',label);
