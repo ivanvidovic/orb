@@ -1,12 +1,12 @@
-import {applyPrintTexture,hasPrintTexture} from './print-texture.js?v=66';
+import {applyPrintTexture,hasPrintTexture,capturePrintTone} from './print-texture.js?v=68';
 import {hasDirectory} from './folder-import.js?v=58';
 import {decodeArtworkImage} from './artwork-decode.js?v=45';
 import {createCityTraffic} from './city-night.js?v=43';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=41';
-import {solidCoverageLut} from './artwork-export.js?v=66';
-import {installWorkspace} from './workspace.js?v=66';
-import {installExports} from './presentation-export.js?v=66';
-import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=66';
+import {solidCoverageLut} from './artwork-export.js?v=68';
+import {installWorkspace} from './workspace.js?v=68';
+import {installExports} from './presentation-export.js?v=68';
+import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=68';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
 import {installColorPicker} from './color-picker.js?v=36';
 import {installSliderControls,RESET_ICON} from './controls.js?v=44';
@@ -1720,10 +1720,11 @@ function syncInkUi(){
     const input=document.getElementById(id);input.value=entry?.[key]??fallback;input.disabled=disabled;
     const number=document.getElementById(id+'Value');if(number){number.value=input.value;number.disabled=disabled;}
   }
-  for(const [id,fallback] of [['printPattern','none'],['printSize',40],['printAngle',45],['printStrength',100]]){
+  for(const [id,fallback] of [['printPattern','none'],['printSize',40],['printAngle',45],['printMarkSize',50],['printTone',100],['printErosion',0]]){
     const input=document.getElementById(id);input.value=entry?.[id]??fallback;input.disabled=disabled;
     const number=document.getElementById(id+'Value');if(number){number.value=input.value;number.disabled=disabled;}
   }
+  document.querySelector('label[for=printMarkSize]').textContent=entry?.printPattern==='lines'?'Line width':entry?.printPattern==='grain'?'Grain size':'Dot size';
   document.getElementById('printTextureControls').hidden=!entry||!hasPrintTexture({...entry,printStrength:100});
   document.getElementById('solidInvert').checked=!!entry?.solidInvert;
   document.getElementById('solidInvert').disabled=disabled;
@@ -2051,7 +2052,7 @@ function resetArtworkMaps(){
   requestArtworkRender();
 }
 function artworkSourceKey(layer){
-  return `${layer.printPattern||'none'}/${layer.printSize??40}/${layer.printAngle??45}/${layer.printStrength??100}/${layer.fit?1:0}/${layer.mode==='ink'?`ink/${layer.solidCutoff??12}/${layer.solidSoftness??65}/${!!layer.solidInvert}`:'color'}`;
+  return `${layer.printVersion??1}/${layer.printMarkSize??50}/${layer.printTone??100}/${layer.printErosion??0}/${layer.printPattern||'none'}/${layer.printSize??40}/${layer.printAngle??45}/${layer.printStrength??100}/${layer.fit?1:0}/${layer.mode==='ink'?`ink/${layer.solidCutoff??12}/${layer.solidSoftness??65}/${!!layer.solidInvert}`:'color'}`;
 }
 function artworkSource(layer){
   let cached=artworkSources.get(layer.source);
@@ -2588,7 +2589,7 @@ function addArtworkEntries(slot,entries,action='add',targetId=null){
   });
   if(action==='replace'&&target){
     added[0].id=target.id;added[0].placement={...target.placement};added[0].visible=target.visible;
-    for(const prop of ['placementSpace','fit','mode','defaultMode','inkCustom','tintCustom','solidCutoff','solidSoftness','solidInvert','defaultSolidInvert','printPattern','printSize','printAngle','printStrength','glow','uvReactive','emission'])added[0][prop]=target[prop];
+    for(const prop of ['placementSpace','fit','mode','defaultMode','inkCustom','tintCustom','solidCutoff','solidSoftness','solidInvert','defaultSolidInvert','printPattern','printSize','printAngle','printStrength','printVersion','printMarkSize','printTone','printErosion','glow','uvReactive','emission'])added[0][prop]=target[prop];
     if(target.nameEdited){added[0].name=target.name;added[0].nameEdited=true;}
     artLayers.splice(index,1,...added);
   }else artLayers.splice(index<0?0:index,0,...added);
@@ -2722,14 +2723,14 @@ document.getElementById('artEmission').addEventListener('input',e=>{
 for(const event of ['change','blur'])document.getElementById('artEmission').addEventListener(event,()=>emissionEditingId=null);
 let printEditing=null;
 document.getElementById('printPattern').onchange=e=>{
-  const entry=artEntry();if(!entry||artLoading)return;recordArtUndo();entry.printPattern=e.target.value;
+  const entry=artEntry();if(!entry||artLoading)return;recordArtUndo();entry.printPattern=e.target.value;entry.printVersion=2;
   requestArtworkRender(entry);syncInkUi();workspace?.notify();
 };
-for(const id of ['printSize','printAngle','printStrength']){
+for(const id of ['printSize','printAngle','printMarkSize','printTone','printErosion']){
   const input=document.getElementById(id);
   input.addEventListener('input',()=>{const entry=artEntry();if(!entry||artLoading)return;
     if(printEditing!==input){recordArtUndo();printEditing=input;}
-    entry[id]=Number(input.value);requestArtworkRender(entry);workspace?.notify();
+    entry.printVersion=2;entry[id]=Number(input.value);requestArtworkRender(entry);workspace?.notify();
   });
   for(const event of ['change','blur'])input.addEventListener(event,()=>printEditing=null);
 }
@@ -2787,13 +2788,13 @@ function makeArtworkMask(img,settings={}){
   const out=document.createElement('canvas');out.width=srcW+pad*2;out.height=srcH+pad*2;
   const cx=out.getContext('2d',{willReadFrequently:true});cx.drawImage(img,pad,pad);
   const im=cx.getImageData(pad,pad,srcW,srcH),d=im.data;
-  const coverage=solidCoverageLut(settings);
+  const sourceTone=capturePrintTone(d,settings),coverage=solidCoverageLut(settings);
   for(let i=0;i<d.length;i+=4){
     const brightness=Math.round(d[i]*.299+d[i+1]*.587+d[i+2]*.114);
     d[i+3]=Math.round(d[i+3]*coverage[brightness]);
     d[i]=255;d[i+1]=255;d[i+2]=255;
   }
-  applyPrintTexture(d,srcW,srcH,settings,img.orbCrop);
+  applyPrintTexture(d,srcW,srcH,settings,{...img.orbCrop,sourceTone});
   cx.putImageData(im,pad,pad);return out;
 }
 function texFromArtwork(cv,original=false){
@@ -3326,7 +3327,7 @@ function installGroupResets(){
           applyGridScale(35);applyGridCharSize(45);applyGridStroke(.5);break;
         case 'artwork':{
           const entry=artEntry();if(!entry||artLoading)return;recordArtUndo();
-          Object.assign(entry,{mode:entry.defaultMode||'original',inkCustom:null,tintCustom:null,solidCutoff:12,solidSoftness:65,solidInvert:!!entry.defaultSolidInvert,printPattern:'none',printSize:40,printAngle:45,printStrength:100,glow:false,uvReactive:false,emission:100,fit:hasFullSleeve(entry)&&entry.sleevePreset==='full'});
+          Object.assign(entry,{mode:entry.defaultMode||'original',inkCustom:null,tintCustom:null,solidCutoff:12,solidSoftness:65,solidInvert:!!entry.defaultSolidInvert,printPattern:'none',printSize:40,printAngle:45,printStrength:100,printVersion:2,printMarkSize:50,printTone:100,printErosion:0,glow:false,uvReactive:false,emission:100,fit:hasFullSleeve(entry)&&entry.sleevePreset==='full'});
           requestArtworkRender(entry);syncArtworkUi();break;
         }
       }

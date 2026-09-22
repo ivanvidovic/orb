@@ -1,5 +1,5 @@
-import {addArtworkPackage} from './artwork-export.js?v=66';
-import {canvasBlob,downloadBlob,cleanFilename} from './design-format.js?v=66';
+import {addArtworkPackage} from './artwork-export.js?v=68';
+import {canvasBlob,downloadBlob,cleanFilename} from './design-format.js?v=68';
 const $=id=>document.getElementById(id);
 const VIEW_NAMES={front:'Front',angle:'Front three-quarter',side:'Left side',right:'Right side',backangle:'Back three-quarter',back:'Back',detail:'Detail'};
 const turn=()=>new Promise(resolve=>requestAnimationFrame(resolve));

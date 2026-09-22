@@ -2,23 +2,28 @@
 (()=>{
   const overlay=document.getElementById('startup'),ring=overlay.querySelector('.startup-progress');
   const meter=document.getElementById('startupProgress'),status=document.getElementById('startupStatus'),retry=document.getElementById('startupRetry');
+  const ns='http://www.w3.org/2000/svg',svg=overlay.querySelector('svg');
+  const mask=document.createElementNS(ns,'mask');mask.id='startupProgressMask';mask.setAttribute('maskUnits','userSpaceOnUse');mask.setAttribute('x','0');mask.setAttribute('y','0');mask.setAttribute('width','1000');mask.setAttribute('height','1000');
+  const maskRing=ring.cloneNode(false);maskRing.removeAttribute('class');maskRing.setAttribute('stroke','#fff');maskRing.setAttribute('stroke-width','8');maskRing.setAttribute('stroke-dasharray','100');maskRing.style.strokeDashoffset='100';mask.append(maskRing);svg.querySelector('defs').append(mask);
+  const glintGroup=document.createElementNS(ns,'g');glintGroup.setAttribute('mask','url(#startupProgressMask)');
+  const glint=ring.cloneNode(false);glint.setAttribute('class','startup-glint');glintGroup.append(glint);svg.append(glintGroup);
   let active=true,finished=false,value=0,displayed=0,progressToken=0,radius=0,revealToken=0;
   const track=overlay.querySelector('.startup-track'),aperture=overlay.querySelector('#startupReveal circle');
-  function setRadius(value){radius=value;for(const circle of [track,ring,aperture])circle.setAttribute('r',String(value));}
+  function setRadius(value){radius=value;for(const circle of [track,ring,aperture,maskRing,glint])circle.setAttribute('r',String(value));}
   function revealTo(target,duration,exiting=false){
     const token=++revealToken,from=radius,start=performance.now();
     if(matchMedia('(prefers-reduced-motion: reduce)').matches){setRadius(target);return Promise.resolve();}
     return new Promise(resolve=>{
       function frame(now){
         if(token!==revealToken){resolve();return;}
-        const t=Math.max(0,Math.min(1,(now-start)/duration)),ease=exiting?t*t*t:1-Math.pow(1-t,3);
+        const t=Math.max(0,Math.min(1,(now-start)/duration)),ease=exiting?t*t*t:t*t*(3-2*t);
         setRadius(from+(target-from)*ease);
         if(t<1)requestAnimationFrame(frame);else resolve();
       }
       requestAnimationFrame(frame);
     });
   }
-  revealTo(460,560);
+  const opening=revealTo(460,2400);
   const locked=new Set();
   function lock(){
     if(!active)return;
@@ -32,19 +37,22 @@
   // A slow connection stays recoverable, without pretending it failed.
   const slow=setTimeout(()=>{if(active&&!finished)retry.hidden=false;},30000);
   const phase=text=>{if(status.textContent!==text)status.textContent=text;};
-  function progress(next,text){
+  async function progress(next,text){
     if(!active||finished||!Number.isFinite(next))return Promise.resolve();
     const target=Math.max(value,Math.min(1,next));
     if(text)phase(text);
     if(target===value)return Promise.resolve();
     value=target;
-    const token=++progressToken,from=displayed,start=performance.now();
-    const paint=amount=>{displayed=amount;ring.style.strokeDashoffset=String(100-amount*100);meter.setAttribute('aria-valuenow',String(Math.round(amount*100)));};
+    const token=++progressToken;
+    await opening;
+    if(token!==progressToken)return;
+    const from=displayed,start=performance.now();
+    const paint=amount=>{displayed=amount;ring.style.strokeDashoffset=maskRing.style.strokeDashoffset=String(100-amount*100);meter.setAttribute('aria-valuenow',String(Math.round(amount*100)));};
     if(matchMedia('(prefers-reduced-motion: reduce)').matches){paint(target);return Promise.resolve();}
     return new Promise(resolve=>{
       function frame(now){
         if(token!==progressToken){resolve();return;}
-        const t=Math.max(0,Math.min(1,(now-start)/500));
+        const t=Math.max(0,Math.min(1,(now-start)/850));
         paint(from+(target-from)*(1-Math.pow(1-t,3)));
         if(t<1)requestAnimationFrame(frame);else resolve();
       }
