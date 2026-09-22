@@ -1,3 +1,4 @@
+import {addArtworkPackage} from './artwork-export.js?v=38';
 import {canvasBlob,downloadBlob,cleanFilename} from './design-format.js?v=36';
 const $=id=>document.getElementById(id);
 const VIEW_NAMES={front:'Front',angle:'Front three-quarter',side:'Left side',right:'Right side',backangle:'Back three-quarter',back:'Back',detail:'Detail'};
@@ -95,6 +96,8 @@ export function installExports(api){
       session.finish();session=null;
       if($('exportSheet').checked){message('Building presentation sheet…');await document.fonts.ready;const sheet=await presentationSheet(images,options);check();zip.file(name+'_Presentation.png',await sheet.arrayBuffer());}
       if(design)zip.file(name+'.orb',await design.arrayBuffer());
+      if($('exportArtwork').checked){const data=await api.workspace.artworkData();check();await addArtworkPackage(zip,data,api.artworkColor,{check,message});}
+
       message('Packaging PNGs…');const blob=await zip.generateAsync({type:'blob',compression:'STORE'},check);check();downloadBlob(blob,name+'_Presentation.zip');message(`${views.length} views exported${$('exportSheet').checked?' with presentation sheet':''}.`);
     }catch(error){message(error.message||'The export could not finish. Try a smaller image size.');}
     finally{session?.finish();working=false;api.lock(false);$('exportConfirm').disabled=false;$('exportCancel').hidden=true;for(const el of $('exportDialog').querySelectorAll('input,select'))el.disabled=false;}

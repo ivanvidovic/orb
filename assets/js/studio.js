@@ -1,5 +1,6 @@
-import {installWorkspace} from './workspace.js?v=37';
-import {installExports} from './presentation-export.js?v=36';
+import {solidCoverageLut} from './artwork-export.js?v=38';
+import {installWorkspace} from './workspace.js?v=38';
+import {installExports} from './presentation-export.js?v=38';
 import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=37';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=23';
 import {installColorPicker} from './color-picker.js?v=36';
@@ -2669,14 +2670,7 @@ function makeArtworkMask(img,settings={}){
   const out=document.createElement('canvas');out.width=srcW+pad*2;out.height=srcH+pad*2;
   const cx=out.getContext('2d',{willReadFrequently:true});cx.drawImage(img,pad,pad);
   const im=cx.getImageData(pad,pad,srcW,srcH),d=im.data;
-  const cutoff=(settings.solidCutoff??12)/100;
-  const width=Math.max(.0001,(1-cutoff)*(settings.solidSoftness??65)/100);
-  const coverage=new Float32Array(256);
-  for(let i=0;i<256;i++){
-    const level=settings.solidInvert?1-i/255:i/255;
-    const t=Math.max(0,Math.min(1,(level-cutoff)/width));
-    coverage[i]=t*t*(3-2*t);
-  }
+  const coverage=solidCoverageLut(settings);
   for(let i=0;i<d.length;i+=4){
     const brightness=Math.round(d[i]*.299+d[i+1]*.587+d[i+2]*.114);
     d[i+3]=Math.round(d[i+3]*coverage[brightness]);
@@ -3349,7 +3343,7 @@ for(const button of document.querySelectorAll('#segView button'))button.textCont
 for(const button of document.querySelectorAll('#segWind button'))button.textContent=['Still','Gentle','Breezy'][Number(button.dataset.v)];
 for(const button of document.querySelectorAll('#segLight button'))button.textContent=LIGHT_PRESETS[button.dataset.v].label;
 installExports({THREE,renderer,scene,camera,garment,presentGarment,shirtShadow,presentShadow,uni,state,current:()=>current,
-  snapshot:designSnapshot,workspace,busy:()=>artLoading||modelLoading||designLocked||workspace.busy,
+  artworkColor:inkHex,snapshot:designSnapshot,workspace,busy:()=>artLoading||modelLoading||designLocked||workspace.busy,
   lock:setWorkspaceLock,pause:value=>renderSuspended=value,flush:flushArtwork,draw,resize,
   updateLights:updateLightLock,updateShadows:()=>{shadowDirty=true;updateShadowMap();},
   backdrop:drawPatternBackground,lighting:()=>({reference:lightReference.clone(),quaternion:lightRig.quaternion.clone()}),

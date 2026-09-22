@@ -148,7 +148,7 @@ export function installWorkspace(api){
   document.addEventListener('click',e=>{if(e.target.closest('#panel,header,#colorPopover'))queueMicrotask(notify);});
   window.addEventListener('beforeunload',e=>{if(ready&&revision!==savedRevision){e.preventDefault();e.returnValue='';}});
   document.addEventListener('visibilitychange',()=>{if(document.hidden)autosave();});
-  return {register,openAssets,notify,makeArchive,dropProject:file=>confirmAction({file}),get busy(){return busy;},
+  return {register,openAssets,notify,makeArchive,artworkData:()=>packageData(false),dropProject:file=>confirmAction({file}),get busy(){return busy;},
     async ready(){
       restoring=true;try{
         const data=await dbGet();if(data){await applyPackage(data,{mergeLibrary:false});status('Restored your last design');}
