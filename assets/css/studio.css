@@ -630,8 +630,6 @@ select,select option,select optgroup{color:var(--ink);background-color:var(--pap
 .emission-controls .light-lock{font-size:11px}
 #artWorkspace .art-editor-head{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;margin-bottom:10px}
 #artWorkspace .art-editor-head button{white-space:nowrap;min-height:32px;font-size:11px;padding:5px 9px;flex:0 0 auto}
-#artWorkspace #artPosition{margin-right:auto}
-#artWorkspace #artClose{margin-left:auto}
 
 /* Release 17: compact groups with adjacent checkbox labels throughout. */
 #panel .appearanceControls{padding:0 0 12px;border-top:0;border-bottom:1px solid var(--rule);gap:8px}
@@ -739,7 +737,7 @@ body.is-sampling,body.is-sampling *{cursor:crosshair!important}body.is-sampling 
 #designStatus{font:10px/1.5 var(--sans);color:var(--graphite);margin:0;min-height:15px}
 .art-heading{flex-wrap:wrap;gap:6px}.art-heading>span{margin-right:auto}
 .art-editor-head{flex-wrap:wrap;gap:6px}
-#artPosition{width:auto!important;height:auto!important;padding:5px 7px!important}
+#artPosition{width:auto!important;height:auto!important}
 .art-shelf{margin:12px 0;border:1px solid var(--rule);border-radius:5px;padding:10px}
 .art-shelf summary{font:500 11px/1.4 var(--sans);cursor:pointer;display:flex;align-items:center;gap:8px}
 .art-shelf summary:before{content:'▸';font-size:10px}.art-shelf[open] summary:before{content:'▾'}

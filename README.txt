@@ -1,1 +1,1 @@
-Apply over v37, preserving folders. Fixes library thumbnail labels to 10px in the sidebar and artwork selection dialog. The HTML update refreshes the CSS cache. No export changes in this patch.
+Apply over v39, preserving folders. Removes old automatic margins from Move and Close, plus a forced Move padding override. index.html refreshes the stylesheet cache. No JavaScript or functionality changes.
