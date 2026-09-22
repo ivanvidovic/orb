@@ -2672,8 +2672,6 @@ for(const [id,prop] of [['artGlow','glow'],['artUV','uvReactive']])document.getE
     if(!entry.inkCustom)entry.inkCustom=inkHex(entry);
   }
   requestArtworkRender(entry);syncArtworkUi();
-  // Use the same persistent picker as the swatch, within this user action.
-  if(entry[prop])colorPicker?.open(document.getElementById('inkCustom'),document.querySelector('[data-art-color="ink"]'));
 };
 let emissionEditingId=null;
 document.getElementById('artEmission').addEventListener('input',e=>{
