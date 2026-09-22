@@ -937,7 +937,7 @@ async function loadCatalog(id){
     document.getElementById('modelName').dataset.garmentId=id;
     document.getElementById('modelName').dataset.triangles=res.tris;
     garment.rotation.y=0;
-    requestArtworkRender();syncArtworkUi();applyLook();if(initialLoad)setView('angle');
+    requestArtworkRender();syncArtworkUi();applyLook();if(initialLoad)setView('angle');else if(state.view==='neck')setView('neck');
     modelStatus.textContent='';artStatus('');workspace?.notify();
     return true;
   }catch(error){
@@ -977,7 +977,7 @@ async function loadModel(file){
     document.getElementById('modelName').dataset.garmentId='custom';
     document.getElementById('fitNote').textContent=`H 74cm · W ${Math.round(res.size.x*100)}cm`;
     document.getElementById('rowFit').hidden=false;
-    modelStatus.textContent='';if(initialLoad)setView('front');return true;
+    modelStatus.textContent='';if(initialLoad)setView('front');else if(state.view==='neck')setView('detail');return true;
   }catch(error){
     console.error(error);
     if(imported){if(res)disposeImported(imported);else disposeModel(imported);}
@@ -1401,9 +1401,8 @@ function viewArtwork(slot){
   }
 }
 function setView(v){
-  state.view=v;
-  document.querySelectorAll('#segView button')
-    .forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===v)));
+  if(v==='neck'&&(isCustom||!UV_PROFILES.necktag))v='detail';
+  state.view=v;syncCameraUi();
   if(!v) return;
   inspectionFocus=null;state.focusTarget.set(0,.02,0);
   state.tr=GARMENT_CATALOG.find(g=>g.id===activeGarmentId)?.distance||1.55;
@@ -1411,6 +1410,10 @@ function setView(v){
   const [az,el]=special[v]||(v==='left'?[Math.PI/2,1.3]:v==='right'?[-Math.PI/2,1.3]:VIEWS[v]);
   state.taz=az+Math.round((state.taz-az)/(Math.PI*2))*Math.PI*2;
   state.tel=el;
+  if(v==='neck'){
+    state.focusTarget.fromArray(UV_PROFILES.necktag.point);state.focusTarget.y-=.350;state.tr=.48;
+    inspectionFocus={point:state.focusTarget.clone(),distance:state.tr};
+  }
   if(v==='detail'){
     state.tr*=.67;state.focusTarget.set(0,.13,0);
     inspectionFocus={point:state.focusTarget.clone(),distance:state.tr};
@@ -1644,7 +1647,7 @@ helpDialog.addEventListener('cancel',()=>hideTooltip());
 
 function segment(id,fn){
   const el=document.getElementById(id);
-  el.querySelectorAll('button').forEach(b=>b.onclick=()=>{
+  el.querySelectorAll('button[data-v]').forEach(b=>b.onclick=()=>{
     el.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
     fn(b.dataset.v);
   });
@@ -1735,6 +1738,29 @@ document.getElementById('selfShadows').addEventListener('change',e=>{
   scene.traverse(o=>{if(o.isMesh)for(const m of Array.isArray(o.material)?o.material:[o.material])m.needsUpdate=true;});
 });
 segment('segView',v=>setView(v));
+const detailToggle=document.getElementById('detailCameraToggle'),detailMenu=document.getElementById('detailCameraMenu');
+function syncCameraUi(){
+  document.querySelectorAll('#segView button[data-v]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===state.view)));
+  const toggle=document.getElementById('detailCameraToggle');
+  toggle.classList.toggle('camera-active',['detail','neck'].includes(state.view));
+  toggle.textContent=state.view==='neck'?'Neck tag':'Detail';
+  document.querySelectorAll('[data-detail-view]').forEach(b=>{
+    b.setAttribute('aria-pressed',String(b.dataset.detailView===state.view));
+    if(b.dataset.detailView==='neck'){b.disabled=isCustom||!UV_PROFILES.necktag;b.title=b.disabled?'Neck tag view is available on the built-in garments':'';}
+  });
+}
+function closeDetailMenu(restore=false){detailMenu.hidden=true;detailToggle.setAttribute('aria-expanded','false');if(restore)detailToggle.focus();}
+function positionDetailMenu(){
+  if(detailMenu.hidden)return;const r=detailToggle.getBoundingClientRect();
+  detailMenu.style.left=Math.max(8,Math.min(r.right-detailMenu.offsetWidth,innerWidth-detailMenu.offsetWidth-8))+'px';
+  detailMenu.style.top=Math.max(8,Math.min(r.bottom+6,innerHeight-detailMenu.offsetHeight-8))+'px';
+}
+detailToggle.onclick=()=>{if(!detailMenu.hidden){closeDetailMenu();return;}syncCameraUi();detailMenu.hidden=false;detailToggle.setAttribute('aria-expanded','true');positionDetailMenu();detailMenu.querySelector('button[aria-pressed="true"]:not(:disabled),button:not(:disabled)').focus();};
+for(const b of detailMenu.querySelectorAll('button'))b.onclick=()=>{setView(b.dataset.detailView);closeDetailMenu(true);};
+document.addEventListener('pointerdown',e=>{if(!detailMenu.hidden&&!detailMenu.contains(e.target)&&!detailToggle.contains(e.target))closeDetailMenu();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!detailMenu.hidden){e.preventDefault();closeDetailMenu(true);}});
+document.addEventListener('focusin',e=>{if(!detailMenu.hidden&&!detailMenu.contains(e.target)&&e.target!==detailToggle)closeDetailMenu();});
+window.addEventListener('resize',positionDetailMenu);window.addEventListener('scroll',positionDetailMenu,true);
 function syncFabricToTheme(){
   const next=GARMENTS.findIndex(g=>g.name===(state.theme==='dark'?'Washed Black':'Chalk'));
   if(next<0||state.blank===next)return;
@@ -2355,6 +2381,7 @@ function createLayerRow(layer){
   return wrap;
 }
 function syncArtworkUi(){
+  syncCameraUi();
   const list=document.getElementById('artLayers'),editor=document.getElementById('artEditor');
   const entry=artEntry();
   // Park the shared form before removing a row so its controls and listeners survive.
@@ -2399,7 +2426,7 @@ function syncArtworkUi(){
   }
   editor.hidden=!entry;
   document.getElementById('artPosition').hidden=!current;
-  document.getElementById('artPosition').textContent=isCustom?'Set position':'Placement';
+  document.getElementById('artPosition').textContent=isCustom?'Set position':'Move';
   for(const id of ['artPosition','artUploadAny'])document.getElementById(id).disabled=artLoading;
   document.getElementById('artUploadAny').textContent=artLoading?'Adding…':'+ Add artwork';
   for(const id of ['artFit','artReset','artAdd','artReplace','artView'])document.getElementById(id).disabled=artLoading||!entry;
@@ -3278,11 +3305,11 @@ function restoreDesignState(snapshot,restoreCamera=true){
   for(const id of ['matchFabricToTheme','dotGrid','selfShadows'])document.getElementById(id).checked=state[id];
   document.getElementById('lightLock').checked=!state.lightLocked;
   document.getElementById('gridType').value=state.gridType;
-  for(const [id,value] of [['segLight',state.light],['segWind',state.wind],['segView',state.view]])for(const b of document.querySelectorAll('#'+id+' button'))b.setAttribute('aria-pressed',String(String(value)===b.dataset.v));
+  for(const [id,value] of [['segLight',state.light],['segWind',state.wind],['segView',state.view]])for(const b of document.querySelectorAll('#'+id+' button[data-v]'))b.setAttribute('aria-pressed',String(String(value)===b.dataset.v));
   for(const k of Object.keys(MOTION_APPLIERS))MOTION_APPLIERS[k](state.inertia[k]);
   document.getElementById('inertiaEnabled').checked=state.inertia.enabled;
   applyGridScale(state.gridScale);applyGridCharSize(state.gridCharSize);applyGridStroke(state.gridStroke);
-  syncGridStyle();syncLightPowerControl();setArtworkGlossiness(state.artGlossiness);syncGarmentSwatches();
+  syncCameraUi();syncGridStyle();syncLightPowerControl();setArtworkGlossiness(state.artGlossiness);syncGarmentSwatches();
   requestArtworkRender();syncArtworkUi();applyLook();applyBackground();
 }
 async function restoreSnapshotGarment(snapshot,model){
@@ -3339,7 +3366,7 @@ workspace=installWorkspace({
 installDesignHistory();
 document.getElementById('resetView').onclick=()=>setView('angle');
 const cameraLabels={front:'Front',angle:'Front ¾',side:'Left',backangle:'Back ¾',back:'Back',detail:'Detail'};
-for(const button of document.querySelectorAll('#segView button'))button.textContent=cameraLabels[button.dataset.v];
+for(const button of document.querySelectorAll('#segView button[data-v]'))button.textContent=cameraLabels[button.dataset.v];
 for(const button of document.querySelectorAll('#segWind button'))button.textContent=['Still','Gentle','Breezy'][Number(button.dataset.v)];
 for(const button of document.querySelectorAll('#segLight button'))button.textContent=LIGHT_PRESETS[button.dataset.v].label;
 installExports({THREE,renderer,scene,camera,garment,presentGarment,shirtShadow,presentShadow,uni,state,current:()=>current,
