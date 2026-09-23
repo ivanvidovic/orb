@@ -9,7 +9,7 @@ import {decodeArtworkImage} from './artwork-decode.js?v=45';
 import {createCityTraffic} from './city-night.js?v=43';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=82';
 import {sharedSurfaceProfiles,fitSurfacePlacements} from './surface-layout.js?v=83';
-import {torsoFrame,torsoDistance} from './garment-framing.js?v=83';
+import {torsoFrame,torsoDistance,previousTorsoFrame} from './garment-framing.js?v=84';
 import {installWorkspace} from './workspace.js?v=82';
 import {installExports} from './presentation-export.js?v=83';
 import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=82';
@@ -847,7 +847,7 @@ function trimCatalogCache(){
 }
 let placementCalibrationPromise=null,surfaceCalibration=null;
 function getPlacementCalibration(){
-  if(!placementCalibrationPromise)placementCalibrationPromise=Promise.all(['placements-63.json','surface-layout-83.json'].map(async file=>{
+  if(!placementCalibrationPromise)placementCalibrationPromise=Promise.all(['placements-63.json','surface-layout-84.json'].map(async file=>{
     const response=await fetch(new URL('../calibration/'+file,import.meta.url));
     if(!response.ok)throw new Error('Placement calibration could not load.');return response.json();
   })).then(([profiles,layout])=>{surfaceCalibration=layout;return Object.fromEntries(Object.entries(profiles).map(([id,native])=>[id,sharedSurfaceProfiles(native,layout,id)]));})
@@ -1451,14 +1451,15 @@ canvas.addEventListener('keydown',e=>{
 let inspectionFocus=null;
 const garmentCenter=new THREE.Vector3(0,.02,0);
 function migrateCameraFrame(saved){
-  if(saved.framing==='torso-v1'||!torsoFrame(activeGarmentId))return saved;
-  const focus=new THREE.Vector3(...saved.focus),oldCenter=new THREE.Vector3(0,.02,0);
-  // Preserve deliberate close-ups. Full views adopt the new torso reference
-  // once, retaining the user's zoom relative to the previous default camera.
+  if(saved.framing==='proportions-v1'||!torsoFrame(activeGarmentId))return saved;
+  const previous=saved.framing==='torso-v1'?previousTorsoFrame(activeGarmentId):null;
+  const focus=new THREE.Vector3(...saved.focus),oldCenter=new THREE.Vector3(...(previous?.center||[0,.02,0]));
+  // Full views adopt the reference proportions once. Deliberate close-ups keep
+  // their exact camera position; only full views share the common body baseline.
   if(focus.distanceTo(oldCenter)>.03)return saved;
-  const oldDistance=GARMENT_CATALOG.find(g=>g.id===activeGarmentId)?.distance||1.55;
+  const oldDistance=previous?.distance||GARMENT_CATALOG.find(g=>g.id===activeGarmentId)?.distance||1.55;
   const ratio=torsoDistance(activeGarmentId)/oldDistance;
-  return {...saved,r:saved.r*ratio,focus:focus.sub(oldCenter).multiplyScalar(ratio).add(garmentCenter).toArray(),framing:'torso-v1'};
+  return {...saved,r:saved.r*ratio,focus:focus.sub(oldCenter).multiplyScalar(ratio).add(garmentCenter).toArray(),framing:'proportions-v1'};
 }
 function zoomGarment(delta){
   state.tr=clamp(state.tr+delta,inspectionFocus?(SLEEVE_CAMERA_CLEARANCE[activeGarmentId]?.[inspectionFocus.slot]??.08):.38,2.6);
@@ -3489,7 +3490,7 @@ function designSnapshot(){
   return {name:document.getElementById('designName').value,garmentId:activeGarmentId,customFlipped,modelFile:customModelFile,modelToken:modelHistoryId(customModelFile),active:activeArtId,
     settings:structuredClone(pick(state,SETTING_FIELDS)),regularBackdrop:regularBackdrop?{...regularBackdrop}:null,
     lighting:{reference:lightReference.toArray(),quaternion:lightRig.quaternion.toArray()},
-    camera:{az:state.taz,el:state.tel,r:state.tr,focus:state.focusTarget.toArray(),view:state.view,framing:'torso-v1'},
+    camera:{az:state.taz,el:state.tel,r:state.tr,focus:state.focusTarget.toArray(),view:state.view,framing:'proportions-v1'},
     layers:artLayers.map(e=>({...e,placement:{...e.placement},anchor:e.anchor?structuredClone(e.anchor):null}))};
 }
 function historyKey(snapshot){return JSON.stringify({name:snapshot.name,garmentId:snapshot.garmentId,customFlipped:snapshot.customFlipped,modelToken:snapshot.modelToken,settings:snapshot.settings,regularBackdrop:snapshot.regularBackdrop,layers:snapshot.layers.map(e=>pick(e,LAYER_FIELDS))});}
