@@ -1,4 +1,4 @@
-import {installExportSummary} from './export-summary.js?v=90';
+import {installExportSummary} from './export-summary.js?v=91';
 import {createExportProgress} from './export-progress.js?v=87';
 import {installPrintLayoutUI} from './print-layout-ui.js?v=90';
 import {addPrintLayouts} from './print-package.js?v=87';

@@ -10,6 +10,7 @@ export function installExportSummary({dialog,working=()=>false}){
   get('exportLayoutWarning').hidden=!issues;get('exportLayoutWarning').textContent=issues?plural(issues,'layout')+' need'+(issues===1?'s':'')+' attention. Open Print artwork to review.':'';
   const graphics=get('exportArtwork').checked,project=get('exportDesign').checked,sheet=get('exportSheet').checked&&views>0;
   const current=!!get('exportBackground').querySelector('input[value="current"]:checked');
+  get('exportGridOption').hidden=!current;
   if(!working()){get('exportGrid').disabled=!current||!views;get('exportSheet').disabled=!views;}
   get('exportMockupTitleCount').textContent=plural(views,'view')+(sheet?' · sheet':'');
   get('exportPrintTitleCount').textContent=[psds?plural(psds,'PSD layout'):null,graphics?'Individual graphics':null,issues?plural(issues,'layout')+' to review':null].filter(Boolean).join(' · ')||'None selected';
