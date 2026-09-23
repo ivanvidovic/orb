@@ -1,5 +1,6 @@
-import {treatmentKey} from './artwork-treatment.js?v=81';
-import {createTreatmentQueue,createTreatmentProcessor} from './artwork-processing.js?v=81';
+import {treatmentKey} from './artwork-treatment.js?v=86';
+import {quadTransform,alphaBounds,flattenTransform,collectSurfaces} from './print-layout.js?v=86';
+import {createTreatmentQueue,createTreatmentProcessor} from './artwork-processing.js?v=86';
 import {hasPrintTexture} from './print-texture.js?v=81';
 import {focusedPanelBounds,layerCustomColor} from './artwork-detail.js?v=78';
 import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=77';
@@ -11,7 +12,7 @@ import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-spa
 import {sharedSurfaceProfiles,fitSurfacePlacements} from './surface-layout.js?v=83';
 import {torsoFrame,torsoDistance,previousTorsoFrame,previewDistance} from './garment-framing.js?v=85';
 import {installWorkspace} from './workspace.js?v=82';
-import {installExports} from './presentation-export.js?v=83';
+import {installExports} from './presentation-export.js?v=86';
 import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=82';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
 import {installColorPicker} from './color-picker.js?v=36';
@@ -2150,7 +2151,7 @@ function treatedArtworkSource(layer){
         let texture=slot.image?.texture;
         if(texture&&slot.image.width===result.width&&slot.image.height===result.height&&slot.image.coverageOnly===result.coverageOnly){texture.image.data=result.data;texture.needsUpdate=true;}
         else{texture?.dispose();texture=textureFromTreatment(result);}
-        slot.image={texture,width:result.width,height:result.height,coverageOnly:result.coverageOnly,mode:settings.mode};
+        slot.image={texture,width:result.width,height:result.height,coverageOnly:result.coverageOnly,mode:settings.mode,crop:result.crop,padding:result.padding};
         slot.completedKey=key;requestArtworkRender(slot.layer);
       },
       error(error){if(slot.requestedKey===key){slot.error=error;artStatus(error.message||'Artwork could not be updated.');}}
@@ -2170,9 +2171,31 @@ function artworkSource(layer){
   const key=artworkSourceKey(layer);
   if(!cached.textures.has(key)){
     const source=layer.fit?(cached.fitted||(cached.fitted=fitVisibleArtwork(layer.source))):layer.source;
-    cached.textures.set(key,{texture:texFromArtwork(source,true),width:source.width,height:source.height});
+    cached.textures.set(key,{texture:texFromArtwork(source,true),width:source.width,height:source.height,crop:source.orbCrop||{fullWidth:source.width,fullHeight:source.height,offsetX:0,offsetY:0},padding:0});
   }
   return cached.textures.get(key);
+}
+async function printLayouts(){
+  const available=artLayers.filter(l=>layerProfile(l));
+  for(const l of available)artworkSource(l);
+  await settleArtworkTreatment();
+  const priority=['front','back','leftshoulder','rightshoulder','necktag','hoodleft','hoodright','hoodleftinside','hoodrightinside',...ART_KEYS];
+  const descriptors=[];
+  for(const layer of available){
+    const q=layerProfile(layer),image=artworkSource(layer);if(!image)continue;
+    const chart=`${q.mesh||1}:${q.island}`;
+    const primary=priority.find(slot=>{const p=UV_PROFILES[slot];return p&&`${p.mesh||1}:${p.island}`===chart;});
+    const basis=primary?UV_PROFILES[primary].basis:q.basis,meta=ART_META[layer.slot];
+    const kind=['front','back'].includes(primary)?'torso':['leftshoulder','rightshoulder'].includes(primary)?'sleeve':primary==='necktag'?'neck':'other';
+    const surfaceName=primary==='front'?'Front':primary==='back'?'Back':primary?ART_META[primary].label:`Panel ${chart}`;
+    const fullLength=hasFullSleeve(layer)&&layer.sleevePreset==='full'?UV_PROFILES[layer.slot]?.full?.printLength:0;
+    const matrix=flattenTransform(quadTransform(layer,q,image,meta,{fullLength,custom:isCustom,offset:placementOffsets(layer,q)}),basis);
+    const tex=image.texture.image,w=image.width,h=image.height,pad=image.padding||0,crop=image.crop||{fullWidth:w,fullHeight:h,offsetX:0,offsetY:0};
+    const data=tex.data||tex.getContext('2d',{willReadFrequently:true}).getImageData(0,0,w,h).data;
+    descriptors.push({id:layer.id,surface:chart,surfaceName,kind,visible:layer.visible,slot:layer.slot,matrix,
+      bounds:alphaBounds(data,w,h,image.coverageOnly?1:4),crop:[crop.offsetX/crop.fullWidth,crop.offsetY/crop.fullHeight,(w-2*pad)/crop.fullWidth,(h-2*pad)/crop.fullHeight],pad:[pad/w,pad/h]});
+  }
+  return {surfaces:collectSurfaces(descriptors),garment:activeGarmentId};
 }
 function trimArtworkSources(){
   const live=new Map(artLayers.map(layer=>[layer.id,layer]));
@@ -3635,7 +3658,7 @@ function handlePresetShortcut(event){
 }
 document.addEventListener('keydown',handlePresetShortcut);
 installExports({THREE,renderer,scene,camera,garment,presentGarment,shirtShadow,presentShadow,uni,state,current:()=>current,
-  artworkColor:inkHex,snapshot:designSnapshot,workspace,busy:()=>artLoading||modelLoading||designLocked||workspace.busy,
+  artworkColor:inkHex,printLayouts,snapshot:designSnapshot,workspace,busy:()=>artLoading||modelLoading||designLocked||workspace.busy,
   lock:setWorkspaceLock,pause:value=>renderSuspended=value,flush:flushArtwork,prepare:settleArtworkTreatment,draw,resize,
   updateLights:updateLightLock,updateShadows:()=>{shadowDirty=true;updateShadowMap();},
   backdrop:drawPatternBackground,lighting:()=>({reference:lightReference.clone(),quaternion:lightRig.quaternion.clone()}),

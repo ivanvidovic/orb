@@ -119,7 +119,7 @@ export function createArtworkTreatment(canvas=()=>document.createElement('canvas
       applyPrintTexture(rgba,w,h,l,crop);
       for(let y=0,j=0;y<h;y++)for(let x=0;x<w;x++,j++)if(ink)output[(y+pad)*width+x+pad]=rgba[j*4+3];else output[j*4+3]=rgba[j*4+3];
     }
-    return {data:output,width,height,coverageOnly:ink};
+    return {data:output,width,height,coverageOnly:ink,crop:{...crop},padding:pad};
   }
   return {render,stats,clear(){source=null;prepared=null;state={};baseKey='';}};
 }

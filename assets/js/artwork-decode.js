@@ -1,6 +1,6 @@
 // Rasterize vector artwork at a deliberate resolution before Image decodes it.
 // The original Blob stays untouched for portable designs and source exports.
-export function sizedSvg(text,longEdge=4096){
+export function sizedSvg(text,longEdge=4096,maxEdge=4096,maxPixels=48000000){
   const doc=new DOMParser().parseFromString(text,'image/svg+xml'),svg=doc.documentElement;
   if(svg.localName!=='svg'||doc.querySelector('parsererror'))throw new Error('Invalid SVG artwork.');
   const box=(svg.getAttribute('viewBox')||'').trim().split(/[\s,]+/).map(Number);
@@ -10,16 +10,16 @@ export function sizedSvg(text,longEdge=4096){
   if(!(w>0&&h>0)){if(!validBox)throw new Error('SVG needs a valid viewBox or width and height.');w=box[2];h=box[3];}
   if(!Number.isFinite(w)||!Number.isFinite(h))throw new Error('Invalid SVG dimensions.');
   if(!validBox)svg.setAttribute('viewBox',`0 0 ${w} ${h}`);
-  const edge=Math.max(1,Math.min(4096,longEdge)),scale=edge/Math.max(w,h);
+  const edge=Math.max(1,Math.min(maxEdge,longEdge)),scale=Math.min(edge/Math.max(w,h),Math.sqrt(maxPixels/(w*h)));
   const width=Math.max(1,Math.round(w*scale)),height=Math.max(1,Math.round(h*scale));
   svg.setAttribute('width',String(width));svg.setAttribute('height',String(height));
   // Root CSS sizing must not override the rasterization viewport.
   svg.setAttribute('style',(svg.getAttribute('style')||'')+`;width:${width}px!important;height:${height}px!important;max-width:none!important;max-height:none!important`);
   return new XMLSerializer().serializeToString(svg);
 }
-export async function decodeArtworkImage(blob,{longEdge=4096}={}){
+export async function decodeArtworkImage(blob,{longEdge=4096,maxEdge=4096}={}){
   const svg=blob.type.split(';')[0]==='image/svg+xml'||/\.svg$/i.test(blob.name||'')||/^\s*(?:<\?xml\b[^>]*>\s*)?(?:<!--[\s\S]*?-->\s*)*(?:<!DOCTYPE\s[^>]*>\s*)?<svg[\s>]/i.test(await blob.slice(0,1024).text());
-  const source=svg?new Blob([sizedSvg(await blob.text(),longEdge)],{type:'image/svg+xml'}):blob;
+  const source=svg?new Blob([sizedSvg(await blob.text(),longEdge,maxEdge)],{type:'image/svg+xml'}):blob;
   const url=URL.createObjectURL(source);
   try{return await new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(new Error('Unsupported or damaged artwork.'));img.src=url;});}
   finally{URL.revokeObjectURL(url);}

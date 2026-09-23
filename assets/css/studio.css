@@ -867,3 +867,11 @@ body.present .stage-reset,body.present .stage-help{display:none}
 #artWorkspace .art-name-line>.art-layer-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #artWorkspace .art-layer-color{flex:none;width:8px;height:8px;border-radius:50%;border:1px solid var(--rule-mid);background:var(--swatch);box-shadow:inset 0 0 0 1px #ffffff70}
 #artWorkspace .art-layer-color[hidden]{display:none}
+
+/* Print-package controls share the existing compact export typography. */
+.print-layouts{display:grid;gap:10px;min-width:0}
+.print-layouts[hidden]{display:none}
+.print-layout{min-width:0}
+.print-layout>summary{overflow-wrap:anywhere}
+.print-layout>label,.print-layout>.export-options,.print-layout>button,.print-layout>p{margin-top:10px}
+.print-layout .export-options input{box-sizing:border-box;width:100%;min-width:0;font:400 12px/1.4 var(--sans);padding:9px;color:var(--ink);background:var(--paper);border:1px solid var(--rule);border-radius:4px}

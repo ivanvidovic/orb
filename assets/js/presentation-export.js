@@ -1,4 +1,6 @@
-import {addArtworkPackage} from './artwork-export.js?v=82';
+import {installPrintLayoutUI} from './print-layout-ui.js?v=86';
+import {addPrintLayouts} from './print-package.js?v=86';
+import {addArtworkPackage} from './artwork-export.js?v=86';
 import {canvasBlob,downloadBlob,cleanFilename} from './design-format.js?v=82';
 const $=id=>document.getElementById(id);
 const VIEW_NAMES={front:'Front',angle:'Front three-quarter',side:'Left side',right:'Right side',backangle:'Back three-quarter',back:'Back',detail:'Detail'};
@@ -19,7 +21,8 @@ export function installExports(api){
   const viewLabel=view=>detailLabels.get(view)||VIEW_NAMES[view];
   for(const view of detailOptions){const label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.name='exportView';input.value=view.id;input.dataset.detailExport='true';label.append(input,document.createTextNode(view.label));$('exportPlacementViews').append(label);}
   function syncDetailExports(){for(const input of document.querySelectorAll('[data-detail-export]')){input.disabled=!api.detailView(input.value);input.closest('label').hidden=input.disabled;if(input.disabled)input.checked=false;}}
-  let working=false,cancelled=false;
+  let working=false,cancelled=false,preparing=false;
+  const printUI=installPrintLayoutUI({toggle:$('exportPsd'),container:$('exportPrintLayouts'),status:$('exportPrintNote')});
   const message=text=>{$('exportStatus').textContent=text;};
   const check=()=>{if(cancelled)throw new Error('Export cancelled.');};
   function captureSession(width,height){
@@ -72,19 +75,20 @@ export function installExports(api){
     return canvasBlob(cv);
   }
   async function exportAll(){
-    if(working||api.busy()||!api.current())return;
+    if(working||preparing||api.busy()||!api.current())return;
+    let plans;try{plans=printUI.plans();}catch(e){message(e.message);return;}
     const views=Array.from(document.querySelectorAll('[name="exportView"]:checked')).map(el=>el.value);
-    if(!views.length){message('Select at least one view.');return;}
+    if(!views.length&&!plans.length&&!$('exportArtwork').checked&&!$('exportDesign').checked){message('Select a view, a print layout, artwork or an editable design to export.');return;}
     const edge=Number($('exportSize').value),shape=$('exportShape').value,width=shape==='portrait'?Math.round(edge*.8):edge,height=shape==='wide'?Math.round(edge*9/16):edge;
     const options={width,height,background:$('exportBackground').value,grid:$('exportGrid').checked},name=cleanFilename(api.name());
-    working=true;cancelled=false;api.lock(true,'Exporting presentation…');$('exportConfirm').disabled=true;$('exportCancel').hidden=false;
-    for(const el of $('exportDialog').querySelectorAll('input,select'))el.disabled=true;
+    working=true;cancelled=false;api.lock(true,'Preparing print package…');$('exportConfirm').disabled=true;$('exportCancel').hidden=false;
+    for(const el of $('exportDialog').querySelectorAll('input,select,.print-layout button'))el.disabled=true;
     let session;
     try{
-      message('Preparing presentation…');await turn();
+      message('Preparing print package…');await turn();
       const design=$('exportDesign').checked?await api.workspace.makeArchive(false):null;check();
       await api.prepare?.();check();
-      session=captureSession(width,height);camera.aspect=width/height;
+      if(views.length){session=captureSession(width,height);camera.aspect=width/height;}
       const bounds=pointsAndCenter(),{center,points}=api.framing?.()||bounds,{box}=bounds;
       // A common distance for all full views prevents garments jumping in scale.
       const fullViews=['front','angle','side','right','backangle','back'];
@@ -100,16 +104,24 @@ export function installExports(api){
         const canvas=frame(width,height,options),blob=await canvasBlob(canvas);canvas.width=canvas.height=1;check();
         images.push({view,blob});zip.file(name+'_'+viewLabel(view).replaceAll(' ','-')+'.png',await blob.arrayBuffer());
       }
-      session.finish();session=null;
-      if($('exportSheet').checked){message('Building presentation sheet…');await document.fonts.ready;const sheet=await presentationSheet(images,options);check();zip.file(name+'_Presentation.png',await sheet.arrayBuffer());}
+      session?.finish();session=null;
+      if(images.length&&$('exportSheet').checked){message('Building presentation sheet…');await document.fonts.ready;const sheet=await presentationSheet(images,options);check();zip.file(name+'_Presentation.png',await sheet.arrayBuffer());}
       if(design)zip.file(name+'.orb',await design.arrayBuffer());
-      if($('exportArtwork').checked){const data=await api.workspace.artworkData();check();await addArtworkPackage(zip,data,api.artworkColor,{check,message});}
+      const data=($('exportArtwork').checked||plans.length)?await api.workspace.artworkData():null;check();
+      if($('exportArtwork').checked)await addArtworkPackage(zip,data,api.artworkColor,{check,message});
+      if(plans.length)await addPrintLayouts(zip,data,plans,api.artworkColor,{check,message});
 
-      message('Packaging PNGs…');const blob=await zip.generateAsync({type:'blob',compression:'STORE'},check);check();downloadBlob(blob,name+'_Presentation.zip');message(`${views.length} views exported${$('exportSheet').checked?' with presentation sheet':''}.`);
+      message('Packaging print files…');const blob=await zip.generateAsync({type:'blob',compression:'STORE'},check);check();downloadBlob(blob,name+'_Print-Package.zip');message(`Print package downloaded · ${views.length} views${plans.length?` · ${plans.length} layered PSDs`:''}.`);
     }catch(error){message(error.message||'The export could not finish. Try a smaller image size.');}
-    finally{session?.finish();working=false;api.lock(false);$('exportConfirm').disabled=false;$('exportCancel').hidden=true;for(const el of $('exportDialog').querySelectorAll('input,select'))el.disabled=false;syncDetailExports();}
+    finally{session?.finish();working=false;api.lock(false);$('exportConfirm').disabled=false;$('exportCancel').hidden=true;for(const el of $('exportDialog').querySelectorAll('input,select,.print-layout button'))el.disabled=false;printUI.restoreAvailability();syncDetailExports();}
   }
-  $('btnExportAll').onclick=()=>{if(api.busy()||working)return;message('');syncDetailExports();$('exportDialog').showModal();};
+  $('btnExportAll').onclick=async()=>{
+    if(api.busy()||working||preparing)return;message('');syncDetailExports();$('exportDialog').showModal();
+    preparing=true;$('exportConfirm').disabled=true;printUI.loading();
+    try{const result=await api.printLayouts();printUI.set(result.surfaces,result.garment);}
+    catch(e){printUI.set([],null);message(e.message||'Print layouts could not be prepared. You can still export mockups and separate artwork.');}
+    finally{preparing=false;$('exportConfirm').disabled=false;}
+  };
   $('exportConfirm').onclick=exportAll;$('exportCancel').onclick=()=>{cancelled=true;message('Cancelling…');};
   $('exportDialog').addEventListener('cancel',e=>{if(working){e.preventDefault();cancelled=true;}});
   $('exportDialog').querySelector('[data-close-dialog]').onclick=()=>{if(working){cancelled=true;message('Cancelling…');}else $('exportDialog').close();};
