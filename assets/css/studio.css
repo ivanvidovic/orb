@@ -629,7 +629,7 @@ select,select option,select optgroup{color:var(--ink);background-color:var(--pap
 .emission-controls input[type=range]{width:100%;min-width:0;accent-color:var(--ink)}
 .emission-controls .light-lock{font-size:11px}
 #artWorkspace .art-editor-head{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;margin-bottom:10px}
-#artWorkspace .art-editor-head button{white-space:nowrap;min-height:32px;font-size:11px;padding:5px 9px;flex:0 0 auto}
+#artWorkspace .art-editor-head button,#artWorkspace #artFitLayout{white-space:nowrap;min-height:32px;font-size:11px;padding:5px 9px;flex:0 0 auto}
 
 /* Release 17: compact groups with adjacent checkbox labels throughout. */
 #panel .appearanceControls{padding:0 0 12px;border-top:0;border-bottom:1px solid var(--rule);gap:8px}

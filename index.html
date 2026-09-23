@@ -25,7 +25,7 @@
 @media(prefers-reduced-motion:reduce){#startup{transition:none}.startup-emblem .startup-glint{display:none}}
 </style>
 <script src="./assets/js/brand.js?v=49"></script>
-<link rel="stylesheet" href="./assets/css/studio.css?v=78">
+<link rel="stylesheet" href="./assets/css/studio.css?v=83">
 </head>
 <body data-theme="light" class="startup-lock">
 <div id="startup" aria-label="Loading ORB Garment Studio"><div class="startup-content"><div id="startupProgress" role="progressbar" aria-label="Preparing garment preview" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" class="startup-emblem" aria-hidden="true"><defs><clipPath id="startupReveal"><circle cx="499.8461609" cy="500" r="0"/></clipPath></defs> <circle class="startup-track" fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="500" r="0"/> <g clip-path="url(#startupReveal)"> <path fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" d=" M674.6182861,925.295166V674.7720947C674.6182861,578.2481689,596.3701172,500,499.8461609,500 s-174.7721252,78.2481689-174.7721252,174.7720947V925.295166"/> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="325.2278748" r="174.7721252"/> </g> <g clip-path="url(#startupReveal)"> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="616.5148926" r="116.5148926"/> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="383.4851074" r="116.5148926"/> </g> <circle class="startup-progress" pathLength="100" transform="rotate(-90 499.8461609 500)" fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="500" r="0"/></svg></div><p id="startupStatus" role="status" aria-live="polite">Preparing studio</p><button id="startupRetry" type="button" hidden>Try again</button></div></div>
@@ -185,7 +185,7 @@
 <div class="art-control"><label for="art-y">Up / down</label><input id="art-y" data-art-range data-prop="y" type="range" min="-100" max="100" step="1"><input class="num" data-art-num data-prop="y" type="number" min="-100" max="100" step="1" aria-label="Up / down value"><button type="button" data-reset-art-one="y" aria-label="Reset up / down" title="Reset up / down">↺</button></div>
 <div class="art-control"><label for="art-scale">Scale</label><input id="art-scale" data-art-range data-prop="scale" type="range" min="25" max="200" step="1"><input class="num" data-art-num data-prop="scale" type="number" min="25" max="200" step="1" aria-label="Scale value"><button type="button" data-reset-art-one="scale" aria-label="Reset scale" title="Reset scale">↺</button></div>
 <div class="art-control"><label for="art-rot">Rotation</label><input id="art-rot" data-art-range data-prop="rot" type="range" min="-180" max="180" step="1"><input class="num" data-art-num data-prop="rot" type="number" min="-180" max="180" step="1" aria-label="Rotation value"><button type="button" data-reset-art-one="rot" aria-label="Reset rotation" title="Reset rotation">↺</button></div></div>
-  <div class="art-editor-foot"><div class="art-order" role="group" aria-label="Layer order"><button id="artRaise" type="button" aria-label="Move layer up" title="Move layer up">↑</button><button id="artLower" type="button" aria-label="Move layer down" title="Move layer down">↓</button></div><button id="artReset" type="button">Reset placement</button></div>
+  <div class="art-editor-foot"><div class="art-order" role="group" aria-label="Layer order"><button id="artRaise" type="button" aria-label="Move layer up" title="Move layer up">↑</button><button id="artLower" type="button" aria-label="Move layer down" title="Move layer down">↓</button></div><button id="artFitLayout" type="button" hidden>Fit layout</button><button id="artReset" type="button">Reset placement</button></div>
 </section>
 </div>
 <p id="artStatus" role="status" aria-live="polite"></p>
@@ -344,7 +344,8 @@
       <div><dt>Import &amp; library</dt><dd>Drop images or folders into the library, or browse images / folder. Subfolders are included; empty folders and non-image files are skipped. Click a library graphic to place it.</dd></div>
       <div><dt>PNG, JPG &amp; SVG</dt><dd>Use transparent PNG or SVG for artwork without a background. SVGs are rasterized for the preview; the original file is kept for export.</dd></div>
       <div><dt>Layer controls</dt><dd>Click a layer’s name to open its controls. Add here adds another graphic at that placement; Replace swaps its source image.</dd></div>
-      <div><dt>Switch garments</dt><dd>Front and back artwork keep their spacing, overlaps and proportions together. Each garment uses a fixed overall fit; placement names choose starting locations. Folds and hoods can still hide artwork.</dd></div>
+      <div><dt>Switch garments</dt><dd>Front and back artwork keep their spacing, overlaps and proportions together. Torso framing keeps garment body sizes comparable. Hoodie back layouts use a larger, width-based scale; placement names choose starting locations. Folds and hoods can still hide artwork.</dd></div>
+      <div><dt>Fit layout</dt><dd>In a front or back layer, Fit layout brings the visible artwork inside this garment’s panel. All layers on that side move and shrink together, including hidden layers. Undo restores the previous layout; switching garments never fits it automatically.</dd></div>
       <div><dt>Move &amp; duplicate</dt><dd>Move chooses a standard placement. Duplicate makes an independently editable copy. Left and right refer to the wearer; a hoodie’s hood can cover back-neck artwork.</dd></div>
       <div><dt>Order &amp; visibility</dt><dd>Drag the grip or use the arrow buttons to reorder. Higher layers appear on top. Use the eye to hide a layer or × to remove it.</dd></div>
       <div><dt>Fit visible artwork</dt><dd>Ignore transparent margins when sizing the graphic. Opaque backgrounds remain part of the artwork.</dd></div>
@@ -414,7 +415,7 @@
     </dl></details>
     <details class="guideAdvanced"><summary>Using your own 3D model</summary><dl class="guideRows"><div><dt>Upload</dt><dd>Use a GLB with embedded textures and non-overlapping UVs.</dd></div><div><dt>Set position</dt><dd>Select a layer, choose Set position, then tap the model.</dd></div><div><dt>Orientation</dt><dd>Turn around corrects the model direction. Restore selection returns to the built-in garment.</dd></div></dl></details>
   </div>
-  <div class="helpFooter"><span><kbd>Esc</kbd> to close</span><span>ORB Studio 82</span></div>
+  <div class="helpFooter"><span><kbd>Esc</kbd> to close</span><span>ORB Studio 83</span></div>
 </dialog>
 
 <dialog id="assetDialog" class="workspace-dialog" aria-labelledby="assetTitle"><div class="workspace-head"><h2 id="assetTitle">Add artwork</h2><button type="button" data-close-dialog aria-label="Close">×</button></div><div class="workspace-body"><button id="assetBrowse" type="button">Upload images</button><p class="muted">Or choose a graphic from your library.</p><p id="assetLibraryStatus" class="shelf-note" role="status" hidden></p><div id="assetGrid" class="shelf-grid"></div></div></dialog>
@@ -456,6 +457,6 @@
 </script>
 
 <script src="./assets/vendor/jszip/jszip.min.js"></script>
-<script type="module" src="./assets/js/studio.js?v=82"></script>
+<script type="module" src="./assets/js/studio.js?v=83"></script>
 </body>
 </html>

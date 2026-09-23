@@ -1,5 +1,5 @@
-import {addArtworkPackage} from './artwork-export.js?v=81';
-import {canvasBlob,downloadBlob,cleanFilename} from './design-format.js?v=74';
+import {addArtworkPackage} from './artwork-export.js?v=82';
+import {canvasBlob,downloadBlob,cleanFilename} from './design-format.js?v=82';
 const $=id=>document.getElementById(id);
 const VIEW_NAMES={front:'Front',angle:'Front three-quarter',side:'Left side',right:'Right side',backangle:'Back three-quarter',back:'Back',detail:'Detail'};
 const turn=()=>new Promise(resolve=>requestAnimationFrame(resolve));
@@ -85,7 +85,7 @@ export function installExports(api){
       const design=$('exportDesign').checked?await api.workspace.makeArchive(false):null;check();
       await api.prepare?.();check();
       session=captureSession(width,height);camera.aspect=width/height;
-      const {center,points,box}=pointsAndCenter();
+      const bounds=pointsAndCenter(),{center,points}=api.framing?.()||bounds,{box}=bounds;
       // A common distance for all full views prevents garments jumping in scale.
       const fullViews=['front','angle','side','right','backangle','back'];
       const distance=fitDistance(THREE,points,center,fullViews.map(api.viewAngles),camera.aspect,camera.fov);

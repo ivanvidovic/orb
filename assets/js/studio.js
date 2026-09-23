@@ -8,9 +8,10 @@ import {hasDirectory} from './folder-import.js?v=58';
 import {decodeArtworkImage} from './artwork-decode.js?v=45';
 import {createCityTraffic} from './city-night.js?v=43';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=82';
-import {sharedSurfaceProfiles} from './surface-layout.js?v=82';
+import {sharedSurfaceProfiles,fitSurfacePlacements} from './surface-layout.js?v=83';
+import {torsoFrame,torsoDistance} from './garment-framing.js?v=83';
 import {installWorkspace} from './workspace.js?v=82';
-import {installExports} from './presentation-export.js?v=82';
+import {installExports} from './presentation-export.js?v=83';
 import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=82';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
 import {installColorPicker} from './color-picker.js?v=36';
@@ -844,12 +845,12 @@ function trimCatalogCache(){
     catalogReady.delete(id);res.group.userData.catalogCached=false;disposeModel(res.group);
   }
 }
-let placementCalibrationPromise=null;
+let placementCalibrationPromise=null,surfaceCalibration=null;
 function getPlacementCalibration(){
-  if(!placementCalibrationPromise)placementCalibrationPromise=Promise.all(['placements-63.json','surface-layout-82.json'].map(async file=>{
+  if(!placementCalibrationPromise)placementCalibrationPromise=Promise.all(['placements-63.json','surface-layout-83.json'].map(async file=>{
     const response=await fetch(new URL('../calibration/'+file,import.meta.url));
     if(!response.ok)throw new Error('Placement calibration could not load.');return response.json();
-  })).then(([profiles,layout])=>Object.fromEntries(Object.entries(profiles).map(([id,native])=>[id,sharedSurfaceProfiles(native,layout,id)])))
+  })).then(([profiles,layout])=>{surfaceCalibration=layout;return Object.fromEntries(Object.entries(profiles).map(([id,native])=>[id,sharedSurfaceProfiles(native,layout,id)]));})
     .catch(error=>{placementCalibrationPromise=null;throw error;});
   return placementCalibrationPromise;
 }
@@ -976,6 +977,7 @@ async function loadCatalog(id){
   if(id===activeGarmentId)return true;
   const item=GARMENT_CATALOG.find(g=>g.id===id);if(!item)return false;
   const initialLoad=!current;
+  const previousDistance=torsoDistance(activeGarmentId),previousCenter=garmentCenter.clone();
   cancelAnchorPick();
   modelBusy(true);modelRetry.hidden=true;retryModel=()=>loadCatalog(id);
   modelStatus.textContent='Loading '+item.label+'…';
@@ -987,6 +989,12 @@ async function loadCatalog(id){
     UV_PROFILES=res.profiles;modelKind='catalog';
     setGarment(res.group,false);trimCatalogCache();
     selectedCatalogId=id;activeGarmentId=id;customModelFile=null;customFlipped=false;
+    garmentCenter.fromArray(torsoFrame(id).center);
+    if(!initialLoad&&!inspectionFocus){
+      const ratio=torsoDistance(id)/previousDistance;
+      state.r*=ratio;state.tr*=ratio;
+      for(const focus of [state.focus,state.focusTarget])focus.sub(previousCenter).multiplyScalar(ratio).add(garmentCenter);
+    }
     for(const layer of artLayers)migratePlacement(layer,layerProfile(layer));
 
     garmentSelect.querySelector('option[value="custom"]')?.remove();
@@ -1031,6 +1039,7 @@ async function loadModel(file){
     if(current)recordArtUndo();
     cancelAnchorPick();UV_PROFILES={};modelKind='custom';
     setGarment(res.group,true);committed=true;activeGarmentId='custom';customModelFile=file;customFlipped=false;trimCatalogCache();
+    garmentCenter.set(0,.02,0);
     if(!garmentSelect.querySelector('option[value="custom"]'))garmentSelect.add(new Option('Custom garment','custom'));
     garmentSelect.value='custom';
     requestArtworkRender();syncArtworkUi();applyLook();artStatus('');
@@ -1441,13 +1450,23 @@ canvas.addEventListener('keydown',e=>{
 
 let inspectionFocus=null;
 const garmentCenter=new THREE.Vector3(0,.02,0);
+function migrateCameraFrame(saved){
+  if(saved.framing==='torso-v1'||!torsoFrame(activeGarmentId))return saved;
+  const focus=new THREE.Vector3(...saved.focus),oldCenter=new THREE.Vector3(0,.02,0);
+  // Preserve deliberate close-ups. Full views adopt the new torso reference
+  // once, retaining the user's zoom relative to the previous default camera.
+  if(focus.distanceTo(oldCenter)>.03)return saved;
+  const oldDistance=GARMENT_CATALOG.find(g=>g.id===activeGarmentId)?.distance||1.55;
+  const ratio=torsoDistance(activeGarmentId)/oldDistance;
+  return {...saved,r:saved.r*ratio,focus:focus.sub(oldCenter).multiplyScalar(ratio).add(garmentCenter).toArray(),framing:'torso-v1'};
+}
 function zoomGarment(delta){
   state.tr=clamp(state.tr+delta,inspectionFocus?(SLEEVE_CAMERA_CLEARANCE[activeGarmentId]?.[inspectionFocus.slot]??.08):.38,2.6);
   updateInspectionFocus();
 }
 function updateInspectionFocus(){
   if(!inspectionFocus)return;
-  const end=(GARMENT_CATALOG.find(g=>g.id===activeGarmentId)?.distance||1.55)*.88;
+  const end=torsoDistance(activeGarmentId)*.88;
   const t=clamp((state.tr-inspectionFocus.distance)/(end-inspectionFocus.distance),0,1);
   state.focusTarget.lerpVectors(inspectionFocus.point,garmentCenter,t*t*(3-2*t));
   if(t===1){state.focusTarget.copy(garmentCenter);inspectionFocus=null;}
@@ -1455,7 +1474,7 @@ function updateInspectionFocus(){
 function leaveInspection(){
   if(!inspectionFocus)return;
   inspectionFocus=null;state.focusTarget.copy(garmentCenter);
-  state.tr=GARMENT_CATALOG.find(g=>g.id===activeGarmentId)?.distance||1.55;
+  state.tr=torsoDistance(activeGarmentId);
 }
 const VIEWS={front:[0,1.45],angle:[.62,1.30],side:[Math.PI/2,1.45],backangle:[Math.PI-.62,1.30],back:[Math.PI,1.45],detail:[.45,1.35]};
 function cameraPlacementPoint(slot){
@@ -1484,8 +1503,8 @@ function setView(v){
   if(v==='neck'&&(isCustom||!UV_PROFILES.necktag))v='detail';
   state.view=v;syncCameraUi();
   if(!v) return;
-  inspectionFocus=null;state.focusTarget.set(0,.02,0);
-  state.tr=GARMENT_CATALOG.find(g=>g.id===activeGarmentId)?.distance||1.55;
+  inspectionFocus=null;state.focusTarget.copy(garmentCenter);
+  state.tr=torsoDistance(activeGarmentId);
   if(v.startsWith('placement:')){
     const shot=detailCamera(v),[az,el]=shot.angles;
     state.focusTarget.fromArray(shot.point);
@@ -2611,6 +2630,9 @@ function syncArtworkUi(){
   document.getElementById('artUploadAny').textContent=artLoading?'Adding…':'+ Add artwork';
   for(const id of ['artFit','artReset','artAdd','artReplace','artView'])document.getElementById(id).disabled=artLoading||!entry;
   document.getElementById('artFit').checked=!!entry?.fit;
+  const surface=entry&&!isCustom&&!entry.anchor&&surfaceForSlot(entry.slot),fitButton=document.getElementById('artFitLayout');
+  fitButton.hidden=!surface;fitButton.disabled=artLoading||!surface;
+  fitButton.title=surface?`Fit visible ${ART_META[entry.slot].side.toLowerCase()} artwork; all layers on this side move together`:'Fit layout';
   document.getElementById('artUndo').disabled=artLoading||!artHistory.length;
   document.getElementById('artRedo').disabled=artLoading||!artFuture.length;
   document.getElementById('artDuplicate').disabled=artLoading||!entry;
@@ -2864,6 +2886,21 @@ document.getElementById('solidInvert').onchange=e=>{
 document.getElementById('artFit').onchange=e=>{
   const entry=artEntry();if(artLoading||!entry)return;
   recordArtUndo();entry.fit=e.target.checked;requestArtworkRender(entry);syncArtworkUi();
+};
+function surfaceForSlot(slot){return Object.values(surfaceCalibration?.surfaces||{}).find(s=>s.placements[slot]);}
+document.getElementById('artFitLayout').onclick=async()=>{
+  const entry=artEntry(),surface=entry&&surfaceForSlot(entry.slot);
+  if(artLoading||designLocked||isCustom||entry?.anchor||!surface)return;
+  setWorkspaceLock(true,'Fitting layout…');
+  try{
+    await settleArtworkTreatment();
+    const layers=artLayers.filter(l=>!l.anchor&&surface.placements[l.slot]&&UV_PROFILES[l.slot]);
+    const edits=fitSurfacePlacements(layers,UV_PROFILES,surface.garments[activeGarmentId].safeBounds,artworkLayerBounds);
+    if(!edits.length){artStatus('Layout already fits.');return;}
+    setWorkspaceLock(false);recordArtUndo();for(const edit of edits)edit.layer.placement=edit.placement;
+    requestArtworkRender();syncArtworkUi();workspace?.notify();artStatus('Layout fitted. Undo restores its previous size and position.');
+  }catch(error){artStatus(error.message||'The layout could not be fitted.');}
+  finally{setWorkspaceLock(false);}
 };
 document.getElementById('artReset').onclick=()=>{
   const entry=artEntry();if(artLoading||!entry)return;
@@ -3452,7 +3489,7 @@ function designSnapshot(){
   return {name:document.getElementById('designName').value,garmentId:activeGarmentId,customFlipped,modelFile:customModelFile,modelToken:modelHistoryId(customModelFile),active:activeArtId,
     settings:structuredClone(pick(state,SETTING_FIELDS)),regularBackdrop:regularBackdrop?{...regularBackdrop}:null,
     lighting:{reference:lightReference.toArray(),quaternion:lightRig.quaternion.toArray()},
-    camera:{az:state.taz,el:state.tel,r:state.tr,focus:state.focusTarget.toArray(),view:state.view},
+    camera:{az:state.taz,el:state.tel,r:state.tr,focus:state.focusTarget.toArray(),view:state.view,framing:'torso-v1'},
     layers:artLayers.map(e=>({...e,placement:{...e.placement},anchor:e.anchor?structuredClone(e.anchor):null}))};
 }
 function historyKey(snapshot){return JSON.stringify({name:snapshot.name,garmentId:snapshot.garmentId,customFlipped:snapshot.customFlipped,modelToken:snapshot.modelToken,settings:snapshot.settings,regularBackdrop:snapshot.regularBackdrop,layers:snapshot.layers.map(e=>pick(e,LAYER_FIELDS))});}
@@ -3496,7 +3533,7 @@ function restoreDesignState(snapshot,restoreCamera=true){
   applyLightingPreset();
   renderer.shadowMap.enabled=state.selfShadows;shadowDirty=true;
   scene.traverse(o=>{if(o.isMesh)for(const m of Array.isArray(o.material)?o.material:[o.material])m.needsUpdate=true;});
-  if(restoreCamera&&snapshot.camera){const c=snapshot.camera;state.az=state.taz=c.az;state.el=state.tel=clamp(c.el,.25,2.8);state.r=state.tr=clamp(c.r,.08,10);state.focus.fromArray(c.focus);state.focusTarget.copy(state.focus);state.view=c.view;inspectionFocus=state.focusTarget.distanceTo(garmentCenter)>.03?{point:state.focusTarget.clone(),distance:state.tr}:null;}
+  if(restoreCamera&&snapshot.camera){const c=migrateCameraFrame(snapshot.camera);state.az=state.taz=c.az;state.el=state.tel=clamp(c.el,.25,2.8);state.r=state.tr=clamp(c.r,.08,10);state.focus.fromArray(c.focus);state.focusTarget.copy(state.focus);state.view=c.view;inspectionFocus=state.focusTarget.distanceTo(garmentCenter)>.03?{point:state.focusTarget.clone(),distance:state.tr}:null;}
   document.getElementById('garmentCustom').value=state.garmentCustom;document.querySelector('#swatches .custom i').style.background=state.garmentCustom;
   for(const id of ['bgCustom','gridColor']){document.getElementById(id).value=id==='bgCustom'?state.bg:state[id];const chip=document.getElementById(id==='bgCustom'?'bgColorChip':id+'Chip');if(chip)chip.style.background=id==='bgCustom'?state.bg:state[id];}
   for(const id of ['matchFabricToTheme','dotGrid','selfShadows'])document.getElementById(id).checked=state[id];
@@ -3606,6 +3643,7 @@ installExports({THREE,renderer,scene,camera,garment,presentGarment,shirtShadow,p
   name:()=>document.getElementById('designName').value,
   detailView:detailCamera,detailViews:[{id:'neck',label:'Inside neck tag'},...ART_KEYS.filter(k=>ART_META[k].detail).map(k=>({id:'placement:'+k,label:ART_META[k].label}))],
   viewAngles:v=>detailCamera(v)?.angles||(v==='right'?[-Math.PI/2,1.45]:VIEWS[v]),
+  framing:()=>{const f=torsoFrame(activeGarmentId);return f?{center:new THREE.Vector3(...f.center),points:f.points.map(p=>new THREE.Vector3(...p))}:null;},
   label:()=>GARMENT_CATALOG.find(g=>g.id===activeGarmentId)?.label||'Custom garment'
 });
 
