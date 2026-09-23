@@ -932,3 +932,27 @@ body.present .stage-reset,body.present .stage-help{display:none}
  #exportDialog #exportPlacementViews{grid-template-columns:1fr}
  .export-file-options{grid-template-columns:1fr;gap:10px}
 }
+
+/* Clear export hierarchy, with sections that collapse without deselecting files. */
+#exportDialog{width:min(760px,calc(100vw - 32px))}
+#exportDialog .workspace-body{gap:26px}
+#exportDialog .export-section{display:block}
+#exportDialog .export-section+.export-section{padding-top:24px}
+.export-section>summary{display:flex;align-items:center;gap:9px;cursor:pointer;list-style:none;font:500 14px/1.5 var(--sans)}
+.export-section>summary::-webkit-details-marker{display:none}
+.export-section>summary:before{content:'›';display:inline-block;font-size:14px;transition:transform .15s}
+.export-section[open]>summary:before{transform:rotate(90deg)}
+.export-section>summary:focus-visible{outline:2px solid var(--ink);outline-offset:4px;border-radius:2px}
+.export-section .export-section-count{margin-left:auto;font:400 10px/1.5 var(--sans);color:var(--graphite);text-align:right}
+.export-section-body{display:grid;gap:14px;padding-top:12px;min-width:0}
+#exportDialog .export-section-body>p.muted{font:400 10px/1.5 var(--sans);color:var(--graphite)}
+#exportDialog .export-section .check-option{font-size:11px}
+.export-image-settings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;min-width:0}
+.export-image-settings .export-choice-buttons{gap:4px}
+.export-image-settings .export-choice-buttons span{padding:8px 4px;white-space:nowrap}
+.export-image-extras{border-top:1px solid var(--rule);padding-top:12px;gap:12px 24px;align-items:center}
+.export-image-extras label:has(input:disabled){color:var(--graphite);opacity:.65}
+#exportSummary{font:400 11px/1.5 var(--sans);color:var(--graphite);margin:0}
+#exportDialog .export-actions{padding-top:12px;gap:10px}
+@media(max-width:720px){.export-image-settings{grid-template-columns:1fr;gap:12px}}
+@media(prefers-reduced-motion:reduce){.export-section>summary:before{transition:none}}

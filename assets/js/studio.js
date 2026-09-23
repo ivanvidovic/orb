@@ -10,9 +10,9 @@ import {decodeArtworkImage} from './artwork-decode.js?v=45';
 import {createCityTraffic} from './city-night.js?v=43';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=82';
 import {sharedSurfaceProfiles,fitSurfacePlacements} from './surface-layout.js?v=83';
-import {torsoFrame,torsoDistance,previousTorsoFrame,previewDistance} from './garment-framing.js?v=87';
+import {torsoFrame,torsoDistance,previousTorsoFrame,previewDistance,previousPreviewFrame} from './garment-framing.js?v=89';
 import {installWorkspace} from './workspace.js?v=88';
-import {installExports} from './presentation-export.js?v=88';
+import {installExports} from './presentation-export.js?v=89';
 import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=82';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
 import {installColorPicker} from './color-picker.js?v=36';
@@ -1452,6 +1452,18 @@ canvas.addEventListener('keydown',e=>{
 let inspectionFocus=null;
 const garmentCenter=new THREE.Vector3(0,.02,0);
 function migrateCameraFrame(saved){
+  if(saved.framing==='proportions-v4'||!torsoFrame(activeGarmentId))return saved;
+  const migrated=migrateCameraFrameV3(saved),old=previousPreviewFrame(activeGarmentId),next=torsoFrame(activeGarmentId);
+  const full=!migrated.view||['front','angle','side','right','backangle','back'].includes(migrated.view);
+  const focus=new THREE.Vector3(...migrated.focus),center=new THREE.Vector3(...old.center);
+  if(full&&focus.distanceTo(center)<.03){const ratio=old.scale/next.scale;return {...migrated,r:migrated.r*ratio,focus:focus.sub(center).multiplyScalar(ratio).add(new THREE.Vector3(...next.center)).toArray(),framing:'proportions-v4'};}
+  return {...migrated,framing:'proportions-v4'};
+}
+function migrateCameraFrameV3(saved){
+  const torsoFrame=previousPreviewFrame;
+  const torsoDistance=id=>torsoFrame(id)?1.85/torsoFrame(id).scale:1.55;
+  const previewDistance=(id,view)=>torsoFrame(id)?({front:1.62,back:1.62,angle:1.76,backangle:1.76,side:1.85}[view]??1.85)/torsoFrame(id).scale:1.55;
+  const garmentCenter=new THREE.Vector3(...(torsoFrame(activeGarmentId)?.center||[0,.02,0]));
   if(saved.framing==='proportions-v3'||!torsoFrame(activeGarmentId))return saved;
   if(saved.framing==='proportions-v2'){
     const focus=new THREE.Vector3(...saved.focus),center=new THREE.Vector3(...torsoFrame(activeGarmentId).center);
@@ -3519,7 +3531,7 @@ function designSnapshot(){
   return {name:document.getElementById('designName').value,garmentId:activeGarmentId,customFlipped,modelFile:customModelFile,modelToken:modelHistoryId(customModelFile),active:activeArtId,
     settings:structuredClone(pick(state,SETTING_FIELDS)),regularBackdrop:regularBackdrop?{...regularBackdrop}:null,
     lighting:{reference:lightReference.toArray(),quaternion:lightRig.quaternion.toArray()},
-    camera:{az:state.taz,el:state.tel,r:state.tr,focus:state.focusTarget.toArray(),view:state.view,framing:'proportions-v3'},
+    camera:{az:state.taz,el:state.tel,r:state.tr,focus:state.focusTarget.toArray(),view:state.view,framing:'proportions-v4'},
     layers:artLayers.map(e=>({...e,placement:{...e.placement},anchor:e.anchor?structuredClone(e.anchor):null}))};
 }
 function historyKey(snapshot){return JSON.stringify({name:snapshot.name,garmentId:snapshot.garmentId,customFlipped:snapshot.customFlipped,modelToken:snapshot.modelToken,settings:snapshot.settings,regularBackdrop:snapshot.regularBackdrop,layers:snapshot.layers.map(e=>pick(e,LAYER_FIELDS))});}

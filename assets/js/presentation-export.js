@@ -1,3 +1,4 @@
+import {installExportSummary} from './export-summary.js?v=89';
 import {createExportProgress} from './export-progress.js?v=87';
 import {installPrintLayoutUI} from './print-layout-ui.js?v=88';
 import {addPrintLayouts} from './print-package.js?v=87';
@@ -27,6 +28,7 @@ export function installExports(api){
   let working=false,cancelled=false,preparing=false;
   const printUI=installPrintLayoutUI({toggle:$('exportPsd'),container:$('exportPrintLayouts'),status:$('exportPrintNote')});
   const progress=createExportProgress($('exportProgress'));
+  const summary=installExportSummary({dialog:$('exportDialog'),working:()=>working});
   const choice=id=>$(id).querySelector('input:checked').value;
   const message=text=>{$('exportStatus').textContent=text;};
   const check=()=>{if(cancelled)throw new Error('Export cancelled.');};
@@ -120,14 +122,14 @@ export function installExports(api){
 
       message('Packaging print files…');const blob=await zip.generateAsync({type:'blob',compression:'STORE'},meta=>{check();progress.packaging(meta.percent/100);});check();downloadBlob(blob,name+'_Print-Package.zip');success=true;progress.finish(true);message(`Print package downloaded · ${views.length} views${plans.length?` · ${plans.length} layered PSDs`:''}.`);
     }catch(error){message(error.message||'The export could not finish. Try a smaller image size.');}
-    finally{session?.finish();progress.finish(success);working=false;api.lock(false);$('exportConfirm').disabled=false;$('exportCancel').hidden=true;for(const el of $('exportDialog').querySelectorAll('input,select,.print-layout button'))el.disabled=false;printUI.restoreAvailability();syncDetailExports();}
+    finally{session?.finish();progress.finish(success);working=false;api.lock(false);$('exportConfirm').disabled=false;$('exportCancel').hidden=true;for(const el of $('exportDialog').querySelectorAll('input,select,.print-layout button'))el.disabled=false;printUI.restoreAvailability();syncDetailExports();summary.sync();}
   }
   $('btnExportAll').onclick=async()=>{
     if(api.busy()||working||preparing)return;message('');progress.reset();syncDetailExports();$('exportDialog').showModal();
-    preparing=true;$('exportConfirm').disabled=true;printUI.loading();
+    preparing=true;$('exportConfirm').disabled=true;printUI.loading();summary.sync();
     try{const result=await api.printLayouts();printUI.set(result.surfaces,result.garment);}
     catch(e){printUI.set([],null);message(e.message||'Print layouts could not be prepared. You can still export mockups and separate artwork.');}
-    finally{preparing=false;$('exportConfirm').disabled=false;}
+    finally{preparing=false;$('exportConfirm').disabled=false;summary.sync();}
   };
   $('exportConfirm').onclick=exportAll;$('exportCancel').onclick=()=>{cancelled=true;message('Cancelling…');};
   $('exportDialog').addEventListener('cancel',e=>{if(working){e.preventDefault();cancelled=true;}});
