@@ -12,7 +12,7 @@ import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-spa
 import {sharedSurfaceProfiles,fitSurfacePlacements} from './surface-layout.js?v=83';
 import {torsoFrame,torsoDistance,previousTorsoFrame,previewDistance,previousPreviewFrame} from './garment-framing.js?v=89';
 import {installWorkspace} from './workspace.js?v=88';
-import {installExports} from './presentation-export.js?v=89';
+import {installExports} from './presentation-export.js?v=90';
 import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=82';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
 import {installColorPicker} from './color-picker.js?v=36';
