@@ -344,6 +344,7 @@
       <div><dt>Import &amp; library</dt><dd>Drop images or folders into the library, or browse images / folder. Subfolders are included; empty folders and non-image files are skipped. Click a library graphic to place it.</dd></div>
       <div><dt>PNG, JPG &amp; SVG</dt><dd>Use transparent PNG or SVG for artwork without a background. SVGs are rasterized for the preview; the original file is kept for export.</dd></div>
       <div><dt>Layer controls</dt><dd>Click a layer’s name to open its controls. Add here adds another graphic at that placement; Replace swaps its source image.</dd></div>
+      <div><dt>Switch garments</dt><dd>Front and back artwork keep their spacing, overlaps and proportions together. Each garment uses a fixed overall fit; placement names choose starting locations. Folds and hoods can still hide artwork.</dd></div>
       <div><dt>Move &amp; duplicate</dt><dd>Move chooses a standard placement. Duplicate makes an independently editable copy. Left and right refer to the wearer; a hoodie’s hood can cover back-neck artwork.</dd></div>
       <div><dt>Order &amp; visibility</dt><dd>Drag the grip or use the arrow buttons to reorder. Higher layers appear on top. Use the eye to hide a layer or × to remove it.</dd></div>
       <div><dt>Fit visible artwork</dt><dd>Ignore transparent margins when sizing the graphic. Opaque backgrounds remain part of the artwork.</dd></div>
@@ -413,7 +414,7 @@
     </dl></details>
     <details class="guideAdvanced"><summary>Using your own 3D model</summary><dl class="guideRows"><div><dt>Upload</dt><dd>Use a GLB with embedded textures and non-overlapping UVs.</dd></div><div><dt>Set position</dt><dd>Select a layer, choose Set position, then tap the model.</dd></div><div><dt>Orientation</dt><dd>Turn around corrects the model direction. Restore selection returns to the built-in garment.</dd></div></dl></details>
   </div>
-  <div class="helpFooter"><span><kbd>Esc</kbd> to close</span><span>ORB Studio 81</span></div>
+  <div class="helpFooter"><span><kbd>Esc</kbd> to close</span><span>ORB Studio 82</span></div>
 </dialog>
 
 <dialog id="assetDialog" class="workspace-dialog" aria-labelledby="assetTitle"><div class="workspace-head"><h2 id="assetTitle">Add artwork</h2><button type="button" data-close-dialog aria-label="Close">×</button></div><div class="workspace-body"><button id="assetBrowse" type="button">Upload images</button><p class="muted">Or choose a graphic from your library.</p><p id="assetLibraryStatus" class="shelf-note" role="status" hidden></p><div id="assetGrid" class="shelf-grid"></div></div></dialog>
@@ -455,6 +456,6 @@
 </script>
 
 <script src="./assets/vendor/jszip/jszip.min.js"></script>
-<script type="module" src="./assets/js/studio.js?v=81"></script>
+<script type="module" src="./assets/js/studio.js?v=82"></script>
 </body>
 </html>

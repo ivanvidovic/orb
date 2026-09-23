@@ -7,10 +7,11 @@ import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE} from './sleeve-camera.js?v
 import {hasDirectory} from './folder-import.js?v=58';
 import {decodeArtworkImage} from './artwork-decode.js?v=45';
 import {createCityTraffic} from './city-night.js?v=43';
-import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=41';
-import {installWorkspace} from './workspace.js?v=77';
-import {installExports} from './presentation-export.js?v=81';
-import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=74';
+import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=82';
+import {sharedSurfaceProfiles} from './surface-layout.js?v=82';
+import {installWorkspace} from './workspace.js?v=82';
+import {installExports} from './presentation-export.js?v=82';
+import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=82';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
 import {installColorPicker} from './color-picker.js?v=36';
 import {installSliderControls,RESET_ICON} from './controls.js?v=44';
@@ -845,9 +846,11 @@ function trimCatalogCache(){
 }
 let placementCalibrationPromise=null;
 function getPlacementCalibration(){
-  if(!placementCalibrationPromise)placementCalibrationPromise=fetch(new URL('../calibration/placements-63.json',import.meta.url)).then(response=>{
+  if(!placementCalibrationPromise)placementCalibrationPromise=Promise.all(['placements-63.json','surface-layout-82.json'].map(async file=>{
+    const response=await fetch(new URL('../calibration/'+file,import.meta.url));
     if(!response.ok)throw new Error('Placement calibration could not load.');return response.json();
-  }).catch(error=>{placementCalibrationPromise=null;throw error;});
+  })).then(([profiles,layout])=>Object.fromEntries(Object.entries(profiles).map(([id,native])=>[id,sharedSurfaceProfiles(native,layout,id)])))
+    .catch(error=>{placementCalibrationPromise=null;throw error;});
   return placementCalibrationPromise;
 }
 async function prepareCatalog(item){
@@ -994,7 +997,7 @@ async function loadCatalog(id){
     document.getElementById('modelName').dataset.triangles=res.tris;
     garment.rotation.y=0;
     requestArtworkRender();syncArtworkUi();applyLook();if(initialLoad)setView('angle');else if(state.view==='neck'||state.view?.startsWith('placement:'))setView(state.view);
-    if(inspectionFocus?.slot&&SLEEVE_CAMERA_PIVOTS[id]?.[inspectionFocus.slot]){
+    if(inspectionFocus?.slot&&UV_PROFILES[inspectionFocus.slot]){
       inspectionFocus.point.fromArray(cameraPlacementPoint(inspectionFocus.slot));inspectionFocus.point.y-=.350;updateInspectionFocus();
     }
     modelStatus.textContent='';artStatus('');workspace?.notify();

@@ -1,11 +1,15 @@
 // Artwork adjustments live in a garment-independent placement reference space.
-export const PLACEMENT_SPACE='relative-v1';
+export const PLACEMENT_SPACE='surface-v2';
 export function placementOffsets(layer,profile){
   const [sx,sy]=layer.anchor?[1,1]:(profile.offsetScale||[1,1]);
   return [layer.placement.x*sx,layer.placement.y*sy];
 }
 export function migratePlacement(layer,profile){
   if(layer.placementSpace===PLACEMENT_SPACE)return false;
+  // v41-v81 already stored garment-independent offsets. The shared surface
+  // canvas uses their men's tee reference unchanged; only its garment mappings
+  // change. Never rebase these values using the currently previewed garment.
+  if(layer.placementSpace==='relative-v1'){layer.placementSpace=PLACEMENT_SPACE;return true;}
   if(layer.anchor){layer.placementSpace=PLACEMENT_SPACE;return false;}
   if(!profile)return false; // A hoodie-only layer can stay dormant on a tee.
   const old=profile.legacy;
