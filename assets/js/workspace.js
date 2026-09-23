@@ -1,9 +1,11 @@
+import {loadHostedLibrary,fetchHostedArtwork} from './hosted-library.js?v=77';
 import {collectDrop} from './folder-import.js?v=58';
 import {FORMAT_VERSION,LAYER_FIELDS,SETTING_FIELDS,pick,cleanFilename,canvasBlob,downloadBlob,validateProject} from './design-format.js?v=74';
 const $=id=>document.getElementById(id);
 const imageFile=f=>f.type.startsWith('image/')||/\.(png|jpe?g|webp|gif|avif|svg)$/i.test(f.name);
 const pause=()=>new Promise(resolve=>setTimeout(resolve,0));
 export function installWorkspace(api){
+  const hostedAssets=new Map();let libraryName='';
   const assets=new Map();let shelfIds=new Set(),ready=false,restoring=false,busy=false,saveTimer,dbPromise,saveChain=Promise.resolve(),revision=0,savedRevision=0,context={action:'choose'},pendingOpen=null;
   const scope=location.pathname.replace(/\/index\.html$/,'/');
   const dbName='orb-studio-36:'+scope;
@@ -32,16 +34,32 @@ export function installWorkspace(api){
     else if(!assets.get(id).entry.source)assets.get(id).entry={...assets.get(id).entry,source:entry.source};
     if(show)shelfIds.add(id);renderShelf();notify();return assets.get(id).entry;
   }
+  const libraryMessage=text=>{for(const id of ['hostedLibraryStatus','assetLibraryStatus']){const el=$(id);if(el){el.textContent=text;el.hidden=!text;}}};
+  async function loadLibrary(){
+    if(!new URLSearchParams(location.search||'').get('library'))return;
+    libraryMessage('Loading library…');
+    try{const library=await loadHostedLibrary(location.href);if(!library)return;
+      hostedAssets.clear();for(const asset of library.assets)hostedAssets.set(asset.id,asset);
+      libraryName=library.name;libraryMessage(libraryName+' · '+hostedAssets.size+' graphics');renderShelf();
+    }catch(error){libraryMessage(error.message||'Library unavailable. Reload to retry.');}
+  }
+  async function materializeHosted(asset){
+    if(assets.has(asset.id))return assets.get(asset.id);
+    const file=await fetchHostedArtwork(asset);
+    const local={id:asset.id,name:asset.name,blob:file,entry:{...asset.entry,assetId:asset.id,originalFile:file}};
+    assets.set(asset.id,local);return local;
+  }
   function renderShelf(){
-    $('shelfCount').textContent=String(shelfIds.size);$('shelfSearch').hidden=shelfIds.size<7;
+    const visible=new Map(hostedAssets);for(const id of shelfIds)if(assets.has(id))visible.set(id,assets.get(id));
+    $('shelfCount').textContent=String(visible.size);$('shelfSearch').hidden=visible.size<7;
     for(const [grid,filter,remove] of [[$('shelfGrid'),$('shelfSearch').value,true],[$('assetGrid'),'',false]]){
       grid.replaceChildren();
-      for(const id of shelfIds){const a=assets.get(id);if(!a||!a.name.toLowerCase().includes(filter.toLowerCase()))continue;
+      for(const [id,a] of visible){if(!a.name.toLowerCase().includes(filter.toLowerCase()))continue;
         const card=document.createElement('div');card.className='shelf-card';
         const button=document.createElement('button');button.type='button';button.className='shelf-use';button.title=a.name;button.setAttribute('aria-label','Use '+a.name);
-        const img=new Image();img.src=a.entry.thumb;img.alt='';const label=document.createElement('span');label.textContent=a.entry.name;
+        const img=new Image();img.src=a.entry.thumb;img.alt='';img.loading='lazy';img.decoding='async';const label=document.createElement('span');label.textContent=a.entry.name;
         button.append(img,label);button.onclick=()=>chooseAsset(a,grid===$('shelfGrid')?{action:'choose'}:context);card.append(button);
-        if(remove){const x=document.createElement('button');x.type='button';x.className='shelf-remove';x.textContent='×';x.title='Remove from library (placed layers stay)';x.setAttribute('aria-label','Remove '+a.name+' from library');x.onclick=()=>{shelfIds.delete(id);renderShelf();notify();};card.append(x);}
+        if(remove&&!hostedAssets.has(id)){const x=document.createElement('button');x.type='button';x.className='shelf-remove';x.textContent='×';x.title='Remove from library (placed layers stay)';x.setAttribute('aria-label','Remove '+a.name+' from library');x.onclick=()=>{shelfIds.delete(id);renderShelf();notify();};card.append(x);}
         grid.append(card);
       }
       if(!grid.children.length){const empty=document.createElement('p');empty.className='muted';empty.textContent=filter?'No matching artwork.':'Your uploaded graphics will appear here.';grid.append(empty);}
@@ -50,11 +68,13 @@ export function installWorkspace(api){
   async function chooseAsset(asset,ctx){
     if(busy||api.busy())return;busy=true;
     try{
-      if(!asset.entry.source)asset.entry={...await api.decode(new File([asset.blob],asset.name,{type:asset.blob.type})),assetId:asset.id};
+      if(asset.hosted){libraryMessage('Loading '+asset.entry.name+'…');asset=await materializeHosted(asset);}
+      if(!asset.entry.source)asset.entry={...await api.decode(new File([asset.blob],asset.name,{type:asset.blob.type})),name:asset.entry.name,assetId:asset.id};
       $('assetDialog').close();
       if(ctx.action==='choose')api.chooseEntries([asset.entry]);
       else api.addEntries(ctx.slot,[asset.entry],ctx.action,ctx.target);
-    }catch{status('This graphic could not be opened. Try uploading it again.');}finally{busy=false;}
+      if(libraryName)libraryMessage(libraryName+' · '+hostedAssets.size+' graphics');
+    }catch(error){libraryMessage(error.message||'This graphic could not be opened. Click it to retry.');}finally{busy=false;}
   }
   function openAssets(ctx={action:'choose'}){if(busy||api.busy())return;context=ctx;renderShelf();$('assetTitle').textContent=ctx.action==='replace'?'Replace artwork':ctx.action==='add'?'Add artwork here':'Add artwork';$('assetDialog').showModal();}
   async function importImages(files){
@@ -85,8 +105,10 @@ export function installWorkspace(api){
     // Register sources kept by an undo snapshot or imported before the tray existed.
     for(const layer of snapshot.layers)if(!assets.has(layer.assetId)){const a=await register(layer,{show:false});layer.assetId=a.assetId;}
     const ids=new Set(snapshot.layers.map(l=>l.assetId));if(includeLibrary)for(const id of shelfIds)ids.add(id);
+    // Autosave never downloads unused hosted graphics. Explicit Include library does.
+    if(includeLibrary&&finishEditing)for(const asset of hostedAssets.values()){const a=await materializeHosted(asset);ids.add(a.id);}
     const records=Array.from(ids).map(id=>assets.get(id));
-    const doc={format:'orb-design',version:FORMAT_VERSION,name:$('designName').value.trim()||'Untitled design',garmentId:snapshot.garmentId,settings:pick(snapshot.settings,SETTING_FIELDS),regularBackdrop:snapshot.regularBackdrop,lighting:snapshot.lighting,camera:snapshot.camera,customFlipped:snapshot.customFlipped,active:snapshot.active,layers:snapshot.layers.map(l=>pick(l,LAYER_FIELDS)),assets:records.map(a=>({id:a.id,name:a.name,type:a.blob.type||'image/png',path:'artwork/'+a.id+'.'+(a.blob.type==='image/svg+xml'?'svg':a.blob.type==='image/jpeg'?'jpg':a.blob.type==='image/webp'?'webp':a.blob.type==='image/gif'?'gif':a.blob.type==='image/avif'?'avif':'png')})),shelf:includeLibrary?Array.from(shelfIds):Array.from(ids)};
+    const doc={format:'orb-design',version:FORMAT_VERSION,name:$('designName').value.trim()||'Untitled design',garmentId:snapshot.garmentId,settings:pick(snapshot.settings,SETTING_FIELDS),regularBackdrop:snapshot.regularBackdrop,lighting:snapshot.lighting,camera:snapshot.camera,customFlipped:snapshot.customFlipped,active:snapshot.active,layers:snapshot.layers.map(l=>pick(l,LAYER_FIELDS)),assets:records.map(a=>({id:a.id,name:a.name,type:a.blob.type||'image/png',path:'artwork/'+a.id+'.'+(a.blob.type==='image/svg+xml'?'svg':a.blob.type==='image/jpeg'?'jpg':a.blob.type==='image/webp'?'webp':a.blob.type==='image/gif'?'gif':a.blob.type==='image/avif'?'avif':'png')})),shelf:includeLibrary?Array.from(new Set([...shelfIds,...ids])):Array.from(ids)};
     const model=api.modelFile();if(doc.garmentId==='custom'){if(!model)throw new Error('Please re-upload the custom GLB before saving.');doc.modelPath='model/garment.glb';}
     const artworkSize=records.reduce((sum,a)=>sum+a.blob.size,0),modelSize=doc.garmentId==='custom'?model.size:0;
     if(artworkSize>300*1024*1024||modelSize>250*1024*1024||artworkSize+modelSize>340*1024*1024)throw new Error('This design is too large to save. Use smaller artwork files or exclude unused library graphics.');
@@ -164,7 +186,7 @@ export function installWorkspace(api){
   document.addEventListener('click',e=>{if(e.target.closest('#panel,header,#colorPopover'))queueMicrotask(notify);});
   window.addEventListener('beforeunload',e=>{if(ready&&revision!==savedRevision){e.preventDefault();e.returnValue='';}});
   document.addEventListener('visibilitychange',()=>{if(document.hidden)autosave();});
-  return {register,openAssets,notify,makeArchive,dropFolder,artworkData:()=>packageData(false),dropProject:file=>confirmAction({file}),get busy(){return busy;},
+  return {register,openAssets,notify,loadLibrary,makeArchive,dropFolder,artworkData:()=>packageData(false),dropProject:file=>confirmAction({file}),get busy(){return busy;},
     async ready(){
       restoring=true;try{
         const data=await dbGet();if(data){await applyPackage(data,{mergeLibrary:false});status('Restored your last design');}

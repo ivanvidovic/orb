@@ -1,0 +1,139 @@
+{
+  "version": 1,
+  "id": "fireside",
+  "name": "Fireside",
+  "assets": [
+    {
+      "id": "asset-981e106f097e38c3d4f76b7537f719ffe9aa352e71ceea7be5efadae89fbe8da",
+      "name": "Alignment",
+      "file": "Alignment.png",
+      "thumbnail": "_thumbnails/981e106f097e38c3d4f76b7537f719ffe9aa352e71ceea7be5efadae89fbe8da.webp"
+    },
+    {
+      "id": "asset-0b1d7982e965df018ad65b98357bae6de57e933a760f12a5266bcbaf2e28b4fe",
+      "name": "Community",
+      "file": "Community.png",
+      "thumbnail": "_thumbnails/0b1d7982e965df018ad65b98357bae6de57e933a760f12a5266bcbaf2e28b4fe.webp"
+    },
+    {
+      "id": "asset-fd36fe868f46e74e9f3878d6cc6d3950b142661c5043746c944d137dcec41547",
+      "name": "Fireside Columns",
+      "file": "Fireside Columns.png",
+      "thumbnail": "_thumbnails/fd36fe868f46e74e9f3878d6cc6d3950b142661c5043746c944d137dcec41547.webp"
+    },
+    {
+      "id": "asset-bdb38acfd2c105608187238b2cc659fcc7d0421a0e882fc66f2ccac8830ad8b1",
+      "name": "Fireside Creative Technology Wordmark",
+      "file": "Fireside Creative Technology Wordmark.png",
+      "thumbnail": "_thumbnails/bdb38acfd2c105608187238b2cc659fcc7d0421a0e882fc66f2ccac8830ad8b1.webp"
+    },
+    {
+      "id": "asset-7ed4c1601fdaa88631e3620baa9aeacc274b218d32f711f236c60985933e8e0b",
+      "name": "Fireside Sphere",
+      "file": "Fireside Sphere.png",
+      "thumbnail": "_thumbnails/7ed4c1601fdaa88631e3620baa9aeacc274b218d32f711f236c60985933e8e0b.webp"
+    },
+    {
+      "id": "asset-def2a90a7f5ec41885d435829de798bf8ffda3dfca63693f1f0307daaef32943",
+      "name": "Fireside Wordmark",
+      "file": "Fireside Wordmark.png",
+      "thumbnail": "_thumbnails/def2a90a7f5ec41885d435829de798bf8ffda3dfca63693f1f0307daaef32943.webp"
+    },
+    {
+      "id": "asset-98989514a41bfa23d6820f2fd1d101d9306b02a31be3abe18e4bd67bea0f8bd2",
+      "name": "Flower Formation",
+      "file": "Flower Formation.png",
+      "thumbnail": "_thumbnails/98989514a41bfa23d6820f2fd1d101d9306b02a31be3abe18e4bd67bea0f8bd2.webp"
+    },
+    {
+      "id": "asset-2746a1b531caf1f5611e426da54581c6fd7ede7f301efbf5a80d46886f1618d7",
+      "name": "Focus",
+      "file": "Focus.png",
+      "thumbnail": "_thumbnails/2746a1b531caf1f5611e426da54581c6fd7ede7f301efbf5a80d46886f1618d7.webp"
+    },
+    {
+      "id": "asset-40eaa1674ba9ec1cc2b5dc1047fd30c09bc5e5f63716c22d19da1e8e5eef30c8",
+      "name": "Fractals",
+      "file": "Fractals.png",
+      "thumbnail": "_thumbnails/40eaa1674ba9ec1cc2b5dc1047fd30c09bc5e5f63716c22d19da1e8e5eef30c8.webp"
+    },
+    {
+      "id": "asset-9dd133674569246855aa4dee0bfa1fb546862f366c4b7ad6858a17ff8f820edc",
+      "name": "Helping Hands",
+      "file": "Helping Hands.png",
+      "thumbnail": "_thumbnails/9dd133674569246855aa4dee0bfa1fb546862f366c4b7ad6858a17ff8f820edc.webp"
+    },
+    {
+      "id": "asset-e13d3729dbf9461669b2f5788e00d79f567b46c1937e33d1c70c01e84c4b6d26",
+      "name": "Inspiration",
+      "file": "Inspiration.png",
+      "thumbnail": "_thumbnails/e13d3729dbf9461669b2f5788e00d79f567b46c1937e33d1c70c01e84c4b6d26.webp"
+    },
+    {
+      "id": "asset-c48f7096ec04d60d7eb3033a8ddf2c6816ae2721d9b6177e70636ab411bb0bc2",
+      "name": "Kindling",
+      "file": "Kindling.png",
+      "thumbnail": "_thumbnails/c48f7096ec04d60d7eb3033a8ddf2c6816ae2721d9b6177e70636ab411bb0bc2.webp"
+    },
+    {
+      "id": "asset-7a5dd773ce400904d3ff76edebe745cd3b2dcdfe37c3a325ba1558e0ee64b5f9",
+      "name": "Light",
+      "file": "Light.png",
+      "thumbnail": "_thumbnails/7a5dd773ce400904d3ff76edebe745cd3b2dcdfe37c3a325ba1558e0ee64b5f9.webp"
+    },
+    {
+      "id": "asset-90ee0e55aa937b8da34f84dff263a4be3766ae6aca128f05cdea90d12c8d5ed5",
+      "name": "Mapping The Future",
+      "file": "Mapping The Future.png",
+      "thumbnail": "_thumbnails/90ee0e55aa937b8da34f84dff263a4be3766ae6aca128f05cdea90d12c8d5ed5.webp"
+    },
+    {
+      "id": "asset-27cd9877f6a355317c60b9e987f3b8a475d11cc9393b47d15f59583c53a7c49d",
+      "name": "Nurturing",
+      "file": "Nurturing.png",
+      "thumbnail": "_thumbnails/27cd9877f6a355317c60b9e987f3b8a475d11cc9393b47d15f59583c53a7c49d.webp"
+    },
+    {
+      "id": "asset-d5164b1b8f51e0d79c85f2a5e7a35a34ee585eaf86e1ad647e5337a949101f3a",
+      "name": "Objects",
+      "file": "Objects.png",
+      "thumbnail": "_thumbnails/d5164b1b8f51e0d79c85f2a5e7a35a34ee585eaf86e1ad647e5337a949101f3a.webp"
+    },
+    {
+      "id": "asset-c166b7e2deeee296b55c1fe21bc2fd1ab08191476e5c5d3d3ed3185ec2c40862",
+      "name": "Sharing The Light",
+      "file": "Sharing The Light.png",
+      "thumbnail": "_thumbnails/c166b7e2deeee296b55c1fe21bc2fd1ab08191476e5c5d3d3ed3185ec2c40862.webp"
+    },
+    {
+      "id": "asset-4505d47500f811c85e21a74694a4726fcf2dea68bd3b6c919063bce53010fd42",
+      "name": "Structure",
+      "file": "Structure.png",
+      "thumbnail": "_thumbnails/4505d47500f811c85e21a74694a4726fcf2dea68bd3b6c919063bce53010fd42.webp"
+    },
+    {
+      "id": "asset-e3eb904032ee4ffc253b360e514bde03e8c0d277d484b537b9263b5f5ed2c62d",
+      "name": "Support",
+      "file": "Support.png",
+      "thumbnail": "_thumbnails/e3eb904032ee4ffc253b360e514bde03e8c0d277d484b537b9263b5f5ed2c62d.webp"
+    },
+    {
+      "id": "asset-6c65d6a96892c785b69f423c48a87856a86aa98be5ebf9cf32bb8b25a794dc24",
+      "name": "Uplift",
+      "file": "Uplift.png",
+      "thumbnail": "_thumbnails/6c65d6a96892c785b69f423c48a87856a86aa98be5ebf9cf32bb8b25a794dc24.webp"
+    },
+    {
+      "id": "asset-6733e3cd5931cdbc50d4dfa03bae9c7a18fe7df5a03f4ec2446462e8acff97ef",
+      "name": "Vision",
+      "file": "Vision.png",
+      "thumbnail": "_thumbnails/6733e3cd5931cdbc50d4dfa03bae9c7a18fe7df5a03f4ec2446462e8acff97ef.webp"
+    },
+    {
+      "id": "asset-99bf089486311067c77c05983b6d2368a647fc60f885fa63fe91dc0f92e005d5",
+      "name": "Warmth",
+      "file": "Warmth.png",
+      "thumbnail": "_thumbnails/99bf089486311067c77c05983b6d2368a647fc60f885fa63fe91dc0f92e005d5.webp"
+    }
+  ]
+}

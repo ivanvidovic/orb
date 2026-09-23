@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "id": "orb",
+  "name": "ORB",
+  "assets": [
+    {
+      "id": "asset-a586a98862f2121863930cd7581b9f5b197f30da7521a16b038601f62c4cd91c",
+      "name": "ORB Center Logo",
+      "file": "ORB Center Logo.svg",
+      "thumbnail": "_thumbnails/a586a98862f2121863930cd7581b9f5b197f30da7521a16b038601f62c4cd91c.svg"
+    },
+    {
+      "id": "asset-30901843a9fbdbd02aec54f752352baba9e02d8983a0800902fb9edb0cf62aac",
+      "name": "ORB Emblem",
+      "file": "ORB Emblem.svg",
+      "thumbnail": "_thumbnails/30901843a9fbdbd02aec54f752352baba9e02d8983a0800902fb9edb0cf62aac.svg"
+    },
+    {
+      "id": "asset-4259ee1ee930ba9783ff0dc88c8e3593fda2fcb6318a84113df65f5ddf933c4d",
+      "name": "ORB Wordmark",
+      "file": "ORB Wordmark.svg",
+      "thumbnail": "_thumbnails/4259ee1ee930ba9783ff0dc88c8e3593fda2fcb6318a84113df65f5ddf933c4d.svg"
+    }
+  ]
+}

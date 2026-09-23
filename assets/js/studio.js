@@ -1,4 +1,4 @@
-import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=76';
+import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=77';
 import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE} from './sleeve-camera.js?v=71';
 import {applyPrintTexture,hasPrintTexture,capturePrintTone,pixelateArtwork} from './print-texture.js?v=70';
 import {hasDirectory} from './folder-import.js?v=58';
@@ -6,7 +6,7 @@ import {decodeArtworkImage} from './artwork-decode.js?v=45';
 import {createCityTraffic} from './city-night.js?v=43';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=41';
 import {applySolidMask} from './solid-mask.js?v=70';
-import {installWorkspace} from './workspace.js?v=74';
+import {installWorkspace} from './workspace.js?v=77';
 import {installExports} from './presentation-export.js?v=74';
 import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=74';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
@@ -158,7 +158,7 @@ const lightReference=new THREE.Quaternion(),lightInverse=new THREE.Quaternion();
 const lightEnvironmentRotation={value:new THREE.Matrix3()},lightEnvironmentPower={value:1};
 const lightRotationMatrix=new THREE.Matrix4();
 const effectUniforms={uBlackLight:{value:0},uGlowSceneLevel:{value:0},uAfterRotation:{value:new THREE.Matrix3()},uAfterglow:{value:0},uAfterPhase:{value:0},uAfterFade:{value:4},uAfterSpeed:{value:1},uAfterPower:{value:1}};
-const creativeLighting=createCreativeLighting(THREE,scene,effectUniforms,renderer);
+const creativeLighting=createCreativeLighting(THREE,scene,effectUniforms,renderer,{mobile:MOBILE});
 function updateCreativeLighting(dt=0){creativeLighting.update(dt,state);if(state.selfShadows&&isCreative(state.light)&&performance.now()-lastShadowTime>1000/30)shadowDirty=true;}
 let lightReferenceReady=false,shadowDirty=true,lastShadowTime=-Infinity,lastShadowSignature='';
 key.castShadow=true;
@@ -180,7 +180,7 @@ function updateShadowMap(){
 }
 
 const LIGHT_PRESETS={
-  runway:{label:'Runway',description:'An overhead stage spotlight and irregular camera flashes. Pause to hold a moment.',exposure:1,hemi:.035,hemiSky:'#bfcce3',hemiGround:'#25252d',key:.20,keyColor:'#fff5e9',keyPos:[-1,2,1],fill:.06,fillColor:'#e0e9ff',fillPos:[1,.5,1],rim:.3,rimColor:'#ffffff',rimPos:[0,1,-2]},
+  runway:{label:'Runway',description:'Moving overhead light, fast passing highlights and irregular camera flashes. Pause to hold a moment.',exposure:1,hemi:.035,hemiSky:'#bfcce3',hemiGround:'#25252d',key:.20,keyColor:'#fff5e9',keyPos:[-1,2,1],fill:.06,fillColor:'#e0e9ff',fillPos:[1,.5,1],rim:.3,rimColor:'#ffffff',rimPos:[0,1,-2]},
   afterglow:{label:'Afterglow',description:'A circling light charges Glow in the dark artwork, leaving a fading trail. Enable Glow on a layer.',exposure:1,hemi:.008,hemiSky:'#a2acc3',hemiGround:'#161820',key:.025,keyColor:'#c5d4ee',keyPos:[-1,2,1],fill:.008,fillColor:'#ced8f0',fillPos:[1,.5,1],rim:.065,rimColor:'#9aaada',rimPos:[0,1,-2]},
   projector:{label:'Projector',description:'Moving caustics, stripes or geometric light projected onto fabric. Self-shadows block projection behind folds.',exposure:1,hemi:.018,hemiSky:'#c2cede',hemiGround:'#20252d',key:.075,keyColor:'#c4d2e8',keyPos:[-1,2,1],fill:.02,fillColor:'#c5d1ed',fillPos:[1,.5,1],rim:.16,rimColor:'#acbfdf',rimPos:[0,1,-2]},
   softbox:{label:'Softbox',description:'Even neutral light with gentle highlights and filled shadows for reviewing artwork.',
@@ -3571,6 +3571,7 @@ await Promise.all([loadSvg(BRAND.wordmark,4096),loadSvg(BRAND.emblem,2048)]).the
   await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
   for(let i=0;i<artLayers.length;i++){const registered=await workspace.register(artLayers[i]);artLayers[i].assetId=registered.assetId;}
   await workspace.ready();
+  void workspace.loadLibrary();
   document.body.classList.add('ready');
   await window.ORBStartup?.complete();
   preloadCatalog();

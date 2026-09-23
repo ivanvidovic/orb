@@ -13,12 +13,12 @@ export function projectorValue(x,y,t,pattern,scale){
  const wave=Math.sin(u*17+t*.4+Math.sin(v*11-t*.25))+Math.sin(v*19-t*.33+Math.sin(u*13+t*.22));
  return .04+.96*Math.pow(Math.max(0,1-Math.abs(wave)*1.5),3);
 }
-export function createCreativeLighting(THREE,scene,uniforms,renderer){
+export function createCreativeLighting(THREE,scene,uniforms,renderer,{mobile=false}={}){
  const rig=new THREE.Group();scene.add(rig);rig.visible=false;
  const flashes=['#f5f8ff','#fff2df','#edf2ff'].map((color,i)=>{const l=new THREE.DirectionalLight(color,0);l.position.set(...[[-1.5,.5,1.6],[1.7,.25,.8],[-.4,.8,-1.5]][i]);rig.add(l,l.target);return l;});
  const stage=new THREE.SpotLight('#fff0df',0,8,.40,.75,1);stage.position.set(-.35,1.65,1.15);stage.target.position.set(0,.04,0);
  const projector=new THREE.SpotLight('#e4f1ff',0,8,.38,.35,1),charger=new THREE.SpotLight('#fff5dd',0,8,.35,.55,1);
- for(const l of [projector,charger,stage]){l.castShadow=true;l.shadow.mapSize.set(1024,1024);l.shadow.bias=-.0001;l.shadow.normalBias=.0015;rig.add(l,l.target);}
+ for(const l of [projector,charger,stage]){l.castShadow=true;const size=Math.min(renderer.capabilities.maxTextureSize,mobile||l===charger?1024:2048);l.shadow.mapSize.set(size,size);l.shadow.camera.near=.1;l.shadow.bias=-.0001;l.shadow.normalBias=.0015;rig.add(l,l.target);}
  projector.position.set(-.3,.65,2);projector.target.position.set(0,.02,0);charger.target.position.set(0,.02,0);
  const patternScene=new THREE.Scene(),patternCamera=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
  const patternUniforms={time:{value:0},scale:{value:1},pattern:{value:0}};
@@ -56,17 +56,22 @@ export function createCreativeLighting(THREE,scene,uniforms,renderer){
   if(mode==='runway'){
    const pace=state.runwayActivity==='active'?1.65:state.runwayActivity==='gentle'?.65:1;
    const phase=time*pace*.42;
-   stage.angle=.23;stage.penumbra=.8;stage.position.set(-.5,1.65,1.1);
+   stage.angle=.23;stage.penumbra=.8;stage.position.set(Math.sin(phase)*.75,1.5,1.1);
    stage.target.position.set(Math.sin(phase)*.48,.04+Math.sin(phase*.63)*.12,0);
    stage.intensity=(3.4+1.2*Math.sin(phase-.5))*gain;
    // Reuse the charge spotlight as a second pool, not an additional light.
-   charger.angle=.20;charger.penumbra=.85;charger.position.set(1.25,.85,-1.0);
-   charger.target.position.set(Math.sin(phase+2.2)*.42,-.08+Math.cos(phase*.77)*.16,0);
-   charger.intensity=(2.8+1.3*Math.cos(phase+1))*gain;
+   // A travelling pool crosses the front, then the back on its next pass. Fade out at each end
+   // before resetting its path, so the loop never produces a visible jump.
+   const travel=time*pace+2.1,pass=(travel%6)/6,x=-3.4+6.8*pass,side=Math.floor(travel/6)%2?-1:1;
+   const envelope=Math.pow(Math.sin(Math.PI*pass),2);
+   charger.angle=.48;charger.penumbra=.85;charger.decay=2;
+   charger.position.set(x,.18+Math.sin(pass*Math.PI)*.22,side*1.15);
+   charger.target.position.set(0,-.04,0);
+   charger.intensity=5.5*envelope*gain;
    const sample=runwaySample(time,state.runwayActivity);flashes.forEach((l,i)=>l.intensity=sample[i]*5*gain*state.runwayFlash/100);
   }
   if(mode==='afterglow'){
-   charger.angle=.35;charger.penumbra=.55;charger.target.position.set(0,.02,0);
+   charger.angle=.35;charger.penumbra=.55;charger.decay=1;charger.target.position.set(0,.02,0);
    const phase=time*state.afterglowSpeed/100/12*Math.PI*2;
    charger.position.set(Math.sin(phase)*1.7,.35,Math.cos(phase)*1.7);charger.intensity=4*gain;
    uniforms.uAfterPhase.value=phase;uniforms.uAfterFade.value=state.afterglowFade;uniforms.uAfterSpeed.value=state.afterglowSpeed/100;uniforms.uAfterPower.value=gain;

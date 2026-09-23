@@ -135,6 +135,7 @@
 <details id="artShelf" class="art-shelf" open><summary>Artwork library <span id="shelfCount">0</span></summary>
   <div id="shelfDrop"><span id="shelfDropLabel">Drop images or folders · Browse</span> <button id="shelfBrowse" type="button">images</button> / <button id="folderBrowse" type="button">folder</button></div>
   <input id="folderFiles" type="file" webkitdirectory multiple hidden>
+<p id="hostedLibraryStatus" class="shelf-note" role="status" hidden></p>
 <input id="shelfSearch" type="search" placeholder="Find artwork…" aria-label="Find artwork" hidden>
   <div id="shelfGrid" class="shelf-grid" aria-label="Available artwork"></div>
   <p class="shelf-note">Click a graphic to place it. Files stay in this browser.</p>
@@ -353,6 +354,7 @@
     <details class="guideAdvanced"><summary>Color &amp; light effects</summary><dl class="guideRows">
       <div><dt>Original / Tint / Solid</dt><dd>Original keeps uploaded colors. Tint colors lighter areas while retaining dark shading. Solid uses one ink color with the mask settings below.</dd></div>
       <div><dt>Color swatches</dt><dd>Click a swatch to edit or use the eyedropper to sample. Recent colors are shared between pickers; Tint and Solid remember separate colors.</dd></div>
+      <div><dt>Brand libraries</dt><dd>Open a shared link such as ?library=fireside or ?library=orb to browse that brand’s graphics. Originals download when selected. Existing designs stay in place. Used originals are included when saving or exporting; Include library also downloads and bundles unused brand graphics.</dd></div>
       <div><dt>Glow in the dark</dt><dd>Enable per layer, then adjust its intensity. The effect fades in across deeper shadows, with suppression in brighter scenes to keep ordinary folds from glowing strongly. Brighter artwork colors give a stronger result.</dd></div>
       <div><dt>UV reactive</dt><dd>Enable per layer and choose UV lighting to preview the effect. Enabling Glow or UV leaves the color picker closed; adjust the swatch yourself.</dd></div>
       <div><dt>Glossiness</dt><dd>Artwork glossiness applies across the artwork layers. Fabric color and finish are controlled separately.</dd></div>
@@ -387,12 +389,12 @@
       <div><dt>Presets</dt><dd>Studio is neutral; Soft gives gentler contrast; Day adds warm daylight and cool sky fill; Night adds city lighting; UV previews black-light effects.</dd></div>
       <div><dt>Intensity</dt><dd>Type a higher value to extend the slider, or drag to its end and release. UV and Night remember their own intensity settings.</dd></div>
       <div><dt>City night</dt><dd>Dim streetlight with passing headlights and occasional red brake lights. Choose Off, Subtle or Active traffic; pause to hold a moment. Export All holds lighting steady across views.</dd></div>
-      <div><dt>Runway</dt><dd>Sweeping overhead and rear spotlights reveal the garment between uneven camera-flash bursts. Standard uses a measured pace; Active speeds up the spotlights and adds stronger, denser bursts. Activity sets the pace; Flash intensity sets their brightness. Pause holds a lighting moment.</dd></div>
+      <div><dt>Runway</dt><dd>A moving overhead spotlight and a light passing across the front and back on alternating passes reveal the garment between uneven camera-flash bursts. Standard uses a measured pace; Active speeds up the spotlights and adds stronger, denser bursts. Activity sets the pace; Flash intensity sets their brightness. Pause holds a lighting moment.</dd></div>
       <div><dt>Afterglow</dt><dd>A circling light charges artwork marked Glow in the dark. Charge speed sets the cycle; Fade seconds sets how long the simulated charge remains. Pause holds the light and glow.</dd></div>
       <div><dt>Projector</dt><dd>Animated Caustics, Stripes or Geometry cast light onto the fabric. Patterns are generated on the GPU with higher resolution at fine scales. Pattern scale reaches 0.01; type a value for precise fine adjustment. Detail too small to resolve blends into an even tone to reduce shimmer. Adjust Pattern scale, Speed and Intensity; zero Speed holds a static pattern. Enable Self-shadows to block projection behind the garment’s surfaces.</dd></div>
       <div><dt>Animated presets</dt><dd>Runway, Afterglow and Projector remember separate intensity settings. Fix lights in scene is available for every preset: checked holds the rig still; unchecked lets the lights follow your view. Pause stops their animation; they start paused when reduced motion is requested. Export All freezes the lighting across views. These are preview effects, not treatments baked into print artwork.</dd></div>
       <div><dt>Fix lights in scene</dt><dd>Keeps the light rig stationary as you rotate your view. Otherwise lighting follows the view.</dd></div>
-      <div><dt>Self-shadows</dt><dd>Adds shadows from folds and overlapping fabric. Turn off to improve performance on slower devices.</dd></div>
+      <div><dt>Self-shadows</dt><dd>Adds shadows from folds and overlapping fabric. Main creative spotlights use sharper shadows on desktop, with lighter settings on mobile. Turn off to improve performance on slower devices.</dd></div>
       <div><dt>Background &amp; grid</dt><dd>Choose the background and grid in Environment. UV, Runway, Afterglow and Projector use a dark backdrop and faint grid. Returning to regular lighting restores your previous background.</dd></div>
       <div><dt>Theme</dt><dd>Light mode uses neutral, muted colors. Match fabric to theme also switches fabric color; manually choosing a fabric color turns that option off.</dd></div>
       <div><dt>White fabric in UV</dt><dd>White and near-white fabric gain a light-blue base in UV mode. Your chosen fabric color stays unchanged in other lighting presets.</dd></div>
@@ -410,10 +412,10 @@
     </dl></details>
     <details class="guideAdvanced"><summary>Using your own 3D model</summary><dl class="guideRows"><div><dt>Upload</dt><dd>Use a GLB with embedded textures and non-overlapping UVs.</dd></div><div><dt>Set position</dt><dd>Select a layer, choose Set position, then tap the model.</dd></div><div><dt>Orientation</dt><dd>Turn around corrects the model direction. Restore selection returns to the built-in garment.</dd></div></dl></details>
   </div>
-  <div class="helpFooter"><span><kbd>Esc</kbd> to close</span><span>ORB Studio 76</span></div>
+  <div class="helpFooter"><span><kbd>Esc</kbd> to close</span><span>ORB Studio 77</span></div>
 </dialog>
 
-<dialog id="assetDialog" class="workspace-dialog" aria-labelledby="assetTitle"><div class="workspace-head"><h2 id="assetTitle">Add artwork</h2><button type="button" data-close-dialog aria-label="Close">×</button></div><div class="workspace-body"><button id="assetBrowse" type="button">Upload images</button><p class="muted">Or choose a graphic from your library.</p><div id="assetGrid" class="shelf-grid"></div></div></dialog>
+<dialog id="assetDialog" class="workspace-dialog" aria-labelledby="assetTitle"><div class="workspace-head"><h2 id="assetTitle">Add artwork</h2><button type="button" data-close-dialog aria-label="Close">×</button></div><div class="workspace-body"><button id="assetBrowse" type="button">Upload images</button><p class="muted">Or choose a graphic from your library.</p><p id="assetLibraryStatus" class="shelf-note" role="status" hidden></p><div id="assetGrid" class="shelf-grid"></div></div></dialog>
 <dialog id="saveDialog" class="workspace-dialog" aria-labelledby="saveTitle"><div class="workspace-head"><h2 id="saveTitle">Save design</h2><button type="button" data-close-dialog aria-label="Close">×</button></div><div class="workspace-body"><p>One editable file with this garment, all layers, artwork, and preview settings.</p><label class="check-option"><input id="saveIncludeLibrary" type="checkbox">Include unused library graphics</label><p class="muted">Used graphics are always included. Built-in 3D garments stay in the app.</p><button id="saveConfirm" class="primary-action" type="button">Download design</button><p id="saveStatus" role="status"></p></div></dialog>
 <dialog id="exportDialog" class="workspace-dialog" aria-labelledby="exportTitle"><div class="workspace-head"><h2 id="exportTitle">Export presentation</h2><button type="button" data-close-dialog aria-label="Close">×</button></div><div class="workspace-body">
  <p>Your current lighting, fabric, and artwork. Consistently framed PNGs in one ZIP.</p>
@@ -452,6 +454,6 @@
 </script>
 
 <script src="./assets/vendor/jszip/jszip.min.js"></script>
-<script type="module" src="./assets/js/studio.js?v=76"></script>
+<script type="module" src="./assets/js/studio.js?v=77"></script>
 </body>
 </html>
