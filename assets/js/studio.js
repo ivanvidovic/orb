@@ -1,3 +1,4 @@
+import {isGpuPrintPattern,gpuPrintBaseKey,prepareGpuPrintBase,gpuPrintParameters,GPU_PRINT_GLSL} from './gpu-print-pattern.js?v=80';
 import {createPatternJobs,createPatternProcessor} from './pattern-jobs.js?v=79';
 import {renderPatternRaster} from './pattern-raster.js?v=79';
 import {focusedPanelBounds,layerCustomColor,patternWorkingSource} from './artwork-detail.js?v=78';
@@ -2057,8 +2058,10 @@ const ARTWORK_VERTEX=`varying vec2 vArtUv;
 void main(){vArtUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`;
 const ARTWORK_FRAGMENT=`uniform sampler2D uSource;uniform float uOriginal,uTint,uEffectsPass;uniform vec2 uEffects;
 uniform vec3 uInkColor;varying vec2 vArtUv;
+${GPU_PRINT_GLSL}
 void main(){
   vec4 art=texture2D(uSource,vArtUv);
+  if(uPrintType>.5)art.a*=printCoverage(art,vArtUv);
   vec3 color=uOriginal>.5?art.rgb:uInkColor;
   if(uTint>.5){
     // Transfer the chosen color's chroma, preserving source luminance and alpha.
@@ -2101,6 +2104,7 @@ function resetArtworkMaps(){
   requestArtworkRender();
 }
 function artworkSourceKey(layer){
+  if(isGpuPrintPattern(layer))return gpuPrintBaseKey(layer);
   return `${layer.solidMaskSource??'brightness'}/${layer.solidSpread??0}/${layer.solidEdgeSoftness??0}/${layer.printPixelScale??35}/${layer.printVersion??1}/${layer.printMarkSize??50}/${layer.printTone??100}/${layer.printErosion??0}/${layer.printPattern||'none'}/${layer.printSize??40}/${layer.printAngle??45}/${layer.printStrength??100}/${layer.fit?1:0}/${layer.mode==='ink'?`ink/${layer.solidCutoff??12}/${layer.solidSoftness??65}/${!!layer.solidInvert}`:'color'}`;
 }
 const patternJobs=createPatternJobs(createPatternProcessor(job=>renderPatternRaster(job.source,job.layer,job.limit)));
@@ -2127,6 +2131,13 @@ function artworkSource(layer){
   let cached=artworkSources.get(layer.source);
   if(!cached){cached={fitted:null,textures:new Map()};artworkSources.set(layer.source,cached);}
   const patternKey=artworkSourceKey(layer);
+  if(isGpuPrintPattern(layer)){
+    if(!cached.textures.has(patternKey)){
+      const base=prepareGpuPrintBase(layer.source,layer,Math.min(MOBILE?1024:4096,renderer.capabilities.maxTextureSize-8),fitVisibleArtwork);
+      cached.textures.set(patternKey,{texture:texFromArtwork(base.raster,!base.ink),width:base.raster.width,height:base.raster.height,gpu:base});
+    }
+    return cached.textures.get(patternKey);
+  }
   if(['dots','lines','grain','pixel'].includes(layer.printPattern)&&hasPrintTexture(layer))return patternSource(layer,cached,patternKey);
   const edgeMargin=layer.mode==='ink'?Math.ceil((Math.abs(layer.solidSpread??0)+3*(layer.solidEdgeSoftness??0))*Math.min(layer.source.width,layer.source.height)/1024):0;
   const source=layer.fit?(edgeMargin?fitVisibleArtwork(layer.source,edgeMargin):(cached.fitted||(cached.fitted=fitVisibleArtwork(layer.source)))):layer.source;
@@ -2217,10 +2228,10 @@ function updateArtworkQuad(map,layer,index,total){
   if(!scene){scene=new THREE.Scene();map.scenes.set(q.island,scene);}
   if(!mesh){
     const material=new THREE.ShaderMaterial({
-      uniforms:{uSource:{value:null},uOriginal:{value:1},uTint:{value:0},uEffectsPass:{value:0},uEffects:{value:new THREE.Vector2()},uInkColor:{value:new THREE.Color()}},
+      uniforms:{uPrintType:{value:0},uPrintCanvas:{value:new THREE.Vector4()},uPrintCrop:{value:new THREE.Vector4()},uPrintShape:{value:new THREE.Vector4()},uPrintTreatment:{value:new THREE.Vector2()},uSource:{value:null},uOriginal:{value:1},uTint:{value:0},uEffectsPass:{value:0},uEffects:{value:new THREE.Vector2()},uInkColor:{value:new THREE.Color()}},
       vertexShader:ARTWORK_VERTEX,fragmentShader:ARTWORK_FRAGMENT,
       transparent:true,depthTest:false,depthWrite:false,side:THREE.DoubleSide,
-      forceSinglePass:true,toneMapped:false
+      forceSinglePass:true,toneMapped:false,extensions:{derivatives:true}
     });
     mesh=new THREE.Mesh(artworkQuad,material);mesh.matrixAutoUpdate=false;mesh.frustumCulled=false;
     map.quads.set(layer.id,mesh);
@@ -2242,6 +2253,14 @@ function updateArtworkQuad(map,layer,index,total){
   );
   mesh.matrixWorldNeedsUpdate=true;
   const uniforms=mesh.material.uniforms,hex=inkHex(layer);
+  uniforms.uPrintType.value=image.gpu?(layer.printPattern==='lines'?2:1):0;
+  if(image.gpu){
+    const base=image.gpu,crop=base.crop,p=gpuPrintParameters(layer,crop);
+    uniforms.uPrintCanvas.value.set(image.width,image.height,base.pad,base.ink?1:0);
+    uniforms.uPrintCrop.value.set(crop.fullWidth,crop.fullHeight,crop.offsetX,crop.offsetY);
+    uniforms.uPrintShape.value.set(p.period,p.cos,p.sin,p.mark);
+    uniforms.uPrintTreatment.value.set(p.tone,p.erosion);
+  }
   uniforms.uSource.value=image.texture;uniforms.uOriginal.value=layer.mode==='original'?1:0;
   uniforms.uTint.value=layer.mode==='tint'?1:0;
   uniforms.uInkColor.value.set(hex);
