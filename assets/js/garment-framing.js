@@ -10,3 +10,8 @@ export function torsoFrame(id){
 export function torsoDistance(id){return FRAMES[id]?1.85/FRAMES[id].scale:1.55;}
 // Only used to migrate saved v83 full-view cameras once.
 export function previousTorsoFrame(id){const f=PREVIOUS[id];return f?{center:[...f.center],distance:1.64*f.width/PREVIOUS['mens-tee'].width}:null;}
+
+// The front reference fills about 88% of the viewport. Angled silhouettes need
+// extra cuff clearance; these factors are identical across all four garments.
+const PREVIEW_DISTANCES={front:1.62,back:1.62,angle:1.76,backangle:1.76,side:1.85};
+export function previewDistance(id,view){return FRAMES[id]?(PREVIEW_DISTANCES[view]??1.85)/FRAMES[id].scale:torsoDistance(id);}
