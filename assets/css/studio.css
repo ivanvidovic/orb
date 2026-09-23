@@ -861,3 +861,9 @@ body.present .stage-reset,body.present .stage-help{display:none}
 :where(#panel) :where(button,input,select,textarea){font-family:var(--sans);font-size:11px}
 :where(#panel) :where(label,legend){font-size:11px}
 :where(#panel) :where(h1,h2,h3,h4,h5,h6){font-size:12px;line-height:1.4}
+
+/* Compact, non-interactive layer color indicator. */
+#artWorkspace .art-name-line{display:flex;align-items:center;gap:5px;min-width:0}
+#artWorkspace .art-name-line>.art-layer-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#artWorkspace .art-layer-color{flex:none;width:8px;height:8px;border-radius:50%;border:1px solid var(--rule-mid);background:var(--swatch);box-shadow:inset 0 0 0 1px #ffffff70}
+#artWorkspace .art-layer-color[hidden]{display:none}

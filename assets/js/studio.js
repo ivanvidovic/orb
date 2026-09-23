@@ -1,3 +1,4 @@
+import {focusedPanelBounds,layerCustomColor,patternWorkingSource} from './artwork-detail.js?v=78';
 import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=77';
 import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE} from './sleeve-camera.js?v=71';
 import {applyPrintTexture,hasPrintTexture,capturePrintTone,pixelateArtwork} from './print-texture.js?v=70';
@@ -305,7 +306,7 @@ const uni = {
 const VERT_HEAD=`
   uniform float uTime; uniform float uWind; uniform float uTwist; uniform float uFlowHalfWidth;
   uniform float uTwistFlowPower; uniform float uSleeveBoost; uniform float uSleeveArc; uniform vec3 uDir;
-  attribute float aFlow; attribute vec3 aMotionAnchor; attribute vec2 aArtworkUv; varying vec2 vArtworkUv;
+  attribute float aFlow; attribute vec3 aMotionAnchor; attribute vec2 aArtworkUv; attribute vec4 aArtworkClamp; varying vec2 vArtworkUv; varying vec4 vArtworkClamp;
   vec3 gDisp;
 
   float kMotionFlow(vec3 p){
@@ -386,15 +387,17 @@ float kIlluminance=0.0,kUVExposure=0.0,kUVVisibility=1.0,kHardVisibility=1.0;
 vec3 kFabricColor=vec3(0.0),kArtColor=vec3(0.0),kEffectNormal=vec3(0.0);
 vec2 kArtEffects=vec2(0.0);
 varying vec2 vArtworkUv;
+varying vec4 vArtworkClamp;
+vec2 boundedArtworkUv(){return clamp(vArtworkUv,vArtworkClamp.xy,vArtworkClamp.zw);}
 float kArtworkMask=0.0;`;
 const FRAG_PRINT=`{
 kArtworkMask=0.0;kFabricColor=diffuseColor.rgb;
 if(gl_FrontFacing&&uHasArtwork>0.5&&vArtworkUv.x>=0.0&&vArtworkUv.y>=0.0){
-  vec4 art=texture2D(uArtwork,vArtworkUv);
+  vec4 art=texture2D(uArtwork,boundedArtworkUv());
   diffuseColor.rgb=diffuseColor.rgb*(1.0-art.a)+art.rgb;
   kArtworkMask=art.a;kArtColor=art.rgb/max(art.a,.0001);
   if(uHasEffects>.5){
-    vec4 effects=texture2D(uArtworkEffects,vArtworkUv);
+    vec4 effects=texture2D(uArtworkEffects,boundedArtworkUv());
     // The low-resolution map stores premultiplied effect strength. Restore
     // strength, then apply the full-resolution print coverage exactly once.
     kArtEffects=effects.rg/max(effects.a,.0001)*4.0*art.a;
@@ -448,7 +451,7 @@ totalEmissiveRadiance+=.008*kFabricColor*kFabricLight*kUVExposure*uFabricReactiv
 if(gl_FrontFacing&&uHasEffects>.5&&vArtworkUv.x>=0.0&&vArtworkUv.y>=0.0){
   // A short-range surface bounce approximation. Cached colors retain the
   // separate glow/UV strengths; current lighting gates their visible spill.
-  vec3 bounce=4.0*(texture2D(uSpillGlow,vArtworkUv).rgb*kDark+texture2D(uSpillUV,vArtworkUv).rgb*kUV);
+  vec3 bounce=4.0*(texture2D(uSpillGlow,boundedArtworkUv()).rgb*kDark+texture2D(uSpillUV,boundedArtworkUv()).rgb*kUV);
   totalEmissiveRadiance+=bounce*.20*sqrt(clamp(kFabricColor,0.0,1.0)+vec3(.01))*(1.0-kArtworkMask);
 }
 `;
@@ -512,7 +515,7 @@ function patchFabricMaterial(mat){
     sh.vertexShader = VERT_HEAD + sh.vertexShader;
     sh.vertexShader = sh.vertexShader.replace('#include <beginnormal_vertex>',
       `#include <beginnormal_vertex>
-       vArtworkUv = aArtworkUv;
+       vArtworkUv = aArtworkUv; vArtworkClamp = aArtworkClamp;
        gDisp = kFabricDisp(aMotionAnchor, aFlow);
        if (aFlow > 0.001) {
          vec3 T1 = normalize(cross(objectNormal, vec3(0.0,1.0,0.0)) + vec3(1e-5));
@@ -540,7 +543,7 @@ function patchFabricMaterial(mat){
     sh.fragmentShader = sh.fragmentShader.replace('#include <roughnessmap_fragment>',
       '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, clamp(uArtRough, 0.02, 1.0), clamp(kArtworkMask, 0.0, 1.0));');
   };
-  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v76-glow';
+  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v78-detail';
   mat.needsUpdate=true;
   return mat;
 }
@@ -1738,7 +1741,12 @@ function segment(id,fn){
   });
 }
 
+function syncLayerColor(layer){
+  const dot=layerRows.get(layer.id)?.querySelector('.art-layer-color');if(!dot)return;
+  const color=layerCustomColor(layer);dot.hidden=!color;dot.style.setProperty('--swatch',color||'transparent');dot.title=color?`${layer.mode==='ink'?'Solid':'Tint'} · ${color.toUpperCase()}`:'';
+}
 function syncInkUi(){
+  for(const layer of artLayers)syncLayerColor(layer);
   const entry=artEntry(),disabled=artLoading||!entry;
   for(const button of document.querySelectorAll('[data-art-mode]')){
     button.disabled=disabled;button.setAttribute('aria-pressed',String(entry?.mode===button.dataset.artMode));
@@ -2101,12 +2109,12 @@ function artworkSource(layer){
   const key=artworkSourceKey(layer);
   if(!cached.textures.has(key)){
     const pixelSource=layer.printPattern==='pixel'?pixelateArtwork(layer.source,layer):null;
-    const renderSource=pixelSource?(layer.fit?fitVisibleArtwork(pixelSource,edgeMargin):pixelSource):source;
+    const renderSource=pixelSource?(layer.fit?fitVisibleArtwork(pixelSource,edgeMargin):pixelSource):patternWorkingSource(source,layer,Math.min(MOBILE?1024:4096,renderer.capabilities.maxTextureSize-8));
     let raster=layer.mode==='ink'?makeArtworkMask(renderSource,layer):renderSource;
     if(layer.mode!=='ink'&&hasPrintTexture(layer)&&layer.printPattern!=='pixel'){
-      raster=document.createElement('canvas');raster.width=source.width;raster.height=source.height;
-      const cx=raster.getContext('2d');cx.drawImage(source,0,0);const pixels=cx.getImageData(0,0,raster.width,raster.height);
-      applyPrintTexture(pixels.data,raster.width,raster.height,layer,source.orbCrop);cx.putImageData(pixels,0,0);
+      raster=document.createElement('canvas');raster.width=renderSource.width;raster.height=renderSource.height;
+      const cx=raster.getContext('2d');cx.drawImage(renderSource,0,0);const pixels=cx.getImageData(0,0,raster.width,raster.height);
+      applyPrintTexture(pixels.data,raster.width,raster.height,layer,renderSource.orbCrop);cx.putImageData(pixels,0,0);
     }
     cached.textures.set(key,{texture:texFromArtwork(raster,layer.mode!=='ink'),width:raster.width,height:raster.height});
   }
@@ -2130,10 +2138,21 @@ function artworkPanelBounds(geometry){
   }
   artworkBoundsCache.set(geometry,bounds);return bounds;
 }
-function layoutArtworkMap(map,geometry,panelIds){
-  const key=panelIds.join(',');
+function artworkLayerBounds(layer){
+  const q=layerProfile(layer),image=artworkSource(layer),A=layer.placement,meta=ART_META[layer.slot],aspect=image.height/image.width;
+  const full=hasFullSleeve(layer)&&layer.sleevePreset==='full',limits=UV_PROFILES[layer.slot]?.full;
+  const width=full?limits.printLength/aspect*A.scale:meta.w*A.scale*(q.printScale||1)/(!isCustom&&meta.side==='Sleeve'?Math.max(1,aspect):1),height=width*aspect;
+  const [ox,oy]=placementOffsets(layer,q),[a,b,d,e]=q.basis,c=Math.cos(A.rot*Math.PI/180),sn=Math.sin(A.rot*Math.PI/180);
+  const u=q.origin[0]+a*ox-b*oy,v=q.origin[1]+d*ox-e*oy;
+  const du=(Math.abs(a*c+b*sn)*width+Math.abs(-a*sn+b*c)*height)/2,dv=(Math.abs(d*c+e*sn)*width+Math.abs(-d*sn+e*c)*height)/2;
+  return {minU:u-du,maxU:u+du,minV:v-dv,maxV:v+dv};
+}
+function layoutArtworkMap(map,geometry,panelIds,layers){
+  const bounds=new Map(artworkPanelBounds(geometry));
+  for(const id of panelIds)bounds.set(id,focusedPanelBounds(bounds.get(id),layers.filter(l=>layerProfile(l).island===id).map(artworkLayerBounds)));
+  const key=JSON.stringify([...bounds].filter(([id])=>panelIds.includes(id)));
   if(map.geometry===geometry&&map.layoutKey===key&&geometry.getAttribute('aArtworkUv'))return false;
-  const bounds=artworkPanelBounds(geometry),cols=Math.ceil(Math.sqrt(panelIds.length||1)),rows=Math.ceil((panelIds.length||1)/cols);
+  const cols=Math.ceil(Math.sqrt(panelIds.length||1)),rows=Math.ceil((panelIds.length||1)/cols);
   const limit=Math.min(8192,renderer.capabilities.maxTextureSize),tileSize=Math.min(4096,Math.floor(limit/Math.max(cols,rows))),gutter=8;
   const width=cols*tileSize,height=rows*tileSize;
   map.tiles.clear();map.geometry=geometry;map.layoutKey=key;
@@ -2157,13 +2176,15 @@ function layoutArtworkMap(map,geometry,panelIds){
       map.tiles.set(id,{...b,density,left,top,size:tileSize,x:left+(tileSize-spanU*density)/2,y:top+(tileSize-spanV*density)/2});
     });
   }else{map.target?.dispose();map.target=null;map.map.value=null;}
-  const uv=geometry.getAttribute('orbPrintUv')||geometry.getAttribute('uv'),island=geometry.getAttribute('aPrintIsland'),values=new Float32Array(geometry.attributes.position.count*2).fill(-1);
+  const uv=geometry.getAttribute('orbPrintUv')||geometry.getAttribute('uv'),island=geometry.getAttribute('aPrintIsland'),values=new Float32Array(geometry.attributes.position.count*2).fill(-1),clamps=new Float32Array(geometry.attributes.position.count*4);
   if(uv&&island)for(let i=0;i<uv.count;i++){
     const tile=map.tiles.get(island.getX(i));if(!tile)continue;
     values[i*2]=(tile.x+(uv.getX(i)-tile.minU)*tile.density)/width;
     values[i*2+1]=(tile.y+(uv.getY(i)-tile.minV)*tile.density)/height;
+    clamps.set([(tile.left+2)/width,(tile.top+2)/height,(tile.left+tile.size-2)/width,(tile.top+tile.size-2)/height],i*4);
   }
   geometry.setAttribute('aArtworkUv',new THREE.BufferAttribute(values,2));
+  geometry.setAttribute('aArtworkClamp',new THREE.BufferAttribute(clamps,4));
   return true;
 }
 function updateArtworkQuad(map,layer,index,total){
@@ -2298,7 +2319,7 @@ function flushArtwork(){
       const geometry=mesh.geometry,meshId=mesh.userData.orbMeshId||1,map=getArtworkMap(meshId),bounds=artworkPanelBounds(geometry);
       const layers=artLayers.filter(layer=>{const q=layerProfile(layer);return q&&(q.mesh||1)===meshId&&bounds.has(q.island);});
       const panels=[...new Set(layers.map(layer=>layerProfile(layer).island))].sort((a,b)=>a-b);
-      const changed=layoutArtworkMap(map,geometry,panels),ids=new Set(layers.map(layer=>layer.id));
+      const changed=layoutArtworkMap(map,geometry,panels,layers),ids=new Set(layers.map(layer=>layer.id));
       for(const [id,quad] of map.quads)if(!ids.has(id)){quad.removeFromParent();quad.material.dispose();map.quads.delete(id);}
       for(const [id,scene] of map.scenes)if(!map.tiles.has(id)){scene.clear();map.scenes.delete(id);}
       map.has.value=layers.some(layer=>layer.visible)?1:0;
@@ -2450,7 +2471,7 @@ function createLayerRow(layer){
     <button class="art-drag" type="button" title="Drag to reorder; use ↑ or ↓ with the keyboard"><svg viewBox="0 0 12 20" aria-hidden="true"><path d="M3 4h.01M9 4h.01M3 10h.01M9 10h.01M3 16h.01M9 16h.01"/></svg></button>
     <button class="art-thumb" type="button"><img alt="" draggable="false"></button>
     <div class="art-labels">
-      <button class="art-select" type="button" aria-controls="artEditor" aria-expanded="false"><span class="art-layer-name"></span><span class="art-layer-placement"></span></button>
+      <button class="art-select" type="button" aria-controls="artEditor" aria-expanded="false"><span class="art-name-line"><span class="art-layer-name"></span><span class="art-layer-color" hidden aria-hidden="true"></span></span><span class="art-layer-placement"></span></button>
       <button class="art-rename" type="button" title="Rename layer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15z"/></svg></button>
       <div class="art-name-edit" hidden><input class="art-name-input" type="text" maxlength="80" aria-label="Layer name" autocomplete="off" spellcheck="false" enterkeyhint="done"><small class="art-name-source"></small></div>
     </div>
@@ -2506,7 +2527,7 @@ function syncArtworkUi(){
     wrap.classList.toggle('active',selected);
     row.classList.toggle('selected',selected);row.classList.toggle('art-hidden',!layer.visible);
     const label=ART_META[layer.slot].label+(hasFullSleeve(layer)&&layer.sleevePreset==='full'?' · Full sleeve':'');
-    row.querySelector('.art-layer-name').textContent=layer.name;
+    row.querySelector('.art-layer-name').textContent=layer.name;syncLayerColor(layer);
     const sourceName=layer.sourceName||layer.name;
     row.querySelector('.art-layer-name').title=`${layer.name}\nSource: ${sourceName}`;
     row.querySelector('.art-select').title=`${sourceName}\nDouble-click to rename`;
@@ -2518,7 +2539,7 @@ function syncArtworkUi(){
     for(const button of row.querySelectorAll('button'))button.disabled=artLoading;
     for(const button of row.querySelectorAll('.art-select')){
       button.setAttribute('aria-expanded',String(selected));
-      button.setAttribute('aria-label',`Edit ${layer.name}, ${label}`);
+      button.setAttribute('aria-label',`Edit ${layer.name}, ${label}${layerCustomColor(layer)?`, ${layer.mode==='ink'?'Solid':'Tint'} ${layerCustomColor(layer)}`:''}`);
     }
     const thumbnail=row.querySelector('.art-thumb');
     thumbnail.setAttribute('aria-label',`View ${layer.name} on garment, ${label}`);
