@@ -354,6 +354,7 @@
     <details class="guideAdvanced"><summary>Color &amp; light effects</summary><dl class="guideRows">
       <div><dt>Original / Tint / Solid</dt><dd>Original keeps uploaded colors. Tint colors lighter areas while retaining dark shading. Solid uses one ink color with the mask settings below.</dd></div>
       <div><dt>Color swatches</dt><dd>Click a swatch to edit or use the eyedropper to sample. Recent colors are shared between pickers; Tint and Solid remember separate colors.</dd></div>
+      <div><dt>Pattern preview</dt><dd>Pattern adjustments use a lighter preview while editing, then refine in the background after a short pause. Save Image and Export All wait for full detail.</dd></div>
       <div><dt>Layer color</dt><dd>A small dot beside the layer name shows its custom Tint or Solid color. Hover for the mode and color value. Original mode has no dot.</dd></div>
       <div><dt>Brand libraries</dt><dd>Open a shared link such as ?library=fireside or ?library=orb to browse that brand’s graphics. Originals download when selected. Existing designs stay in place. Used originals are included when saving or exporting; Include library also downloads and bundles unused brand graphics.</dd></div>
       <div><dt>Glow in the dark</dt><dd>Enable per layer, then adjust its intensity. The effect fades in across deeper shadows, with suppression in brighter scenes to keep ordinary folds from glowing strongly. Brighter artwork colors give a stronger result.</dd></div>
@@ -413,7 +414,7 @@
     </dl></details>
     <details class="guideAdvanced"><summary>Using your own 3D model</summary><dl class="guideRows"><div><dt>Upload</dt><dd>Use a GLB with embedded textures and non-overlapping UVs.</dd></div><div><dt>Set position</dt><dd>Select a layer, choose Set position, then tap the model.</dd></div><div><dt>Orientation</dt><dd>Turn around corrects the model direction. Restore selection returns to the built-in garment.</dd></div></dl></details>
   </div>
-  <div class="helpFooter"><span><kbd>Esc</kbd> to close</span><span>ORB Studio 78</span></div>
+  <div class="helpFooter"><span><kbd>Esc</kbd> to close</span><span>ORB Studio 79</span></div>
 </dialog>
 
 <dialog id="assetDialog" class="workspace-dialog" aria-labelledby="assetTitle"><div class="workspace-head"><h2 id="assetTitle">Add artwork</h2><button type="button" data-close-dialog aria-label="Close">×</button></div><div class="workspace-body"><button id="assetBrowse" type="button">Upload images</button><p class="muted">Or choose a graphic from your library.</p><p id="assetLibraryStatus" class="shelf-note" role="status" hidden></p><div id="assetGrid" class="shelf-grid"></div></div></dialog>
@@ -455,6 +456,6 @@
 </script>
 
 <script src="./assets/vendor/jszip/jszip.min.js"></script>
-<script type="module" src="./assets/js/studio.js?v=78"></script>
+<script type="module" src="./assets/js/studio.js?v=79"></script>
 </body>
 </html>

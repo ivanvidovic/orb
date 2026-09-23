@@ -81,7 +81,7 @@ export function installExports(api){
     for(const el of $('exportDialog').querySelectorAll('input,select'))el.disabled=true;
     let session;
     try{
-      message('Preparing presentation…');await turn();
+      message('Preparing presentation…');await turn();await api.prepare?.();check();
       const design=$('exportDesign').checked?await api.workspace.makeArchive(false):null;check();
       session=captureSession(width,height);camera.aspect=width/height;
       const {center,points,box}=pointsAndCenter();
@@ -116,7 +116,7 @@ export function installExports(api){
     if(working||api.busy()||!api.current())return;
     working=true;api.lock(true,'Saving image…');let session;
     try{
-      api.finish();api.draw();const currentCamera=camera.clone(),aspect=camera.aspect;
+      api.finish();await api.prepare?.();api.draw();const currentCamera=camera.clone(),aspect=camera.aspect;
       const width=aspect>=1?2048:Math.round(2048*aspect),height=aspect>=1?Math.round(2048/aspect):2048;
       session=captureSession(width,height);camera.copy(currentCamera);camera.aspect=width/height;
       const output=frame(width,height,{background:'current',grid:true}),blob=await canvasBlob(output);
