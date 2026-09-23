@@ -1,6 +1,6 @@
 import {loadHostedLibrary,fetchHostedArtwork} from './hosted-library.js?v=77';
 import {collectDrop} from './folder-import.js?v=58';
-import {FORMAT_VERSION,LAYER_FIELDS,SETTING_FIELDS,pick,cleanFilename,canvasBlob,downloadBlob,validateProject} from './design-format.js?v=74';
+import {FORMAT_VERSION,LAYER_FIELDS,SETTING_FIELDS,pick,cleanFilename,canvasBlob,downloadBlob,validateProject} from './design-format.js?v=82';
 const $=id=>document.getElementById(id);
 const imageFile=f=>f.type.startsWith('image/')||/\.(png|jpe?g|webp|gif|avif|svg)$/i.test(f.name);
 const pause=()=>new Promise(resolve=>setTimeout(resolve,0));
@@ -168,10 +168,10 @@ export function installWorkspace(api){
     catch(e){status(e.message||'This design could not open.');}
     finally{restoring=false;busy=false;api.lock(false);if(opened)notify();}
   }
-  function confirmAction(action){pendingOpen=action;$('confirmTitle').textContent=action.file?'Open another design?':'Start a new design?';$('confirmText').textContent='Save your current design before continuing. Your artwork library stays available.';$('confirmContinue').textContent=action.file?'Open design':'Start new';$('confirmDialog').showModal();}
+  function confirmAction(action){pendingOpen=action;$('confirmTitle').textContent=action.file?'Open another design?':'Start a new design?';$('confirmText').textContent=action.file?'Save your current design before opening another?':'Save your current design before starting over?';$('confirmContinue').textContent=action.file?'Open without saving':'Start without saving';$('confirmSave').textContent=action.file?'Save & open':'Save & start new';$('confirmDialog').showModal();}
   async function continueAction(){const action=pendingOpen;pendingOpen=null;$('confirmDialog').close();if(action?.file)await openFile(action.file);else{api.newDesign();$('designName').value='Untitled design';notify();}}
   $('confirmContinue').onclick=continueAction;
-  $('confirmSave').onclick=async()=>{const button=$('confirmSave');button.disabled=true;try{await saveDesign();await continueAction();}catch(e){$('confirmText').textContent=e.message;}finally{button.disabled=false;}};
+  $('confirmSave').onclick=async()=>{if(busy)return;busy=true;const buttons=$('confirmDialog').querySelectorAll('button');buttons.forEach(b=>b.disabled=true);try{await saveDesign();busy=false;await continueAction();}catch(e){$('confirmText').textContent=e.message;}finally{busy=false;buttons.forEach(b=>b.disabled=false);}};
   $('designNew').onclick=()=>{if(!busy&&!api.busy())confirmAction({});};
   $('designOpen').onclick=()=>{if(!busy&&!api.busy()){$('projectFile').value='';$('projectFile').click();}};
   $('projectFile').onchange=()=>{if($('projectFile').files[0])confirmAction({file:$('projectFile').files[0]});};

@@ -877,8 +877,8 @@ body.present .stage-reset,body.present .stage-help{display:none}
 /* Compact export options reuse the dialog's existing type and colors. */
 #exportDialog .workspace-body{gap:12px}
 #exportDialog .export-views{grid-template-columns:repeat(auto-fit,minmax(105px,1fr))}
-.export-choice,.export-includes{border:0;padding:0;margin:0;min-width:0}
-.export-choice legend,.export-includes legend{font-size:11px;padding:0;margin-bottom:5px;color:var(--graphite)}
+.export-choice{border:0;padding:0;margin:0;min-width:0}
+.export-choice legend{font-size:11px;padding:0;margin-bottom:5px;color:var(--graphite)}
 .export-choice-buttons{display:flex;gap:6px}
 .export-choice-buttons label{flex:1;min-width:0;position:relative}
 .export-choice-buttons input{position:absolute;opacity:0;width:1px;height:1px}
@@ -903,3 +903,32 @@ body.present .stage-reset,body.present .stage-help{display:none}
 
 .export-actions{position:sticky;bottom:0;z-index:1;background:var(--paper);padding-top:10px;border-top:1px solid var(--rule);display:grid;gap:8px}
 .export-actions #exportStatus{margin:0;font-size:11px}
+
+/* Export sections share the studio's compact controls and typography. */
+#exportDialog .workspace-body{gap:20px}
+.export-section{display:grid;gap:12px;min-width:0}
+.export-section+.export-section{border-top:1px solid var(--rule);padding-top:18px}
+.export-section h3{margin:0;font:500 13px/1.5 var(--sans)}
+.export-section-heading p,.export-section .muted{font:400 11px/1.5 var(--sans);color:var(--graphite)}
+.export-section-heading p{margin-top:3px}
+#exportDialog .export-views{border:0;padding:0;gap:8px 12px;grid-template-columns:repeat(3,minmax(0,1fr))}
+#exportDialog .export-views legend{font:400 11px/1.5 var(--sans);color:var(--graphite);padding:0;margin-bottom:6px}
+#exportDialog .export-views label{white-space:nowrap;font:400 11px/1.5 var(--sans)}
+#exportDialog .export-views label[hidden]{display:none}
+.export-closeups{border:1px solid var(--rule);border-radius:4px;padding:9px 12px}
+.export-closeups summary{cursor:pointer;font:400 11px/1.5 var(--sans)}
+.export-closeups summary span{float:right;color:var(--graphite);margin-left:8px}
+#exportDialog #exportPlacementViews{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:12px}
+.export-file-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.export-file-options .check-option,.export-project-option .check-option{font-weight:500}
+.export-file-options p,.export-project-option p{margin:3px 0 0 22px}
+#exportPrintNote[hidden],.export-closeups[hidden]{display:none}
+#confirmDialog{width:min(440px,calc(100vw - 32px))}
+#confirmNote{margin-top:5px;font-size:11px}
+.confirm-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+#confirmDialog .confirm-actions button{padding:10px 6px;font-size:11px;line-height:1.4}
+@media(max-width:460px){
+ #exportDialog .export-views{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #exportDialog #exportPlacementViews{grid-template-columns:1fr}
+ .export-file-options{grid-template-columns:1fr;gap:10px}
+}

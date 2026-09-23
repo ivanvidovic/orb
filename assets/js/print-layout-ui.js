@@ -4,11 +4,11 @@ export function installPrintLayoutUI({toggle,container,status}){
   const remembered=new Map();let surfaces=[],key='',ready=false,preference=true;
   toggle.addEventListener('change',()=>{preference=toggle.checked;});
   const el=(tag,cls,text)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(text)e.textContent=text;return e;};
-  function sync(){container.hidden=!toggle.checked;}
+  function sync(){container.hidden=!toggle.checked;status.hidden=!toggle.checked&&!toggle.disabled;}
   toggle.addEventListener('change',sync);
   function set(next,garment){surfaces=next;key=garment;ready=true;container.replaceChildren();
     toggle.disabled=!psdSupported()||!surfaces.length;toggle.checked=preference;
-    status.textContent=!psdSupported()?'Layered PSD export is unavailable in this browser.':!surfaces.length?'Add visible artwork to export a layered layout.':'300 PPI · inches. One PSD per surface, with treated layers and a hidden untreated backup.';
+    status.textContent=!psdSupported()?'Layered PSD export is unavailable in this browser.':!surfaces.length?'Add visible artwork to export a layered layout.':'300 PPI · Dimensions in inches. Set the print size for your garment.';
     if(toggle.disabled){toggle.checked=false;sync();return;}
     for(const surface of surfaces){
       const cacheKey=key+'/'+surface.id,size=remembered.get(cacheKey)||defaultPrintSize(surface);remembered.set(cacheKey,size);

@@ -1,5 +1,5 @@
 import {createExportProgress} from './export-progress.js?v=87';
-import {installPrintLayoutUI} from './print-layout-ui.js?v=87';
+import {installPrintLayoutUI} from './print-layout-ui.js?v=88';
 import {addPrintLayouts} from './print-package.js?v=87';
 import {addArtworkPackage} from './artwork-export.js?v=87';
 import {canvasBlob,downloadBlob,cleanFilename} from './design-format.js?v=82';
@@ -21,7 +21,9 @@ export function installExports(api){
   const detailOptions=api.detailViews||[],detailLabels=new Map(detailOptions.map(v=>[v.id,v.label]));
   const viewLabel=view=>detailLabels.get(view)||VIEW_NAMES[view];
   for(const view of detailOptions){const label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.name='exportView';input.value=view.id;input.dataset.detailExport='true';label.append(input,document.createTextNode(view.label));$('exportPlacementViews').append(label);}
-  function syncDetailExports(){const inputs=Array.from(document.querySelectorAll('[data-detail-export]'));for(const input of inputs){input.disabled=!api.detailView(input.value);input.closest('label').hidden=input.disabled;if(input.disabled)input.checked=false;}$('exportPlacementViews').hidden=!inputs.some(input=>!input.disabled);}
+  function syncDetailExports(){const inputs=Array.from(document.querySelectorAll('[data-detail-export]'));for(const input of inputs){input.disabled=!api.detailView(input.value);input.closest('label').hidden=input.disabled;if(input.disabled)input.checked=false;}$('exportCloseups').hidden=!inputs.some(input=>!input.disabled);syncCloseupCount();}
+  function syncCloseupCount(){$('exportCloseupCount').textContent=$('exportPlacementViews').querySelectorAll('input:checked').length+' selected';}
+  $('exportPlacementViews').addEventListener('change',syncCloseupCount);
   let working=false,cancelled=false,preparing=false;
   const printUI=installPrintLayoutUI({toggle:$('exportPsd'),container:$('exportPrintLayouts'),status:$('exportPrintNote')});
   const progress=createExportProgress($('exportProgress'));
@@ -81,7 +83,7 @@ export function installExports(api){
     if(working||preparing||api.busy()||!api.current())return;
     let plans;try{plans=printUI.plans();}catch(e){message(e.message);return;}
     const views=Array.from(document.querySelectorAll('[name="exportView"]:checked')).map(el=>el.value);
-    if(!views.length&&!plans.length&&!$('exportArtwork').checked&&!$('exportDesign').checked){message('Select a view, a print layout, artwork or an editable design to export.');return;}
+    if(!views.length&&!plans.length&&!$('exportArtwork').checked&&!$('exportDesign').checked){message('Select a view, a print layout, graphics or an ORB project to export.');return;}
     const edge=Number(choice('exportSize')),shape=choice('exportShape'),width=shape==='portrait'?Math.round(edge*.8):edge,height=shape==='wide'?Math.round(edge*9/16):edge;
     const options={width,height,background:choice('exportBackground'),grid:$('exportGrid').checked},name=cleanFilename(api.name());
     working=true;cancelled=false;api.lock(true,'Preparing print package…');$('exportConfirm').disabled=true;$('exportCancel').hidden=false;
