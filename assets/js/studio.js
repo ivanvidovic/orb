@@ -1,17 +1,14 @@
-import {isGpuPrintPattern,gpuPrintBaseKey,prepareGpuPrintBase,gpuPrintParameters,GPU_PRINT_GLSL} from './gpu-print-pattern.js?v=80';
-import {createPatternJobs,createPatternProcessor} from './pattern-jobs.js?v=79';
-import {renderPatternRaster} from './pattern-raster.js?v=79';
 import {focusedPanelBounds,layerCustomColor,patternWorkingSource} from './artwork-detail.js?v=78';
 import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=77';
 import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE} from './sleeve-camera.js?v=71';
-import {applyPrintTexture,hasPrintTexture,capturePrintTone,pixelateArtwork} from './print-texture.js?v=79';
+import {applyPrintTexture,hasPrintTexture,capturePrintTone,pixelateArtwork} from './print-texture.js?v=70';
 import {hasDirectory} from './folder-import.js?v=58';
 import {decodeArtworkImage} from './artwork-decode.js?v=45';
 import {createCityTraffic} from './city-night.js?v=43';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=41';
 import {applySolidMask} from './solid-mask.js?v=70';
 import {installWorkspace} from './workspace.js?v=77';
-import {installExports} from './presentation-export.js?v=79';
+import {installExports} from './presentation-export.js?v=74';
 import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=74';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
 import {installColorPicker} from './color-picker.js?v=36';
@@ -2058,10 +2055,8 @@ const ARTWORK_VERTEX=`varying vec2 vArtUv;
 void main(){vArtUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`;
 const ARTWORK_FRAGMENT=`uniform sampler2D uSource;uniform float uOriginal,uTint,uEffectsPass;uniform vec2 uEffects;
 uniform vec3 uInkColor;varying vec2 vArtUv;
-${GPU_PRINT_GLSL}
 void main(){
   vec4 art=texture2D(uSource,vArtUv);
-  if(uPrintType>.5)art.a*=printCoverage(art,vArtUv);
   vec3 color=uOriginal>.5?art.rgb:uInkColor;
   if(uTint>.5){
     // Transfer the chosen color's chroma, preserving source luminance and alpha.
@@ -2104,41 +2099,11 @@ function resetArtworkMaps(){
   requestArtworkRender();
 }
 function artworkSourceKey(layer){
-  if(isGpuPrintPattern(layer))return gpuPrintBaseKey(layer);
   return `${layer.solidMaskSource??'brightness'}/${layer.solidSpread??0}/${layer.solidEdgeSoftness??0}/${layer.printPixelScale??35}/${layer.printVersion??1}/${layer.printMarkSize??50}/${layer.printTone??100}/${layer.printErosion??0}/${layer.printPattern||'none'}/${layer.printSize??40}/${layer.printAngle??45}/${layer.printStrength??100}/${layer.fit?1:0}/${layer.mode==='ink'?`ink/${layer.solidCutoff??12}/${layer.solidSoftness??65}/${!!layer.solidInvert}`:'color'}`;
-}
-const patternJobs=createPatternJobs(createPatternProcessor(job=>renderPatternRaster(job.source,job.layer,job.limit)));
-function patternSource(layer,cached,key){
-  if(cached.textures.has(key))return cached.textures.get(key);
-  const small=document.createElement('canvas'),ratio=Math.min(1,512/Math.max(layer.source.width,layer.source.height));
-  small.width=Math.max(1,Math.round(layer.source.width*ratio));small.height=Math.max(1,Math.round(layer.source.height*ratio));small.getContext('2d').drawImage(layer.source,0,0,small.width,small.height);
-  const raster=renderPatternRaster(small,layer,512),record={texture:texFromArtwork(raster,layer.mode!=='ink'),width:raster.width,height:raster.height,pending:true};
-  cached.textures.set(key,record);
-  const source=layer.source,settings=pick(layer,LAYER_FIELDS);
-  const valid=()=>artworkSources.get(source)===cached&&cached.textures.get(key)===record&&artLayers.some(l=>l.source===source&&artworkSourceKey(l)===key);
-  patternJobs.enqueue({source,layer:settings,limit:Math.min(MOBILE?1024:4096,renderer.capabilities.maxTextureSize-8),valid,
-    done(result){record.texture.dispose();record.bitmap?.close();Object.assign(record,{texture:texFromArtwork(result,settings.mode!=='ink'),width:result.width,height:result.height,bitmap:result,pending:false});for(const l of artLayers)if(l.source===source&&artworkSourceKey(l)===key)requestArtworkRender(l);},
-    error(){record.pending=false;record.failed=true;artStatus('Pattern detail could not finish. Adjust the pattern to retry.');}
-  });
-  return record;
-}
-async function settlePatternArtwork(){
-  flushArtwork();await patternJobs.settle();
-  for(const layer of artLayers){const record=artworkSources.get(layer.source)?.textures.get(artworkSourceKey(layer));if(record?.failed)throw new Error('Pattern detail is unavailable. Adjust the pattern and try exporting again.');}
-  flushArtwork();
 }
 function artworkSource(layer){
   let cached=artworkSources.get(layer.source);
   if(!cached){cached={fitted:null,textures:new Map()};artworkSources.set(layer.source,cached);}
-  const patternKey=artworkSourceKey(layer);
-  if(isGpuPrintPattern(layer)){
-    if(!cached.textures.has(patternKey)){
-      const base=prepareGpuPrintBase(layer.source,layer,Math.min(MOBILE?1024:4096,renderer.capabilities.maxTextureSize-8),fitVisibleArtwork);
-      cached.textures.set(patternKey,{texture:texFromArtwork(base.raster,!base.ink),width:base.raster.width,height:base.raster.height,gpu:base});
-    }
-    return cached.textures.get(patternKey);
-  }
-  if(['dots','lines','grain','pixel'].includes(layer.printPattern)&&hasPrintTexture(layer))return patternSource(layer,cached,patternKey);
   const edgeMargin=layer.mode==='ink'?Math.ceil((Math.abs(layer.solidSpread??0)+3*(layer.solidEdgeSoftness??0))*Math.min(layer.source.width,layer.source.height)/1024):0;
   const source=layer.fit?(edgeMargin?fitVisibleArtwork(layer.source,edgeMargin):(cached.fitted||(cached.fitted=fitVisibleArtwork(layer.source)))):layer.source;
   const key=artworkSourceKey(layer);
@@ -2159,7 +2124,7 @@ function trimArtworkSources(){
   const sources=new Set(artLayers.map(layer=>layer.source));
   for(const [source,cached] of artworkSources){
     const keys=new Set(artLayers.filter(l=>l.source===source).map(artworkSourceKey));
-    for(const [key,image] of cached.textures)if(!keys.has(key)){image.texture.dispose();image.bitmap?.close?.();cached.textures.delete(key);}
+    for(const [key,image] of cached.textures)if(!keys.has(key)){image.texture.dispose();cached.textures.delete(key);}
     if(!sources.has(source))artworkSources.delete(source);
   }
 }
@@ -2228,10 +2193,10 @@ function updateArtworkQuad(map,layer,index,total){
   if(!scene){scene=new THREE.Scene();map.scenes.set(q.island,scene);}
   if(!mesh){
     const material=new THREE.ShaderMaterial({
-      uniforms:{uPrintType:{value:0},uPrintCanvas:{value:new THREE.Vector4()},uPrintCrop:{value:new THREE.Vector4()},uPrintShape:{value:new THREE.Vector4()},uPrintTreatment:{value:new THREE.Vector2()},uSource:{value:null},uOriginal:{value:1},uTint:{value:0},uEffectsPass:{value:0},uEffects:{value:new THREE.Vector2()},uInkColor:{value:new THREE.Color()}},
+      uniforms:{uSource:{value:null},uOriginal:{value:1},uTint:{value:0},uEffectsPass:{value:0},uEffects:{value:new THREE.Vector2()},uInkColor:{value:new THREE.Color()}},
       vertexShader:ARTWORK_VERTEX,fragmentShader:ARTWORK_FRAGMENT,
       transparent:true,depthTest:false,depthWrite:false,side:THREE.DoubleSide,
-      forceSinglePass:true,toneMapped:false,extensions:{derivatives:true}
+      forceSinglePass:true,toneMapped:false
     });
     mesh=new THREE.Mesh(artworkQuad,material);mesh.matrixAutoUpdate=false;mesh.frustumCulled=false;
     map.quads.set(layer.id,mesh);
@@ -2253,14 +2218,6 @@ function updateArtworkQuad(map,layer,index,total){
   );
   mesh.matrixWorldNeedsUpdate=true;
   const uniforms=mesh.material.uniforms,hex=inkHex(layer);
-  uniforms.uPrintType.value=image.gpu?(layer.printPattern==='lines'?2:1):0;
-  if(image.gpu){
-    const base=image.gpu,crop=base.crop,p=gpuPrintParameters(layer,crop);
-    uniforms.uPrintCanvas.value.set(image.width,image.height,base.pad,base.ink?1:0);
-    uniforms.uPrintCrop.value.set(crop.fullWidth,crop.fullHeight,crop.offsetX,crop.offsetY);
-    uniforms.uPrintShape.value.set(p.period,p.cos,p.sin,p.mark);
-    uniforms.uPrintTreatment.value.set(p.tone,p.erosion);
-  }
   uniforms.uSource.value=image.texture;uniforms.uOriginal.value=layer.mode==='original'?1:0;
   uniforms.uTint.value=layer.mode==='tint'?1:0;
   uniforms.uInkColor.value.set(hex);
@@ -3606,7 +3563,7 @@ function handlePresetShortcut(event){
 document.addEventListener('keydown',handlePresetShortcut);
 installExports({THREE,renderer,scene,camera,garment,presentGarment,shirtShadow,presentShadow,uni,state,current:()=>current,
   artworkColor:inkHex,snapshot:designSnapshot,workspace,busy:()=>artLoading||modelLoading||designLocked||workspace.busy,
-  lock:setWorkspaceLock,pause:value=>renderSuspended=value,flush:flushArtwork,prepare: settlePatternArtwork,draw,resize,
+  lock:setWorkspaceLock,pause:value=>renderSuspended=value,flush:flushArtwork,draw,resize,
   updateLights:updateLightLock,updateShadows:()=>{shadowDirty=true;updateShadowMap();},
   backdrop:drawPatternBackground,lighting:()=>({reference:lightReference.clone(),quaternion:lightRig.quaternion.clone()}),
   restoreLighting:s=>{lightReference.copy(s.reference);lightRig.quaternion.copy(s.quaternion);updateLightLock();},
