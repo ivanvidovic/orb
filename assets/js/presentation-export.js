@@ -1,6 +1,7 @@
-import {installPrintLayoutUI} from './print-layout-ui.js?v=86';
-import {addPrintLayouts} from './print-package.js?v=86';
-import {addArtworkPackage} from './artwork-export.js?v=86';
+import {createExportProgress} from './export-progress.js?v=87';
+import {installPrintLayoutUI} from './print-layout-ui.js?v=87';
+import {addPrintLayouts} from './print-package.js?v=87';
+import {addArtworkPackage} from './artwork-export.js?v=87';
 import {canvasBlob,downloadBlob,cleanFilename} from './design-format.js?v=82';
 const $=id=>document.getElementById(id);
 const VIEW_NAMES={front:'Front',angle:'Front three-quarter',side:'Left side',right:'Right side',backangle:'Back three-quarter',back:'Back',detail:'Detail'};
@@ -20,9 +21,11 @@ export function installExports(api){
   const detailOptions=api.detailViews||[],detailLabels=new Map(detailOptions.map(v=>[v.id,v.label]));
   const viewLabel=view=>detailLabels.get(view)||VIEW_NAMES[view];
   for(const view of detailOptions){const label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.name='exportView';input.value=view.id;input.dataset.detailExport='true';label.append(input,document.createTextNode(view.label));$('exportPlacementViews').append(label);}
-  function syncDetailExports(){for(const input of document.querySelectorAll('[data-detail-export]')){input.disabled=!api.detailView(input.value);input.closest('label').hidden=input.disabled;if(input.disabled)input.checked=false;}}
+  function syncDetailExports(){const inputs=Array.from(document.querySelectorAll('[data-detail-export]'));for(const input of inputs){input.disabled=!api.detailView(input.value);input.closest('label').hidden=input.disabled;if(input.disabled)input.checked=false;}$('exportPlacementViews').hidden=!inputs.some(input=>!input.disabled);}
   let working=false,cancelled=false,preparing=false;
   const printUI=installPrintLayoutUI({toggle:$('exportPsd'),container:$('exportPrintLayouts'),status:$('exportPrintNote')});
+  const progress=createExportProgress($('exportProgress'));
+  const choice=id=>$(id).querySelector('input:checked').value;
   const message=text=>{$('exportStatus').textContent=text;};
   const check=()=>{if(cancelled)throw new Error('Export cancelled.');};
   function captureSession(width,height){
@@ -79,15 +82,17 @@ export function installExports(api){
     let plans;try{plans=printUI.plans();}catch(e){message(e.message);return;}
     const views=Array.from(document.querySelectorAll('[name="exportView"]:checked')).map(el=>el.value);
     if(!views.length&&!plans.length&&!$('exportArtwork').checked&&!$('exportDesign').checked){message('Select a view, a print layout, artwork or an editable design to export.');return;}
-    const edge=Number($('exportSize').value),shape=$('exportShape').value,width=shape==='portrait'?Math.round(edge*.8):edge,height=shape==='wide'?Math.round(edge*9/16):edge;
-    const options={width,height,background:$('exportBackground').value,grid:$('exportGrid').checked},name=cleanFilename(api.name());
+    const edge=Number(choice('exportSize')),shape=choice('exportShape'),width=shape==='portrait'?Math.round(edge*.8):edge,height=shape==='wide'?Math.round(edge*9/16):edge;
+    const options={width,height,background:choice('exportBackground'),grid:$('exportGrid').checked},name=cleanFilename(api.name());
     working=true;cancelled=false;api.lock(true,'Preparing print package…');$('exportConfirm').disabled=true;$('exportCancel').hidden=false;
     for(const el of $('exportDialog').querySelectorAll('input,select,.print-layout button'))el.disabled=true;
-    let session;
+    const artworkUnits=$('exportArtwork').checked?(api.snapshot?.().layers.length||0):0;
+    progress.start(2+views.length+(views.length&&$('exportSheet').checked?1:0)+artworkUnits+plans.reduce((n,p)=>n+p.layers.length+1,0)+2);
+    let session,success=false;
     try{
       message('Preparing print package…');await turn();
-      const design=$('exportDesign').checked?await api.workspace.makeArchive(false):null;check();
-      await api.prepare?.();check();
+      const design=$('exportDesign').checked?await api.workspace.makeArchive(false):null;check();progress.advance();
+      await api.prepare?.();check();progress.advance();
       if(views.length){session=captureSession(width,height);camera.aspect=width/height;}
       const bounds=pointsAndCenter(),{center,points}=api.framing?.()||bounds,{box}=bounds;
       // A common distance for all full views prevents garments jumping in scale.
@@ -102,21 +107,21 @@ export function installExports(api){
         if(view==='detail')focus.y+=box.getSize(new THREE.Vector3()).y*.17;
         camera.position.set(focus.x+d*Math.sin(el)*Math.sin(az),focus.y+d*Math.cos(el),focus.z+d*Math.sin(el)*Math.cos(az));camera.lookAt(focus);
         const canvas=frame(width,height,options),blob=await canvasBlob(canvas);canvas.width=canvas.height=1;check();
-        images.push({view,blob});zip.file(name+'_'+viewLabel(view).replaceAll(' ','-')+'.png',await blob.arrayBuffer());
+        images.push({view,blob});zip.file(name+'_'+viewLabel(view).replaceAll(' ','-')+'.png',await blob.arrayBuffer());progress.advance();
       }
       session?.finish();session=null;
-      if(images.length&&$('exportSheet').checked){message('Building presentation sheet…');await document.fonts.ready;const sheet=await presentationSheet(images,options);check();zip.file(name+'_Presentation.png',await sheet.arrayBuffer());}
+      if(images.length&&$('exportSheet').checked){message('Building presentation sheet…');await document.fonts.ready;const sheet=await presentationSheet(images,options);check();zip.file(name+'_Presentation.png',await sheet.arrayBuffer());progress.advance();}
       if(design)zip.file(name+'.orb',await design.arrayBuffer());
       const data=($('exportArtwork').checked||plans.length)?await api.workspace.artworkData():null;check();
-      if($('exportArtwork').checked)await addArtworkPackage(zip,data,api.artworkColor,{check,message});
-      if(plans.length)await addPrintLayouts(zip,data,plans,api.artworkColor,{check,message});
+      if($('exportArtwork').checked)await addArtworkPackage(zip,data,api.artworkColor,{check,message,advance:()=>progress.advance()});
+      if(plans.length)await addPrintLayouts(zip,data,plans,api.artworkColor,{check,message,advance:()=>progress.advance()});
 
-      message('Packaging print files…');const blob=await zip.generateAsync({type:'blob',compression:'STORE'},check);check();downloadBlob(blob,name+'_Print-Package.zip');message(`Print package downloaded · ${views.length} views${plans.length?` · ${plans.length} layered PSDs`:''}.`);
+      message('Packaging print files…');const blob=await zip.generateAsync({type:'blob',compression:'STORE'},meta=>{check();progress.packaging(meta.percent/100);});check();downloadBlob(blob,name+'_Print-Package.zip');success=true;progress.finish(true);message(`Print package downloaded · ${views.length} views${plans.length?` · ${plans.length} layered PSDs`:''}.`);
     }catch(error){message(error.message||'The export could not finish. Try a smaller image size.');}
-    finally{session?.finish();working=false;api.lock(false);$('exportConfirm').disabled=false;$('exportCancel').hidden=true;for(const el of $('exportDialog').querySelectorAll('input,select,.print-layout button'))el.disabled=false;printUI.restoreAvailability();syncDetailExports();}
+    finally{session?.finish();progress.finish(success);working=false;api.lock(false);$('exportConfirm').disabled=false;$('exportCancel').hidden=true;for(const el of $('exportDialog').querySelectorAll('input,select,.print-layout button'))el.disabled=false;printUI.restoreAvailability();syncDetailExports();}
   }
   $('btnExportAll').onclick=async()=>{
-    if(api.busy()||working||preparing)return;message('');syncDetailExports();$('exportDialog').showModal();
+    if(api.busy()||working||preparing)return;message('');progress.reset();syncDetailExports();$('exportDialog').showModal();
     preparing=true;$('exportConfirm').disabled=true;printUI.loading();
     try{const result=await api.printLayouts();printUI.set(result.surfaces,result.garment);}
     catch(e){printUI.set([],null);message(e.message||'Print layouts could not be prepared. You can still export mockups and separate artwork.');}

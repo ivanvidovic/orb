@@ -1,5 +1,5 @@
 import {createArtworkTreatment} from './artwork-treatment.js?v=86';
-import {treatPixels} from './artwork-export.js?v=86';
+import {treatPixels} from './artwork-export.js?v=87';
 import {pixelateArtwork} from './print-texture.js?v=81';
 import {transformedBounds} from './print-layout.js?v=86';
 // This module runs in an export-only worker. Slider rendering is unchanged.
@@ -49,11 +49,12 @@ export function createPrintRenderer(canvasFactory){
     const merged=canvas(plan.width,plan.height),ctx=merged.getContext('2d');
     for(const pair of [...pairs].reverse()){const l=pair.treated;if(l.hidden)continue;const c=canvas(l.imageData.width,l.imageData.height);put(c,l.imageData.data,c.width,c.height);ctx.drawImage(c,l.left,l.top);c.width=c.height=1;}
     const imageData=pixels(merged);ctx.fillStyle='#777777';ctx.fillRect(0,0,plan.width,plan.height);const background=pixels(merged);merged.width=merged.height=1;
+    // PSD records are bottom-to-top; the studio layer list is top-to-bottom.
     return {width:plan.width,height:plan.height,imageData,children:[
-      {name:'Treated artwork',opened:true,children:pairs.map(p=>p.treated)},
-      {name:'Untreated artwork',hidden:true,opened:false,children:pairs.map(p=>p.untreated)},
+      {name:'Treated artwork',opened:true,children:[...pairs].reverse().map(p=>p.treated)},
+      {name:'Untreated artwork',hidden:true,opened:false,children:[...pairs].reverse().map(p=>p.untreated)},
       {name:'Background preview · hidden for print',hidden:true,left:0,top:0,imageData:background}
-    ],imageResources:{resolutionInfo:{horizontalResolution:300,horizontalResolutionUnit:'PPI',widthUnit:'Inches',verticalResolution:300,verticalResolutionUnit:'PPI',heightUnit:'Inches'}}};
+    ].reverse(),imageResources:{resolutionInfo:{horizontalResolution:300,horizontalResolutionUnit:'PPI',widthUnit:'Inches',verticalResolution:300,verticalResolutionUnit:'PPI',heightUnit:'Inches'}}};
   }
   return {layer,document};
 }

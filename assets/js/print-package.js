@@ -12,12 +12,12 @@ export function workerRequest(worker,payload,transfer,check){
     try{check();worker.postMessage(payload,transfer||[]);}catch(e){fail(e);}
   });
 }
-export async function addPrintLayouts(zip,data,plans,colorFor,{check=()=>{},message=()=>{}}={}){
+export async function addPrintLayouts(zip,data,plans,colorFor,{check=()=>{},message=()=>{},advance=()=>{}}={}){
   if(!psdSupported())throw new Error('Layered PSD export needs a browser with OffscreenCanvas support. Use a current desktop Chrome, Edge, Firefox or Safari, or turn off layered PSDs.');
   const {doc,records}=data,reference={design:doc.name,garment:doc.garmentId,ppi:300,units:'inches',surfaces:[],omittedLayers:doc.layers.filter(l=>!plans.some(p=>p.layers.some(d=>d.id===l.id))).map(l=>({id:l.id,name:l.name,placement:l.slot}))};
   const exported=new Set();
   for(const [index,plan] of plans.entries()){
-    check();const worker=new Worker(new URL('./print-psd-worker.js?v=86',import.meta.url),{type:'module'}),layers=[];
+    check();const worker=new Worker(new URL('./print-psd-worker.js?v=87',import.meta.url),{type:'module'}),layers=[];
     try{
       await workerRequest(worker,{type:'start',plan},[],check);
       for(const [i,desc] of plan.layers.entries()){
@@ -29,10 +29,10 @@ export async function addPrintLayouts(zip,data,plans,colorFor,{check=()=>{},mess
         const img=await decodeArtworkImage(record.blob,{longEdge:Math.max(4096,edge),maxEdge:12000});check();
         const bitmap=await createImageBitmap(img);let response;
         try{response=await workerRequest(worker,{type:'layer',bitmap,desc,settings:layer,color:colorFor(layer)},[bitmap],check);}catch(e){bitmap.close();throw e;}
-        layers.push({id:layer.id,name:layer.name,placement:layer.slot,visible:layer.visible!==false,assetId:layer.assetId,mode:layer.mode,printPattern:layer.printPattern||'none',glow:!!layer.glow,uvReactive:!!layer.uvReactive,emission:layer.emission,matrixPixels:desc.matrix,sourcePixels:response.sourcePixels,rasterScale:response.rasterScale});exported.add(layer.id);
+        layers.push({id:layer.id,name:layer.name,placement:layer.slot,visible:layer.visible!==false,assetId:layer.assetId,mode:layer.mode,printPattern:layer.printPattern||'none',glow:!!layer.glow,uvReactive:!!layer.uvReactive,emission:layer.emission,matrixPixels:desc.matrix,sourcePixels:response.sourcePixels,rasterScale:response.rasterScale});exported.add(layer.id);advance();
       }
       message(`${plan.name} PSD · writing layers…`);const result=await workerRequest(worker,{type:'finish'},[],check);check();
-      const path=`Layouts/${String(index+1).padStart(2,'0')}_${cleanFilename(plan.name)}.psd`;zip.file(path,result.bytes);
+      const path=`Layouts/${String(index+1).padStart(2,'0')}_${cleanFilename(plan.name)}.psd`;zip.file(path,result.bytes);advance();
       reference.surfaces.push({file:path,surface:plan.name,canvasInches:{width:plan.inches.width,height:plan.inches.height},artworkInches:{width:plan.inches.artWidth,height:plan.inches.artHeight},pixels:{width:plan.width,height:plan.height},layers});
     }finally{worker.terminate();}
   }

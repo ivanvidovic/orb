@@ -1,6 +1,6 @@
 import {applyPrintTexture,hasPrintTexture,capturePrintTone,pixelateArtwork} from './print-texture.js?v=81';
 import {decodeArtworkImage} from './artwork-decode.js?v=45';
-import {canvasBlob,cleanFilename} from './design-format.js?v=74';
+import {canvasBlob,cleanFilename} from './design-format.js?v=82';
 import {solidCoverageLut,applySolidMask} from './solid-mask.js?v=81';
 export {solidCoverageLut} from './solid-mask.js?v=81';
 const linear=v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4;
@@ -35,7 +35,7 @@ export async function treatedPng(blob,layer,color,check=()=>{}){
     check();return {blob:await canvasBlob(cv),width,height};
   }finally{cv.width=cv.height=1;}
 }
-export async function addArtworkPackage(zip,{doc,records},colorFor,{check=()=>{},message=()=>{},render=treatedPng}={}){
+export async function addArtworkPackage(zip,{doc,records},colorFor,{check=()=>{},message=()=>{},render=treatedPng,advance=()=>{}}={}){
   const originals=new Map(),layers=[];
   for(const [i,record] of records.entries()){
     check();const asset=doc.assets.find(a=>a.id===record.id),ext=asset.path.split('.').pop();
@@ -50,7 +50,7 @@ export async function addArtworkPackage(zip,{doc,records},colorFor,{check=()=>{}
     const result=await render(record.blob,{...layer,printPattern:'none'},color,check);check();zip.file(file,await result.blob.arrayBuffer());
     let texturedFile=null;
     if(textured){texturedFile=file.replace('Artwork/','Artwork-textured/');const treatment=await render(record.blob,layer,color,check);check();zip.file(texturedFile,await treatment.blob.arrayBuffer());}
-    layers.push({layer:layer.name,placement:layer.slot,visible:layer.visible!==false,artwork:file,texturedArtwork:texturedFile,printTexture:textured?{pattern:layer.printPattern,size:layer.printSize??40,angle:layer.printAngle??45,strength:layer.printStrength??100,version:layer.printVersion??1,pixelScale:layer.printPixelScale??35,markSize:layer.printMarkSize??50,toneResponse:layer.printTone??100,erosion:layer.printErosion??0}:null,original:originals.get(layer.assetId),width:result.width,height:result.height,mode:layer.mode==='ink'?'solid':layer.mode,color:layer.mode==='original'?null:color,solid:layer.mode==='ink'?{cutoff:layer.solidCutoff??12,softness:layer.solidSoftness??65,invert:!!layer.solidInvert,maskSource:layer.solidMaskSource??'brightness',spread:layer.solidSpread??0,edgeSoftness:layer.solidEdgeSoftness??0}:null,glow:!!layer.glow,uvReactive:!!layer.uvReactive,emission:layer.emission,previewPlacement:layer.placement});
+    layers.push({layer:layer.name,placement:layer.slot,visible:layer.visible!==false,artwork:file,texturedArtwork:texturedFile,printTexture:textured?{pattern:layer.printPattern,size:layer.printSize??40,angle:layer.printAngle??45,strength:layer.printStrength??100,version:layer.printVersion??1,pixelScale:layer.printPixelScale??35,markSize:layer.printMarkSize??50,toneResponse:layer.printTone??100,erosion:layer.printErosion??0}:null,original:originals.get(layer.assetId),width:result.width,height:result.height,mode:layer.mode==='ink'?'solid':layer.mode,color:layer.mode==='original'?null:color,solid:layer.mode==='ink'?{cutoff:layer.solidCutoff??12,softness:layer.solidSoftness??65,invert:!!layer.solidInvert,maskSource:layer.solidMaskSource??'brightness',spread:layer.solidSpread??0,edgeSoftness:layer.solidEdgeSoftness??0}:null,glow:!!layer.glow,uvReactive:!!layer.uvReactive,emission:layer.emission,previewPlacement:layer.placement});advance();
   }
   zip.file('Artwork-reference.json',JSON.stringify({design:doc.name,garment:doc.garmentId,layers},null,2));
   zip.file('Artwork-README.txt','Artwork contains one smooth treated PNG per layer, including hidden layers (identified in Artwork-reference.json). Artwork-textured contains an additional patterned PNG for each layer with print texture enabled. Originals contains each used source file once, with unchanged bytes. Filenames link through the reference file.\n\nTreated PNGs use the original raster dimensions, or SVG intrinsic raster dimensions. Source margins are retained. Garment placement, scale, rotation, fit-to-artwork, lighting, gloss, glow and UV illumination are not baked in. Glow and UV intent are recorded in the reference. Print patterns are visual styling. Size is relative to the source image, not a physical screen frequency. No physical print dimensions or screen separations are assigned. Consult the mockups for placement and appearance.\n\nSolid applies the selected color with Brightness or Alpha coverage. Auto selects Alpha for single-color sources. Spread and Edge softness modify coverage within source image bounds. Tint retains dark shading. Original retains source colors and alpha. Animated sources are flattened to a frame; untouched originals remain available.\n');
