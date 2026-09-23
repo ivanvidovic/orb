@@ -1,4 +1,4 @@
-import {addArtworkPackage} from './artwork-export.js?v=74';
+import {addArtworkPackage} from './artwork-export.js?v=81';
 import {canvasBlob,downloadBlob,cleanFilename} from './design-format.js?v=74';
 const $=id=>document.getElementById(id);
 const VIEW_NAMES={front:'Front',angle:'Front three-quarter',side:'Left side',right:'Right side',backangle:'Back three-quarter',back:'Back',detail:'Detail'};
@@ -83,6 +83,7 @@ export function installExports(api){
     try{
       message('Preparing presentation…');await turn();
       const design=$('exportDesign').checked?await api.workspace.makeArchive(false):null;check();
+      await api.prepare?.();check();
       session=captureSession(width,height);camera.aspect=width/height;
       const {center,points,box}=pointsAndCenter();
       // A common distance for all full views prevents garments jumping in scale.
@@ -116,6 +117,7 @@ export function installExports(api){
     if(working||api.busy()||!api.current())return;
     working=true;api.lock(true,'Saving image…');let session;
     try{
+      await api.prepare?.();
       api.finish();api.draw();const currentCamera=camera.clone(),aspect=camera.aspect;
       const width=aspect>=1?2048:Math.round(2048*aspect),height=aspect>=1?Math.round(2048/aspect):2048;
       session=captureSession(width,height);camera.copy(currentCamera);camera.aspect=width/height;

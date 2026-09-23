@@ -1,14 +1,15 @@
-import {focusedPanelBounds,layerCustomColor,patternWorkingSource} from './artwork-detail.js?v=78';
+import {treatmentKey} from './artwork-treatment.js?v=81';
+import {createTreatmentQueue,createTreatmentProcessor} from './artwork-processing.js?v=81';
+import {hasPrintTexture} from './print-texture.js?v=81';
+import {focusedPanelBounds,layerCustomColor} from './artwork-detail.js?v=78';
 import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=77';
 import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE} from './sleeve-camera.js?v=71';
-import {applyPrintTexture,hasPrintTexture,capturePrintTone,pixelateArtwork} from './print-texture.js?v=70';
 import {hasDirectory} from './folder-import.js?v=58';
 import {decodeArtworkImage} from './artwork-decode.js?v=45';
 import {createCityTraffic} from './city-night.js?v=43';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=41';
-import {applySolidMask} from './solid-mask.js?v=70';
 import {installWorkspace} from './workspace.js?v=77';
-import {installExports} from './presentation-export.js?v=74';
+import {installExports} from './presentation-export.js?v=81';
 import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=74';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
 import {installColorPicker} from './color-picker.js?v=36';
@@ -2053,10 +2054,11 @@ artworkQuad.setAttribute('uv',new THREE.Float32BufferAttribute([0,0,1,0,1,1,0,1]
 artworkQuad.setIndex([0,1,2,0,2,3]);
 const ARTWORK_VERTEX=`varying vec2 vArtUv;
 void main(){vArtUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`;
-const ARTWORK_FRAGMENT=`uniform sampler2D uSource;uniform float uOriginal,uTint,uEffectsPass;uniform vec2 uEffects;
+const ARTWORK_FRAGMENT=`uniform sampler2D uSource;uniform float uOriginal,uTint,uEffectsPass,uCoverageOnly;uniform vec2 uEffects;
 uniform vec3 uInkColor;varying vec2 vArtUv;
 void main(){
   vec4 art=texture2D(uSource,vArtUv);
+  if(uCoverageOnly>.5)art=vec4(1.0,1.0,1.0,art.r);
   vec3 color=uOriginal>.5?art.rgb:uInkColor;
   if(uTint>.5){
     // Transfer the chosen color's chroma, preserving source luminance and alpha.
@@ -2098,29 +2100,70 @@ function resetArtworkMaps(){
   }
   requestArtworkRender();
 }
-function artworkSourceKey(layer){
-  return `${layer.solidMaskSource??'brightness'}/${layer.solidSpread??0}/${layer.solidEdgeSoftness??0}/${layer.printPixelScale??35}/${layer.printVersion??1}/${layer.printMarkSize??50}/${layer.printTone??100}/${layer.printErosion??0}/${layer.printPattern||'none'}/${layer.printSize??40}/${layer.printAngle??45}/${layer.printStrength??100}/${layer.fit?1:0}/${layer.mode==='ink'?`ink/${layer.solidCutoff??12}/${layer.solidSoftness??65}/${!!layer.solidInvert}`:'color'}`;
+const artworkTreatments=new Map(),artworkTreatmentQueue=createTreatmentQueue(createTreatmentProcessor());
+const needsArtworkTreatment=layer=>layer.mode==='ink'||['dots','lines','grain','pixel'].includes(layer.printPattern);
+function artworkSourceKey(layer){return treatmentKey(layer);}
+function textureFromTreatment(result){
+  const format=result.coverageOnly?(renderer.capabilities.isWebGL2?THREE.RedFormat:THREE.LuminanceFormat):THREE.RGBAFormat;
+  const texture=new THREE.DataTexture(result.data,result.width,result.height,format,THREE.UnsignedByteType);
+  texture.colorSpace=result.coverageOnly?THREE.NoColorSpace:THREE.SRGBColorSpace;
+  texture.flipY=false;texture.unpackAlignment=1;texture.premultiplyAlpha=false;
+  texture.magFilter=THREE.LinearFilter;texture.minFilter=THREE.LinearMipmapLinearFilter;texture.generateMipmaps=true;
+  texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());texture.needsUpdate=true;return texture;
+}
+function treatedArtworkSource(layer){
+  let slot=artworkTreatments.get(layer.id);
+  if(slot&&slot.source!==layer.source){artworkTreatmentQueue.cancel(slot);slot.image?.texture.dispose();artworkTreatments.delete(layer.id);slot=null;}
+  if(!slot){slot={source:layer.source,requestedKey:null,image:null,error:null};artworkTreatments.set(layer.id,slot);}
+  slot.layer=layer;
+  const key=treatmentKey(layer);
+  if(slot.requestedKey!==key){
+    slot.requestedKey=key;slot.error=null;
+    const source=layer.source,settings=pick(layer,LAYER_FIELDS);
+    artworkTreatmentQueue.enqueue(slot,{
+      source,settings,limit:Math.min(MOBILE?1024:4096,renderer.capabilities.maxTextureSize-8),
+      valid:()=>artworkTreatments.get(layer.id)===slot&&artLayers.includes(slot.layer)&&slot.layer.source===source&&needsArtworkTreatment(slot.layer),
+      done(result){
+        let texture=slot.image?.texture;
+        if(texture&&slot.image.width===result.width&&slot.image.height===result.height&&slot.image.coverageOnly===result.coverageOnly){texture.image.data=result.data;texture.needsUpdate=true;}
+        else{texture?.dispose();texture=textureFromTreatment(result);}
+        slot.image={texture,width:result.width,height:result.height,coverageOnly:result.coverageOnly,mode:settings.mode};
+        slot.completedKey=key;requestArtworkRender(slot.layer);
+      },
+      error(error){if(slot.requestedKey===key){slot.error=error;artStatus(error.message||'Artwork could not be updated.');}}
+    });
+  }
+  return slot.image;
+}
+async function settleArtworkTreatment(){
+  flushArtwork();await artworkTreatmentQueue.settle();
+  for(const slot of artworkTreatments.values())if(artLayers.includes(slot.layer)&&slot.error)throw slot.error;
+  flushArtwork();
 }
 function artworkSource(layer){
+  if(needsArtworkTreatment(layer))return treatedArtworkSource(layer);
   let cached=artworkSources.get(layer.source);
   if(!cached){cached={fitted:null,textures:new Map()};artworkSources.set(layer.source,cached);}
-  const edgeMargin=layer.mode==='ink'?Math.ceil((Math.abs(layer.solidSpread??0)+3*(layer.solidEdgeSoftness??0))*Math.min(layer.source.width,layer.source.height)/1024):0;
-  const source=layer.fit?(edgeMargin?fitVisibleArtwork(layer.source,edgeMargin):(cached.fitted||(cached.fitted=fitVisibleArtwork(layer.source)))):layer.source;
   const key=artworkSourceKey(layer);
   if(!cached.textures.has(key)){
-    const pixelSource=layer.printPattern==='pixel'?pixelateArtwork(layer.source,layer):null;
-    const renderSource=pixelSource?(layer.fit?fitVisibleArtwork(pixelSource,edgeMargin):pixelSource):patternWorkingSource(source,layer,Math.min(MOBILE?1024:4096,renderer.capabilities.maxTextureSize-8));
-    let raster=layer.mode==='ink'?makeArtworkMask(renderSource,layer):renderSource;
-    if(layer.mode!=='ink'&&hasPrintTexture(layer)&&layer.printPattern!=='pixel'){
-      raster=document.createElement('canvas');raster.width=renderSource.width;raster.height=renderSource.height;
-      const cx=raster.getContext('2d');cx.drawImage(renderSource,0,0);const pixels=cx.getImageData(0,0,raster.width,raster.height);
-      applyPrintTexture(pixels.data,raster.width,raster.height,layer,renderSource.orbCrop);cx.putImageData(pixels,0,0);
-    }
-    cached.textures.set(key,{texture:texFromArtwork(raster,layer.mode!=='ink'),width:raster.width,height:raster.height});
+    const source=layer.fit?(cached.fitted||(cached.fitted=fitVisibleArtwork(layer.source))):layer.source;
+    cached.textures.set(key,{texture:texFromArtwork(source,true),width:source.width,height:source.height});
   }
   return cached.textures.get(key);
 }
 function trimArtworkSources(){
+  const live=new Map(artLayers.map(layer=>[layer.id,layer]));
+  for(const [id,slot] of artworkTreatments){
+    const layer=live.get(id);
+    if(!layer||!needsArtworkTreatment(layer)||slot.source!==layer.source){artworkTreatmentQueue.cancel(slot);slot.image?.texture.dispose();artworkTreatments.delete(id);}
+    else{
+      // Undo replaces layer objects. Keep matching sharp textures, but prevent
+      // a calculation from the abandoned edit arriving after the undo.
+      const key=treatmentKey(layer);
+      if(slot.layer!==layer&&slot.requestedKey!==key){artworkTreatmentQueue.cancel(slot);slot.requestedKey=slot.completedKey===key?key:null;slot.error=null;}
+      slot.layer=layer;
+    }
+  }
   const sources=new Set(artLayers.map(layer=>layer.source));
   for(const [source,cached] of artworkSources){
     const keys=new Set(artLayers.filter(l=>l.source===source).map(artworkSourceKey));
@@ -2139,7 +2182,7 @@ function artworkPanelBounds(geometry){
   artworkBoundsCache.set(geometry,bounds);return bounds;
 }
 function artworkLayerBounds(layer){
-  const q=layerProfile(layer),image=artworkSource(layer),A=layer.placement,meta=ART_META[layer.slot],aspect=image.height/image.width;
+  const q=layerProfile(layer),image=artworkSource(layer)||layer.source,A=layer.placement,meta=ART_META[layer.slot],aspect=image.height/image.width;
   const full=hasFullSleeve(layer)&&layer.sleevePreset==='full',limits=UV_PROFILES[layer.slot]?.full;
   const width=full?limits.printLength/aspect*A.scale:meta.w*A.scale*(q.printScale||1)/(!isCustom&&meta.side==='Sleeve'?Math.max(1,aspect):1),height=width*aspect;
   const [ox,oy]=placementOffsets(layer,q),[a,b,d,e]=q.basis,c=Math.cos(A.rot*Math.PI/180),sn=Math.sin(A.rot*Math.PI/180);
@@ -2193,7 +2236,7 @@ function updateArtworkQuad(map,layer,index,total){
   if(!scene){scene=new THREE.Scene();map.scenes.set(q.island,scene);}
   if(!mesh){
     const material=new THREE.ShaderMaterial({
-      uniforms:{uSource:{value:null},uOriginal:{value:1},uTint:{value:0},uEffectsPass:{value:0},uEffects:{value:new THREE.Vector2()},uInkColor:{value:new THREE.Color()}},
+      uniforms:{uSource:{value:null},uCoverageOnly:{value:0},uOriginal:{value:1},uTint:{value:0},uEffectsPass:{value:0},uEffects:{value:new THREE.Vector2()},uInkColor:{value:new THREE.Color()}},
       vertexShader:ARTWORK_VERTEX,fragmentShader:ARTWORK_FRAGMENT,
       transparent:true,depthTest:false,depthWrite:false,side:THREE.DoubleSide,
       forceSinglePass:true,toneMapped:false
@@ -2204,7 +2247,8 @@ function updateArtworkQuad(map,layer,index,total){
   if(mesh.parent!==scene)scene.add(mesh);
   mesh.visible=layer.visible;mesh.renderOrder=total-index;
   if(!layer.visible)return;
-  const image=artworkSource(layer),A=layer.placement,meta=ART_META[layer.slot],aspect=image.height/image.width;
+  const image=artworkSource(layer);if(!image){mesh.visible=false;return;}
+  const A=layer.placement,meta=ART_META[layer.slot],aspect=image.height/image.width;
   // Full sleeve fits length, with proportional width. Its outer panel clips overflow.
   const full=hasFullSleeve(layer)&&layer.sleevePreset==='full',limits=UV_PROFILES[layer.slot]?.full;
   const width=full?limits.printLength/aspect*A.scale:
@@ -2218,8 +2262,9 @@ function updateArtworkQuad(map,layer,index,total){
   );
   mesh.matrixWorldNeedsUpdate=true;
   const uniforms=mesh.material.uniforms,hex=inkHex(layer);
-  uniforms.uSource.value=image.texture;uniforms.uOriginal.value=layer.mode==='original'?1:0;
-  uniforms.uTint.value=layer.mode==='tint'?1:0;
+  const mode=image.mode&&image.coverageOnly!==(layer.mode==='ink')?image.mode:layer.mode;
+  uniforms.uSource.value=image.texture;uniforms.uCoverageOnly.value=image.coverageOnly?1:0;
+  uniforms.uOriginal.value=mode==='original'?1:0;uniforms.uTint.value=mode==='tint'?1:0;
   uniforms.uInkColor.value.set(hex);
   uniforms.uEffects.value.set(layer.glow?(layer.emission??100)/400:0,layer.uvReactive?(layer.emission??100)/400:0);
 }
@@ -2846,19 +2891,6 @@ document.getElementById('artWorkspace').addEventListener('keydown',e=>{
 syncArtworkUi();
 
 
-function makeArtworkMask(img,settings={}){
-  // Shape brightness BEFORE texture filtering; source alpha remains edge coverage.
-  // This keeps intentional ink buildup without crushing antialiased silhouettes.
-  const srcW=img.width,srcH=img.height,pad=4;
-  const out=document.createElement('canvas');out.width=srcW+pad*2;out.height=srcH+pad*2;
-  const cx=out.getContext('2d',{willReadFrequently:true});cx.drawImage(img,pad,pad);
-  const im=cx.getImageData(pad,pad,srcW,srcH),d=im.data;
-  const sourceTone=capturePrintTone(d,settings);
-  applySolidMask(d,srcW,srcH,settings,img.orbCrop);
-  for(let i=0;i<d.length;i+=4)d[i]=d[i+1]=d[i+2]=255;
-  applyPrintTexture(d,srcW,srcH,settings,{...img.orbCrop,sourceTone});
-  cx.putImageData(im,pad,pad);return out;
-}
 function texFromArtwork(cv,original=false){
   const t=new THREE.CanvasTexture(cv);
   t.colorSpace=original?THREE.SRGBColorSpace:THREE.NoColorSpace;
@@ -3515,7 +3547,7 @@ workspace=installWorkspace({
   clearHistory:()=>{artHistory.length=0;artFuture.length=0;syncArtworkUi();},
   async restore(snapshot,model){
     historyRestoring=true;
-    try{await restoreSnapshotGarment(snapshot,model);restoreDesignState(snapshot);}finally{historyRestoring=false;}
+    try{await restoreSnapshotGarment(snapshot,model);restoreDesignState(snapshot);await settleArtworkTreatment();}finally{historyRestoring=false;}
   },
   newDesign:()=>{
     const snapshot=designSnapshot();snapshot.layers=[];snapshot.active=null;snapshot.name='Untitled design';snapshot.settings=structuredClone(defaultDesignSettings);snapshot.regularBackdrop=null;
@@ -3563,7 +3595,7 @@ function handlePresetShortcut(event){
 document.addEventListener('keydown',handlePresetShortcut);
 installExports({THREE,renderer,scene,camera,garment,presentGarment,shirtShadow,presentShadow,uni,state,current:()=>current,
   artworkColor:inkHex,snapshot:designSnapshot,workspace,busy:()=>artLoading||modelLoading||designLocked||workspace.busy,
-  lock:setWorkspaceLock,pause:value=>renderSuspended=value,flush:flushArtwork,draw,resize,
+  lock:setWorkspaceLock,pause:value=>renderSuspended=value,flush:flushArtwork,prepare:settleArtworkTreatment,draw,resize,
   updateLights:updateLightLock,updateShadows:()=>{shadowDirty=true;updateShadowMap();},
   backdrop:drawPatternBackground,lighting:()=>({reference:lightReference.clone(),quaternion:lightRig.quaternion.clone()}),
   restoreLighting:s=>{lightReference.copy(s.reference);lightRig.quaternion.copy(s.quaternion);updateLightLock();},
@@ -3588,7 +3620,7 @@ await Promise.all([loadSvg(BRAND.wordmark,4096),loadSvg(BRAND.emblem,2048)]).the
   if(!await loadCatalog(selectedCatalogId))throw new Error('Initial garment could not load.');
   window.ORBStartup?.progress(.94,'Preparing preview');
   // Upload textures, compose artwork, and draw the first garment before the handoff.
-  resize();draw();
+  resize();await settleArtworkTreatment();draw();
   await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
   for(let i=0;i<artLayers.length;i++){const registered=await workspace.register(artLayers[i]);artLayers[i].assetId=registered.assetId;}
   await workspace.ready();

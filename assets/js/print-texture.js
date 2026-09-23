@@ -1,4 +1,4 @@
-import {resolveMaskSource} from './solid-mask.js?v=70';
+import {resolveMaskSource} from './solid-mask.js?v=81';
 // Deterministic artwork-space coverage patterns, shared by preview and export.
 export const hasPrintTexture=l=>['dots','lines','grain','pixel'].includes(l.printPattern)&&(l.printVersion===2||(l.printStrength??100)>0);
 export function applyPrintTexture(data,width,height,layer,{fullWidth=width,fullHeight=height,offsetX=0,offsetY=0,sourceTone=null}={}){
@@ -85,10 +85,10 @@ function applyTextureV2(data,width,height,layer,{fullWidth,fullHeight,offsetX,of
 
 // Pixelate the original before color treatment, using premultiplied block averages.
 // Both preview and export use the full source so fitted crops do not shift the grid.
-export function pixelateArtwork(source,layer){
+export function pixelateArtwork(source,layer,createCanvas=()=>document.createElement('canvas')){
   if(layer.printPattern!=='pixel')return source;
   const width=source.naturalWidth||source.width,height=source.naturalHeight||source.height;
-  const out=document.createElement('canvas');out.width=width;out.height=height;
+  const out=createCanvas();out.width=width;out.height=height;
   const ctx=out.getContext('2d',{willReadFrequently:true});ctx.drawImage(source,0,0,width,height);
   const pixels=ctx.getImageData(0,0,width,height),d=pixels.data;
   const scale=Math.max(0,Math.min(100,layer.printPixelScale??35));
