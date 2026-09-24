@@ -1,3 +1,4 @@
+import {installArtworkPaste} from './clipboard-artwork.js?v=91-paste';
 import {loadHostedLibrary,fetchHostedArtwork} from './hosted-library.js?v=77';
 import {collectDrop} from './folder-import.js?v=58';
 import {FORMAT_VERSION,LAYER_FIELDS,SETTING_FIELDS,pick,cleanFilename,canvasBlob,downloadBlob,validateProject} from './design-format.js?v=82';
@@ -77,12 +78,19 @@ export function installWorkspace(api){
     }catch(error){libraryMessage(error.message||'This graphic could not be opened. Click it to retry.');}finally{busy=false;}
   }
   function openAssets(ctx={action:'choose'}){if(busy||api.busy())return;context=ctx;renderShelf();$('assetTitle').textContent=ctx.action==='replace'?'Replace artwork':ctx.action==='add'?'Add artwork here':'Add artwork';$('assetDialog').showModal();}
-  async function importImages(files){
-    if(busy||api.busy())return;busy=true;$('shelfDropLabel').textContent='Adding artwork…';$('shelfBrowse').disabled=$('folderBrowse').disabled=true;const failed=[];
-    try{for(const file of files){if(!imageFile(file)){failed.push(file.name);continue;}try{if(shelfIds.size>=400)throw new Error('Library full');const entry=await register(await api.decode(file));if(!api.snapshot().layers.some(l=>l.assetId===entry.assetId))assets.get(entry.assetId).entry={...entry,source:null};}catch{failed.push(file.name);}await pause();}}
+  async function importImages(files,{place=false}={}){
+    if(busy||api.busy())return;busy=true;$('shelfDropLabel').textContent='Adding artwork…';$('shelfBrowse').disabled=$('folderBrowse').disabled=true;const failed=[],entries=[];
+    try{for(const file of files){if(!imageFile(file)){failed.push(file.name);continue;}try{if(shelfIds.size>=400)throw new Error('Library full');const entry=await register(await api.decode(file));if(place)entries.push(entry);if(!api.snapshot().layers.some(l=>l.assetId===entry.assetId))assets.get(entry.assetId).entry={...entry,source:null};}catch{failed.push(file.name);}await pause();}}
     finally{busy=false;$('shelfDropLabel').textContent='Drop images or folders · Browse';$('shelfBrowse').disabled=$('folderBrowse').disabled=false;renderShelf();notify();}
     if(failed.length)status('Could not add: '+failed.join(', '));
+    // Cancelling placement leaves the image in the library. Avoid stacking
+    // dialogs if another one opened while decoding the clipboard image.
+    if(place&&entries.length&&!api.busy()&&!document.querySelector('dialog[open]'))api.chooseEntries(entries);
   }
+  installArtworkPaste({
+    blocked:()=>!ready||restoring||busy||api.busy()||!!document.querySelector('dialog[open]')||!$('colorPopover').hidden,
+    importImages:files=>importImages(files,{place:true})
+  });
   async function dropFolder(transfer){
     if(busy||api.busy())return;
     try{
