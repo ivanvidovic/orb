@@ -995,3 +995,5 @@ body.present .stage-reset,body.present .stage-help{display:none}
 .export-sheet-option{border-top:1px solid var(--rule);padding-top:12px}
 .export-sheet-option p{margin:3px 0 0 22px;font-size:10px}
 @media(max-width:480px){.export-grid-option{padding-left:0}}
+
+#artWorkspace .art-toolbar[hidden]{display:none}

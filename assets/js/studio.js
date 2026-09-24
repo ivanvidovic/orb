@@ -1,8 +1,8 @@
-import {treatmentKey} from './artwork-treatment.js?v=86';
+import {treatmentKey} from './artwork-treatment.js?v=91-organic';
 import {quadTransform,alphaBounds,flattenTransform,collectSurfaces} from './print-layout.js?v=86';
-import {createTreatmentQueue,createTreatmentProcessor} from './artwork-processing.js?v=86';
-import {hasPrintTexture} from './print-texture.js?v=81';
-import {focusedPanelBounds,layerCustomColor} from './artwork-detail.js?v=78';
+import {createTreatmentQueue,createTreatmentProcessor} from './artwork-processing.js?v=91-organic';
+import {hasPrintTexture} from './print-texture.js?v=91-organic';
+import {focusedPanelBounds,layerCustomColor} from './artwork-detail.js?v=91-organic';
 import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=77';
 import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE,fullSleeveCamera} from './sleeve-camera.js?v=91-camera';
 import {hasDirectory} from './folder-import.js?v=58';
@@ -11,9 +11,9 @@ import {createCityTraffic} from './city-night.js?v=43';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=82';
 import {sharedSurfaceProfiles,fitSurfacePlacements} from './surface-layout.js?v=83';
 import {torsoFrame,torsoDistance,previousTorsoFrame,previewDistance,previousPreviewFrame} from './garment-framing.js?v=89';
-import {installWorkspace} from './workspace.js?v=91-paste';
-import {installExports} from './presentation-export.js?v=91';
-import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=82';
+import {installWorkspace} from './workspace.js?v=91-organic';
+import {installExports} from './presentation-export.js?v=91-organic';
+import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=91-organic';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
 import {installColorPicker} from './color-picker.js?v=36';
 import {installSliderControls,RESET_ICON} from './controls.js?v=44';
@@ -1833,13 +1833,18 @@ function syncInkUi(){
   }
   document.getElementById('solidMaskSource').value=entry?.solidMaskSource||'brightness';
   document.getElementById('solidMaskSource').disabled=disabled;
-  for(const [id,fallback] of [['printPattern','none'],['printSize',40],['printAngle',45],['printMarkSize',50],['printTone',100],['printErosion',0],['printPixelScale',35]]){
+  for(const [id,fallback] of [['printPattern','none'],['printSize',40],['printAngle',45],['printMarkSize',50],['printTone',100],['printErosion',0],['printPixelScale',35],['printDensity',50]]){
     const input=document.getElementById(id);input.value=entry?.[id]??fallback;input.disabled=disabled;
     const number=document.getElementById(id+'Value');if(number){number.value=input.value;number.disabled=disabled;}
   }
   for(const id of ['printSize','printAngle','printMarkSize','printTone','printErosion'])document.getElementById(id).parentElement.hidden=entry?.printPattern==='pixel'||(entry?.printPattern==='grain'&&['printSize','printAngle'].includes(id));
   document.getElementById('printPixelScale').parentElement.hidden=entry?.printPattern!=='pixel';
-  document.querySelector('label[for=printMarkSize]').textContent=entry?.printPattern==='lines'?'Line width':entry?.printPattern==='grain'?'Grain size':'Dot size';
+  const organic=['maze','branching'].includes(entry?.printPattern);
+  document.getElementById('printDensity').parentElement.hidden=!organic;
+  document.getElementById('printVariationRow').hidden=!organic;
+  document.getElementById('printVariation').disabled=disabled;
+  document.querySelector('label[for=printSize]').textContent=organic?'Scale':'Spacing';
+  document.querySelector('label[for=printMarkSize]').textContent=organic?'Thickness':entry?.printPattern==='lines'?'Line width':entry?.printPattern==='grain'?'Grain size':'Dot size';
   document.getElementById('printTextureControls').hidden=!entry||!hasPrintTexture({...entry,printStrength:100});
   document.getElementById('solidInvert').checked=!!entry?.solidInvert;
   document.getElementById('solidInvert').disabled=disabled||entry?.solidMaskSource==='alpha';
@@ -2174,7 +2179,7 @@ function resetArtworkMaps(){
   requestArtworkRender();
 }
 const artworkTreatments=new Map(),artworkTreatmentQueue=createTreatmentQueue(createTreatmentProcessor());
-const needsArtworkTreatment=layer=>layer.mode==='ink'||['dots','lines','grain','pixel'].includes(layer.printPattern);
+const needsArtworkTreatment=layer=>layer.mode==='ink'||['dots','lines','grain','pixel','maze','branching'].includes(layer.printPattern);
 function artworkSourceKey(layer){return treatmentKey(layer);}
 function textureFromTreatment(result){
   const format=result.coverageOnly?(renderer.capabilities.isWebGL2?THREE.RedFormat:THREE.LuminanceFormat):THREE.RGBAFormat;
@@ -2214,7 +2219,14 @@ async function settleArtworkTreatment(){
   flushArtwork();
 }
 function artworkSource(layer){
-  if(needsArtworkTreatment(layer))return treatedArtworkSource(layer);
+  if(needsArtworkTreatment(layer)){
+    const image=treatedArtworkSource(layer);
+    // A previously untreated Original/Tint layer has no worker image yet.
+    // Keep its full-quality source visible during the first organic generation.
+    if(!image&&['maze','branching'].includes(layer.printPattern)&&layer.mode!=='ink')
+      return artworkSource({...layer,printPattern:'none'});
+    return image;
+  }
   let cached=artworkSources.get(layer.source);
   if(!cached){cached={fitted:null,textures:new Map()};artworkSources.set(layer.source,cached);}
   const key=artworkSourceKey(layer);
@@ -2796,7 +2808,7 @@ function addArtworkEntries(slot,entries,action='add',targetId=null){
   });
   if(action==='replace'&&target){
     added[0].id=target.id;added[0].placement={...target.placement};added[0].visible=target.visible;
-    for(const prop of ['placementSpace','fit','mode','defaultMode','inkCustom','tintCustom','solidCutoff','solidSoftness','solidMaskSource','solidSpread','solidEdgeSoftness','solidInvert','defaultSolidInvert','printPattern','printSize','printAngle','printStrength','printVersion','printMarkSize','printTone','printErosion','printPixelScale','glow','uvReactive','emission'])added[0][prop]=target[prop];
+    for(const prop of ['placementSpace','fit','mode','defaultMode','inkCustom','tintCustom','solidCutoff','solidSoftness','solidMaskSource','solidSpread','solidEdgeSoftness','solidInvert','defaultSolidInvert','printPattern','printSize','printAngle','printStrength','printVersion','printMarkSize','printTone','printErosion','printPixelScale','printDensity','printSeed','glow','uvReactive','emission'])added[0][prop]=target[prop];
     if(target.nameEdited){added[0].name=target.name;added[0].nameEdited=true;}
     artLayers.splice(index,1,...added);
   }else artLayers.splice(index<0?0:index,0,...added);
@@ -2933,7 +2945,7 @@ document.getElementById('printPattern').onchange=e=>{
   const entry=artEntry();if(!entry||artLoading)return;recordArtUndo();entry.printPattern=e.target.value;entry.printVersion=2;
   requestArtworkRender(entry);syncInkUi();workspace?.notify();
 };
-for(const id of ['printSize','printAngle','printMarkSize','printTone','printErosion','printPixelScale']){
+for(const id of ['printSize','printAngle','printMarkSize','printTone','printErosion','printPixelScale','printDensity']){
   const input=document.getElementById(id);
   input.addEventListener('input',()=>{const entry=artEntry();if(!entry||artLoading)return;
     if(printEditing!==input){recordArtUndo();printEditing=input;}
@@ -2941,6 +2953,11 @@ for(const id of ['printSize','printAngle','printMarkSize','printTone','printEros
   });
   for(const event of ['change','blur'])input.addEventListener(event,()=>printEditing=null);
 }
+document.getElementById('printVariation').onclick=()=>{
+  const entry=artEntry();if(!entry||artLoading)return;recordArtUndo();
+  entry.printSeed=((entry.printSeed??1)+1)>>>0;entry.printVersion=2;
+  requestArtworkRender(entry);workspace?.notify();
+};
 let solidEditing=null;
 document.getElementById('solidMaskSource').onchange=e=>{const entry=artEntry();if(!entry||artLoading)return;recordArtUndo();entry.solidMaskSource=e.target.value;requestArtworkRender(entry);syncInkUi();workspace?.notify();};
 for(const id of ['solidCutoff','solidSoftness','solidSpread','solidEdgeSoftness']){
@@ -3534,7 +3551,7 @@ function installGroupResets(){
           applyGridScale(35);applyGridCharSize(45);applyGridStroke(.5);break;
         case 'artwork':{
           const entry=artEntry();if(!entry||artLoading)return;recordArtUndo();
-          Object.assign(entry,{mode:entry.defaultMode||'original',inkCustom:null,tintCustom:null,solidCutoff:12,solidSoftness:65,solidMaskSource:'auto',solidSpread:0,solidEdgeSoftness:0,solidInvert:!!entry.defaultSolidInvert,printPattern:'none',printSize:40,printAngle:45,printStrength:100,printVersion:2,printMarkSize:50,printTone:100,printErosion:0,printPixelScale:35,glow:false,uvReactive:false,emission:100,fit:hasFullSleeve(entry)&&entry.sleevePreset==='full'});
+          Object.assign(entry,{mode:entry.defaultMode||'original',inkCustom:null,tintCustom:null,solidCutoff:12,solidSoftness:65,solidMaskSource:'auto',solidSpread:0,solidEdgeSoftness:0,solidInvert:!!entry.defaultSolidInvert,printPattern:'none',printSize:40,printAngle:45,printStrength:100,printVersion:2,printMarkSize:50,printTone:100,printErosion:0,printPixelScale:35,printDensity:50,printSeed:1,glow:false,uvReactive:false,emission:100,fit:hasFullSleeve(entry)&&entry.sleevePreset==='full'});
           requestArtworkRender(entry);syncArtworkUi();break;
         }
       }

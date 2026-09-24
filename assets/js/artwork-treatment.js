@@ -1,11 +1,12 @@
+import {isOrganic,organicSampler} from './organic-pattern.js?v=91-organic';
 import {solidCoverageLut,resolveMaskSource,filterCoverage} from './solid-mask.js?v=81';
-import {applyPrintTexture,hasPrintTexture,capturePrintTone,pixelateArtwork} from './print-texture.js?v=81';
-import {patternWorkingSource} from './artwork-detail.js?v=78';
+import {applyPrintTexture,hasPrintTexture,capturePrintTone,pixelateArtwork} from './print-texture.js?v=91-organic';
+import {patternWorkingSource} from './artwork-detail.js?v=91-organic';
 
 export function treatmentKey(l){
   const pattern=l.printPattern||'none';
   const ink=l.mode==='ink'?`ink/${l.solidMaskSource??'brightness'}/${l.solidCutoff??12}/${l.solidSoftness??65}/${l.solidSpread??0}/${l.solidEdgeSoftness??0}/${!!l.solidInvert}`:'color';
-  return `${ink}/${!!l.fit}/${pattern}/${l.printVersion??1}/${l.printSize??40}/${l.printAngle??45}/${l.printStrength??100}/${l.printMarkSize??50}/${l.printTone??100}/${l.printErosion??0}/${pattern==='pixel'?l.printPixelScale??35:0}`;
+  return `${ink}/${!!l.fit}/${pattern}/${l.printVersion??1}/${l.printSize??40}/${l.printAngle??45}/${l.printStrength??100}/${l.printMarkSize??50}/${l.printTone??100}/${l.printErosion??0}/${pattern==='pixel'?l.printPixelScale??35:0}/${isOrganic(l)?[l.printSeed??1,l.printDensity??50].join('/'):''}`;
 }
 const clamp=x=>Math.max(0,Math.min(1,x));
 const hash=(x,y)=>{let n=Math.imul(x,374761393)+Math.imul(y,668265263);n=Math.imul(n^(n>>>13),1274126177);return ((n^(n>>>16))>>>0)/4294967296;};
@@ -29,7 +30,7 @@ export function createArtworkTreatment(canvas=()=>document.createElement('canvas
   function prepare(input,l,limit){
     const ink=l.mode==='ink',pixel=l.printPattern==='pixel';
     const margin=ink?Math.ceil((Math.abs(l.solidSpread??0)+3*(l.solidEdgeSoftness??0))*Math.min(input.width,input.height)/1024):0;
-    const key=[!!l.fit,l.fit?margin:0,pixel?`pixel/${l.printPixelScale??35}`:['dots','lines','grain'].includes(l.printPattern)?limit:0].join('/');
+    const key=[!!l.fit,l.fit?margin:0,pixel?`pixel/${l.printPixelScale??35}`:['dots','lines','grain','maze','branching'].includes(l.printPattern)?limit:0].join('/');
     if(source===input&&baseKey===key)return;
     state={};prepared=null;source=input;baseKey=key;
     let work=pixel?pixelateArtwork(input,l,canvas):input;
@@ -79,23 +80,25 @@ export function createArtworkTreatment(canvas=()=>document.createElement('canvas
     const mode=ink?(l.solidMaskSource==='auto'?state.autoMask:l.solidMaskSource||'brightness'):'alpha';
     const toneKey=[ink,mode,mode==='alpha'?false:!!l.solidInvert].join('/');
     if(state.toneKey!==toneKey){state.tone=capturePrintTone(data,{...l,solidMaskSource:mode});state.toneKey=toneKey;stats.tones++;}
+    const organic=isOrganic(l)?organicSampler(l,crop.fullWidth,crop.fullHeight):null;
     const grain=l.printPattern==='grain',size=Math.max(.001,Math.min(100,grain?(l.printMarkSize??50):(l.printSize??40))),join=140-120*39/99;
     const cells=size<1?1120/size:size<40?1120*Math.pow(join/1120,(size-1)/39):140-120*(size-1)/99;
-    const period=Math.min(crop.fullWidth,crop.fullHeight)/cells,resolved=clamp((period-.5)/1.5);
-    const key=[l.printPattern,size,l.printAngle??45].join('/');
+    const period=Math.min(crop.fullWidth,crop.fullHeight)/cells,resolved=organic?organic.resolved:clamp((period-.5)/1.5);
+    const key=[l.printPattern,size,l.printAngle??45,organic?l.printSeed??1:0,organic?l.printDensity??50:0,organic?l.printMarkSize??50:0].join('/');
     if(state.patternKey!==key){
       const thresholds=state.thresholds??=new Float32Array(w*h),angle=(l.printAngle??45)*Math.PI/180,c=Math.cos(angle),s=Math.sin(angle);
       if(resolved>0)for(let y=0,j=0;y<h;y++)for(let x=0;x<w;x++,j++){
         const px=(x+crop.offsetX+.5-crop.fullWidth/2)/period,py=(y+crop.offsetY+.5-crop.fullHeight/2)/period,u=px*c+py*s,v=-px*s+py*c;
         const fx=u-Math.floor(u),fy=v-Math.floor(v);let threshold;
-        if(grain)threshold=clamp(((noise(u,v)*.75+noise(u*2.03+19.7,v*2.03-7.1)*.25)-.5)*1.8+.5);
+        if(organic)threshold=organic.sample(x+crop.offsetX+.5,y+crop.offsetY+.5);
+        else if(grain)threshold=clamp(((noise(u,v)*.75+noise(u*2.03+19.7,v*2.03-7.1)*.25)-.5)*1.8+.5);
         else if(l.printPattern==='lines')threshold=Math.abs(fy-.5)*2;
         else{const r=Math.hypot(fx-.5,fy-.5);threshold=Math.PI*r*r;if(r>.5)threshold-=4*(r*r*Math.acos(.5/r)-.5*Math.sqrt(r*r-.25));}
         thresholds[j]=threshold;
       }
       state.patternKey=key;stats.patterns++;
     }
-    return {thresholds:state.thresholds,tone:state.tone,resolved,aa:Math.min(.25,.65/period),response:clamp((l.printTone??100)/100),erosion:clamp((l.printErosion??0)/100),mark:grain?1:Math.max(0,(l.printMarkSize??50)/50)};
+    return {thresholds:state.thresholds,tone:state.tone,resolved,aa:organic?organic.aa:Math.min(.25,.65/period),response:clamp((l.printTone??100)/100),erosion:clamp((l.printErosion??0)/100),mark:organic?organic.mark:grain?1:Math.max(0,(l.printMarkSize??50)/50)};
   }
   function render(input,l,limit=4096){
     prepare(input,l,limit);

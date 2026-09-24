@@ -9,7 +9,7 @@ export function focusedPanelBounds(panel,rects){
 }
 export function layerCustomColor(layer){return layer.mode==='tint'?layer.tintCustom:layer.mode==='ink'?layer.inkCustom:null;}
 export function patternWorkingSource(source,layer,limit,createCanvas=()=>document.createElement('canvas')){
- if(!['dots','lines','grain'].includes(layer.printPattern))return source;
+ if(!['dots','lines','grain','maze','branching'].includes(layer.printPattern))return source;
  const scale=Math.max(1,Math.min(limit/Math.max(source.width,source.height),4));if(scale<=1)return source;
  const out=createCanvas();out.width=Math.round(source.width*scale);out.height=Math.round(source.height*scale);
  const ctx=out.getContext('2d');ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.drawImage(source,0,0,out.width,out.height);

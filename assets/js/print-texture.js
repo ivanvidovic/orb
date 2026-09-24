@@ -1,6 +1,7 @@
+import {isOrganic,organicSampler} from './organic-pattern.js?v=91-organic';
 import {resolveMaskSource} from './solid-mask.js?v=81';
 // Deterministic artwork-space coverage patterns, shared by preview and export.
-export const hasPrintTexture=l=>['dots','lines','grain','pixel'].includes(l.printPattern)&&(l.printVersion===2||(l.printStrength??100)>0);
+export const hasPrintTexture=l=>['dots','lines','grain','pixel','maze','branching'].includes(l.printPattern)&&(l.printVersion===2||(l.printStrength??100)>0);
 export function applyPrintTexture(data,width,height,layer,{fullWidth=width,fullHeight=height,offsetX=0,offsetY=0,sourceTone=null}={}){
   if(layer.printPattern==='pixel')return;
   if(layer.printVersion===2)return applyTextureV2(data,width,height,layer,{fullWidth,fullHeight,offsetX,offsetY,sourceTone});
@@ -49,13 +50,14 @@ const clamp=v=>Math.max(0,Math.min(1,v));
 function applyTextureV2(data,width,height,layer,{fullWidth,fullHeight,offsetX,offsetY,sourceTone}){
   if(!hasPrintTexture(layer))return;
   sourceTone??=capturePrintTone(data,layer);
+  const organic=isOrganic(layer)?organicSampler(layer,fullWidth,fullHeight):null;
   const grain=layer.printPattern==='grain',size=Math.max(.001,Math.min(100,grain?(layer.printMarkSize??50):(layer.printSize??40))),join=140-120*39/99;
   const cells=size<1?1120/size:size<40?1120*Math.pow(join/1120,(size-1)/39):140-120*(size-1)/99;
-  const period=Math.min(fullWidth,fullHeight)/cells,resolved=clamp((period-.5)/1.5);
+  const period=Math.min(fullWidth,fullHeight)/cells,resolved=organic?organic.resolved:clamp((period-.5)/1.5);
   const angle=(layer.printAngle??45)*Math.PI/180,c=Math.cos(angle),s=Math.sin(angle);
   const response=clamp((layer.printTone??100)/100),erosion=clamp((layer.printErosion??0)/100);
   // Mark size biases area without changing the cell spacing. 50 is neutral.
-  const mark=grain?1:Math.max(0,(layer.printMarkSize??50)/50),aa=Math.min(.25,.65/period);
+  const mark=organic?organic.mark:grain?1:Math.max(0,(layer.printMarkSize??50)/50),aa=organic?organic.aa:Math.min(.25,.65/period);
   const hash=(x,y)=>{let n=Math.imul(x,374761393)+Math.imul(y,668265263);n=Math.imul(n^(n>>>13),1274126177);return ((n^(n>>>16))>>>0)/4294967296;};
   const noise=(u,v)=>{const x=Math.floor(u),y=Math.floor(v),fx=u-x,fy=v-y,sx=fx*fx*(3-2*fx),sy=fy*fy*(3-2*fy);return (hash(x,y)*(1-sx)+hash(x+1,y)*sx)*(1-sy)+(hash(x,y+1)*(1-sx)+hash(x+1,y+1)*sx)*sy;};
   for(let y=0;y<height;y++)for(let x=0;x<width;x++){
@@ -66,7 +68,8 @@ function applyTextureV2(data,width,height,layer,{fullWidth,fullHeight,offsetX,of
       const px=(x+offsetX+.5-fullWidth/2)/period,py=(y+offsetY+.5-fullHeight/2)/period;
       const u=px*c+py*s,v=-px*s+py*c,ix=Math.floor(u),iy=Math.floor(v),fx=u-ix,fy=v-iy;
       let threshold;
-      if(grain){
+      if(organic)threshold=organic.sample(x+offsetX+.5,y+offsetY+.5);
+      else if(grain){
 
         threshold=clamp(((noise(u,v)*.75+noise(u*2.03+19.7,v*2.03-7.1)*.25)-.5)*1.8+.5);
       }
