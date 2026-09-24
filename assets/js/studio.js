@@ -4,7 +4,7 @@ import {createTreatmentQueue,createTreatmentProcessor} from './artwork-processin
 import {hasPrintTexture} from './print-texture.js?v=81';
 import {focusedPanelBounds,layerCustomColor} from './artwork-detail.js?v=78';
 import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=77';
-import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE} from './sleeve-camera.js?v=71';
+import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE,fullSleeveCamera} from './sleeve-camera.js?v=91-camera';
 import {hasDirectory} from './folder-import.js?v=58';
 import {decodeArtworkImage} from './artwork-decode.js?v=45';
 import {createCityTraffic} from './city-night.js?v=43';
@@ -1005,7 +1005,9 @@ async function loadCatalog(id){
     document.getElementById('modelName').dataset.garmentId=id;
     document.getElementById('modelName').dataset.triangles=res.tris;
     garment.rotation.y=0;
-    requestArtworkRender();syncArtworkUi();applyLook();if(initialLoad)setView('angle');else if(state.view==='neck'||state.view?.startsWith('placement:'))setView(state.view);
+    requestArtworkRender();syncArtworkUi();applyLook();if(initialLoad)setView('angle');else if(state.view==='neck'||state.view?.startsWith('placement:')||state.view?.startsWith('sleeve:'))setView(state.view);
+    else if(inspectionFocus?.view?.startsWith('sleeve:'))setView(inspectionFocus.view);
+    else if(inspectionFocus?.free)leaveInspection();
     if(inspectionFocus?.slot&&UV_PROFILES[inspectionFocus.slot]){
       inspectionFocus.point.fromArray(cameraPlacementPoint(inspectionFocus.slot));inspectionFocus.point.y-=.350;updateInspectionFocus();
     }
@@ -1049,7 +1051,7 @@ async function loadModel(file){
     document.getElementById('modelName').dataset.garmentId='custom';
     document.getElementById('fitNote').textContent=`H 74cm · W ${Math.round(res.size.x*100)}cm`;
     document.getElementById('rowFit').hidden=false;
-    modelStatus.textContent='';if(initialLoad)setView('front');else if(state.view==='neck'||state.view?.startsWith('placement:'))setView('detail');return true;
+    modelStatus.textContent='';if(initialLoad)setView('front');else if(state.view==='neck'||state.view?.startsWith('placement:')||state.view?.startsWith('sleeve:'))setView('detail');return true;
   }catch(error){
     console.error(error);
     if(imported){if(res)disposeImported(imported);else disposeModel(imported);}
@@ -1368,12 +1370,12 @@ function pickNativePosition(e){
   }catch(error){artStatus(error.message);}
 }
 
-let dragging=false,lastX=0,lastY=0,pinch=0;
+let dragging=false,lastX=0,lastY=0,pinch=0,lastPlacementClick=-Infinity;
 let orbitInputVelocity=0;
 let lastOrbitInputTime=performance.now();
 
 canvas.addEventListener('pointerdown',e=>{
-  if(anchorPickId){e.preventDefault();pickNativePosition(e);return;}
+  if(anchorPickId){lastPlacementClick=performance.now();e.preventDefault();pickNativePosition(e);return;}
   dragging=true; lastX=e.clientX; lastY=e.clientY;
   orbitInputVelocity=0;
   inertiaInput=0;
@@ -1440,6 +1442,28 @@ canvas.addEventListener('touchmove',e=>{
   pinch=d;
 },{passive:false});
 canvas.addEventListener('touchend',()=>{pinch=0;});
+canvas.addEventListener('dblclick',event=>{
+  if(event.button!==0||anchorPickId||performance.now()-lastPlacementClick<700||!current||
+    state.present||designLocked||modelLoading||artLoading||workspace?.busy||
+    document.querySelector('dialog[open]'))return;
+  const rect=canvas.getBoundingClientRect();
+  printRay.setFromCamera(new THREE.Vector2(
+    (event.clientX-rect.left)/rect.width*2-1,
+    1-(event.clientY-rect.top)/rect.height*2),camera);
+  current.updateMatrixWorld(true);
+  const hit=printRay.intersectObject(current,true).find(h=>h.object.isMesh&&h.object.visible&&h.face);
+  if(!hit)return;
+  event.preventDefault();endOrbitDrag();
+  const normal=hit.face.normal.clone().applyMatrix3(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld)).normalize();
+  // Orient the offset away from the viewer, including inside-facing surfaces.
+  if(normal.dot(printRay.ray.direction)>0)normal.negate();
+  const point=hit.point.clone().addScaledVector(normal,-.018);
+  state.taz=state.az;state.tel=state.el;state.view=null;
+  state.focusTarget.copy(point);state.tr=Math.min(.46,torsoDistance(activeGarmentId)*.48);
+  inspectionFocus={point:point.clone(),distance:state.tr,free:true};
+  syncCameraUi();workspace?.notify();
+});
+
 
 canvas.tabIndex=0;
 canvas.setAttribute('aria-label','Garment preview. Arrow keys rotate.');
@@ -1486,7 +1510,7 @@ function zoomGarment(delta){
 }
 function updateInspectionFocus(){
   if(!inspectionFocus)return;
-  const end=torsoDistance(activeGarmentId)*.88;
+  const end=Math.max(torsoDistance(activeGarmentId)*.88,inspectionFocus.distance+.18);
   const t=clamp((state.tr-inspectionFocus.distance)/(end-inspectionFocus.distance),0,1);
   state.focusTarget.lerpVectors(inspectionFocus.point,garmentCenter,t*t*(3-2*t));
   if(t===1){state.focusTarget.copy(garmentCenter);inspectionFocus=null;}
@@ -1510,6 +1534,7 @@ function viewArtwork(slot){
   }
 }
 function detailCamera(view){
+  if(view?.startsWith('sleeve:'))return isCustom?null:fullSleeveCamera(activeGarmentId,view.slice(7),UV_PROFILES,camera.fov);
   const slot=view==='neck'?'necktag':view?.startsWith('placement:')?view.slice(10):null;
   if(!slot||isCustom||!UV_PROFILES[slot])return null;
   const q=UV_PROFILES[slot],meta=ART_META[slot],wrist=slot.endsWith('wrist');
@@ -1518,6 +1543,7 @@ function detailCamera(view){
   return {point:[point[0],point[1]-.350,point[2]],angles:[az,slot==='necktag'?1.12:wrist?1.4:1.35],distance:slot==='necktag'?.48:wrist?.40:slot==='backneck'?.46:slot==='lowerback'?.80:.60};
 }
 function setView(v){
+  if(v?.startsWith('sleeve:')&&!detailCamera(v))v='detail';
   const placement=v?.startsWith('placement:')?v.slice(10):null;
   if(placement&&(isCustom||!UV_PROFILES[placement]))v='detail';
   if(v==='neck'&&(isCustom||!UV_PROFILES.necktag))v='detail';
@@ -1525,12 +1551,12 @@ function setView(v){
   if(!v) return;
   inspectionFocus=null;state.focusTarget.copy(garmentCenter);
   state.tr=previewDistance(activeGarmentId,v);
-  if(v.startsWith('placement:')){
+  if(v.startsWith('placement:')||v.startsWith('sleeve:')){
     const shot=detailCamera(v),[az,el]=shot.angles;
     state.focusTarget.fromArray(shot.point);
     state.taz=az+Math.round((state.taz-az)/(Math.PI*2))*Math.PI*2;
-    state.tel=el;state.tr=shot.distance;
-    inspectionFocus={point:state.focusTarget.clone(),distance:state.tr,slot:placement};return;
+    state.tel=el;state.tr=shot.distance/(v.startsWith('sleeve:')?Math.min(1,camera.aspect):1);
+    inspectionFocus={point:state.focusTarget.clone(),distance:state.tr,slot:placement,view:v};return;
   }
   const special={insideleft:[-.1,1.45],insideright:[.1,1.45],neck:[0,1.12]};
   const [az,el]=special[v]||(v==='left'?[Math.PI/2,1.3]:v==='right'?[-Math.PI/2,1.3]:VIEWS[v]);
@@ -1880,17 +1906,22 @@ for(const [label,slots] of [['Front',['centerchest','lefthem','righthem']],['Bac
   const group=document.createElement('div');group.className='detail-camera-group';
   const heading=document.createElement('span');heading.textContent=label;group.append(heading);
   for(const slot of slots){const button=document.createElement('button');button.type='button';button.dataset.detailView='placement:'+slot;button.textContent=ART_META[slot].label;button.setAttribute('aria-pressed','false');group.append(button);}
+  if(label==='Sleeves')for(const side of ['right','left']){
+    const button=document.createElement('button');button.type='button';button.dataset.detailView='sleeve:'+side;
+    button.textContent=side==='left'?'Left full sleeve':'Right full sleeve';button.setAttribute('aria-pressed','false');group.prepend(button);
+  }
   detailMenu.append(group);
 }
 function syncCameraUi(){
   document.querySelectorAll('#segView button[data-v]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===state.view)));
   const toggle=document.getElementById('detailCameraToggle');
-  toggle.classList.toggle('camera-active',['detail','neck'].includes(state.view)||!!state.view?.startsWith('placement:'));
+  toggle.classList.toggle('camera-active',['detail','neck'].includes(state.view)||!!state.view?.startsWith('placement:')||!!state.view?.startsWith('sleeve:'));
   toggle.title=state.view?.startsWith('placement:')?ART_META[state.view.slice(10)]?.label||'Detail camera views':'Detail camera views';
   toggle.textContent=state.view==='neck'?'Neck tag':'Detail';
   document.querySelectorAll('[data-detail-view]').forEach(b=>{
     b.setAttribute('aria-pressed',String(b.dataset.detailView===state.view));
     if(b.dataset.detailView.startsWith('placement:')){const slot=b.dataset.detailView.slice(10);b.hidden=!!ART_META[slot]?.hoodie&&!UV_PROFILES[slot];b.disabled=isCustom||!UV_PROFILES[slot];}
+    if(b.dataset.detailView.startsWith('sleeve:')){b.hidden=!detailCamera(b.dataset.detailView);b.disabled=b.hidden;}
     if(b.dataset.detailView==='neck'){b.disabled=isCustom||!UV_PROFILES.necktag;b.title=b.disabled?'Neck tag view is available on the built-in garments':'';}
   });
   document.querySelectorAll('.detail-camera-group').forEach(g=>g.hidden=!Array.from(g.querySelectorAll('button')).some(b=>!b.hidden));
@@ -3660,7 +3691,7 @@ setTip('#detailCameraToggle','Detail cameras · top-row 6: Artwork close-up; 7: 
 function cycleDetailCamera(){
   syncCameraUi();
   const views=Array.from(detailMenu.querySelectorAll('[data-detail-view]'))
-    .filter(button=>button.dataset.detailView.startsWith('placement:')&&!button.hidden&&!button.disabled)
+    .filter(button=>(button.dataset.detailView.startsWith('placement:')||button.dataset.detailView.startsWith('sleeve:'))&&!button.hidden&&!button.disabled)
     .map(button=>button.dataset.detailView);
   if(!views.length)return;
   const next=(views.indexOf(state.view)+1)%views.length;
@@ -3683,7 +3714,7 @@ installExports({THREE,renderer,scene,camera,garment,presentGarment,shirtShadow,p
   restoreLighting:s=>{lightReference.copy(s.reference);lightRig.quaternion.copy(s.quaternion);updateLightLock();},
   finish:()=>{finishArtworkRename(true);colorPicker?.close();colorActions?.cancel();},
   name:()=>document.getElementById('designName').value,
-  detailView:detailCamera,detailViews:[{id:'neck',label:'Inside neck tag'},...ART_KEYS.filter(k=>ART_META[k].detail).map(k=>({id:'placement:'+k,label:ART_META[k].label}))],
+  detailView:detailCamera,detailViews:[{id:'sleeve:left',label:'Left full sleeve'},{id:'sleeve:right',label:'Right full sleeve'},{id:'neck',label:'Inside neck tag'},...ART_KEYS.filter(k=>ART_META[k].detail).map(k=>({id:'placement:'+k,label:ART_META[k].label}))],
   viewAngles:v=>detailCamera(v)?.angles||(v==='right'?[-Math.PI/2,1.45]:VIEWS[v]),
   framing:()=>{const f=torsoFrame(activeGarmentId);return f?{center:new THREE.Vector3(...f.center),points:f.points.map(p=>new THREE.Vector3(...p))}:null;},
   label:()=>GARMENT_CATALOG.find(g=>g.id===activeGarmentId)?.label||'Custom garment'

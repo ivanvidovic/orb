@@ -94,3 +94,17 @@ export const SLEEVE_CAMERA_CLEARANCE={
     "rightwrist": 0.08123936527176508
   }
 };
+
+// Full-sleeve inspection uses the calibrated interior pivots, with margins
+// beyond the upper-arm and wrist print anchors to include shoulder and cuff.
+export function fullSleeveCamera(garmentId,side,profiles,fov=35,aspect=1){
+  if(!['left','right'].includes(side))return null;
+  const pivots=SLEEVE_CAMERA_PIVOTS[garmentId],a=pivots?.[side+'shoulder'],b=pivots?.[side+'wrist'];
+  if(!a||!b||!profiles?.[side+'wrist'])return null;
+  const height=Math.abs(a[1]-b[1])+.15;
+  const width=.21;
+  const tan=Math.tan(fov*Math.PI/360);
+  const distance=Math.max(height,width/Math.max(.25,aspect))*.56/tan;
+  return {point:[(a[0]+b[0])/2,(a[1]+b[1])/2-.34,(a[2]+b[2])/2],
+    angles:[side==='left'?Math.PI/2-.25:-Math.PI/2+.25,Math.PI/2],distance};
+}
