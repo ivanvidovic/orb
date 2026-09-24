@@ -1,7 +1,7 @@
 import {CREATIVE_DEFAULTS} from './creative-lighting.js?v=74';
 // Portable ORB files contain a versioned manifest and deduplicated image bytes.
 export const FORMAT_VERSION=3;
-export const LAYER_FIELDS=['id','assetId','sourceName','name','autoName','nameEdited','slot','defaultSlot','defaultMode','defaultScale','mode','inkCustom','tintCustom','solidCutoff','solidSoftness','solidMaskSource','solidSpread','solidEdgeSoftness','solidInvert','defaultSolidInvert','printPattern','printSize','printAngle','printStrength','printVersion','printMarkSize','printTone','printErosion','printPixelScale','printDensity','printSeed','fit','sleevePreset','visible','glow','uvReactive','emission','anchor','placementSpace','placement'];
+export const LAYER_FIELDS=['id','assetId','sourceName','name','autoName','nameEdited','slot','defaultSlot','defaultMode','defaultScale','mode','inkCustom','tintCustom','solidCutoff','solidSoftness','solidMaskSource','solidSpread','solidEdgeSoftness','solidInvert','defaultSolidInvert','printPattern','printSize','printAngle','printStrength','printVersion','printMarkSize','printTone','printErosion','printPixelScale','printDensity','printSeed','printBranchMode','printRounding','fit','sleevePreset','visible','glow','uvReactive','emission','anchor','placementSpace','placement'];
 export const SETTING_FIELDS=[...Object.keys(CREATIVE_DEFAULTS),'themeMode','blank','garmentCustom','artGlossiness','matchFabricToTheme','bg','dotGrid','gridType','gridColor','gridColorCustom','gridStroke','gridScale','gridCharSize','light','lightPower','blackLightPower','regularLightPower','nightLightPower','nightTraffic','nightPaused','lightLocked','nightGreen','nightMagenta','selfShadows','wind','inertia'];
 export function pick(object,keys){return Object.fromEntries(keys.filter(k=>object[k]!==undefined).map(k=>[k,object[k]]));}
 export function cleanFilename(value){return String(value||'Untitled design').replace(/[<>:"/\\|?*\x00-\x1f]/g,'').replace(/[. ]+$/,'').trim().slice(0,80)||'Untitled design';}
@@ -29,10 +29,11 @@ export function validateProject(doc,{garments,slots}){
     if(l.solidMaskSource!==undefined&&!['auto','brightness','alpha'].includes(l.solidMaskSource))fail('A mask source is invalid.');
     for(const [k,min,max] of [['solidCutoff',0,95],['solidSoftness',1,100],['solidSpread',-20,20],['solidEdgeSoftness',0,20]])if(l[k]!==undefined&&!finite(l[k],min,max))fail('A Solid setting is invalid.');
     for(const k of ['solidInvert','defaultSolidInvert','fit','visible','glow','uvReactive','nameEdited'])if(l[k]!==undefined&&typeof l[k]!=='boolean')fail('A layer option is invalid.');
+    if(l.printBranchMode!==undefined&&!['repeat','natural'].includes(l.printBranchMode))fail('A branching mode is invalid.');
     if(l.printSeed!==undefined&&!Number.isInteger(l.printSeed))fail('A pattern variation is invalid.');
     if(l.printPattern!==undefined&&!['none','dots','lines','grain','pixel','maze','branching'].includes(l.printPattern))fail('A print pattern is invalid.');
     if(l.printVersion!==undefined&&l.printVersion!==2)fail('A print texture version is invalid.');
-    for(const [key,min,max] of [['printSize',.001,100],['printAngle',0,180],['printStrength',0,100],['printMarkSize',0,100],['printTone',0,100],['printErosion',0,100],['printPixelScale',0,100],['printDensity',0,100],['printSeed',0,4294967295]])if(l[key]!==undefined&&!finite(l[key],min,max))fail('A print texture setting is invalid.');
+    for(const [key,min,max] of [['printSize',.001,100],['printAngle',0,180],['printStrength',0,100],['printMarkSize',0,100],['printTone',0,100],['printErosion',0,100],['printPixelScale',0,100],['printRounding',0,100],['printDensity',0,100],['printSeed',0,4294967295]])if(l[key]!==undefined&&!finite(l[key],min,max))fail('A print texture setting is invalid.');
     if(l.sleevePreset!==undefined&&!['patch','full'].includes(l.sleevePreset))fail('A sleeve setting is invalid.');
     if(l.anchor){
       for(const [k,n] of [['point',3],['normal',3],['origin',2],['basis',4]])if(!Array.isArray(l.anchor[k])||l.anchor[k].length!==n||!l.anchor[k].every(v=>finite(v,-1e6,1e6)))fail('A custom placement is invalid.');

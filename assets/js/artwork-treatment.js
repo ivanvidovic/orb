@@ -1,12 +1,13 @@
-import {isOrganic,organicSampler} from './organic-pattern.js?v=91-organic';
+import {roundArtwork} from './artwork-rounding.js?v=91-natural';
+import {isOrganic,organicSampler} from './organic-pattern.js?v=91-natural';
 import {solidCoverageLut,resolveMaskSource,filterCoverage} from './solid-mask.js?v=81';
-import {applyPrintTexture,hasPrintTexture,capturePrintTone,pixelateArtwork} from './print-texture.js?v=91-organic';
-import {patternWorkingSource} from './artwork-detail.js?v=91-organic';
+import {applyPrintTexture,hasPrintTexture,capturePrintTone,pixelateArtwork} from './print-texture.js?v=91-natural';
+import {patternWorkingSource} from './artwork-detail.js?v=91-natural';
 
 export function treatmentKey(l){
   const pattern=l.printPattern||'none';
   const ink=l.mode==='ink'?`ink/${l.solidMaskSource??'brightness'}/${l.solidCutoff??12}/${l.solidSoftness??65}/${l.solidSpread??0}/${l.solidEdgeSoftness??0}/${!!l.solidInvert}`:'color';
-  return `${ink}/${!!l.fit}/${pattern}/${l.printVersion??1}/${l.printSize??40}/${l.printAngle??45}/${l.printStrength??100}/${l.printMarkSize??50}/${l.printTone??100}/${l.printErosion??0}/${pattern==='pixel'?l.printPixelScale??35:0}/${isOrganic(l)?[l.printSeed??1,l.printDensity??50].join('/'):''}`;
+  return `${ink}/${!!l.fit}/${pattern}/${l.printVersion??1}/${l.printSize??40}/${l.printAngle??45}/${l.printStrength??100}/${l.printMarkSize??50}/${l.printTone??100}/${l.printErosion??0}/${pattern==='pixel'?l.printPixelScale??35:0}/${isOrganic(l)?[l.printSeed??1,l.printDensity??50,l.printBranchMode??'repeat'].join('/'):''}/${l.printRounding??0}`;
 }
 const clamp=x=>Math.max(0,Math.min(1,x));
 const hash=(x,y)=>{let n=Math.imul(x,374761393)+Math.imul(y,668265263);n=Math.imul(n^(n>>>13),1274126177);return ((n^(n>>>16))>>>0)/4294967296;};
@@ -16,7 +17,7 @@ const noise=(u,v)=>{const x=Math.floor(u),y=Math.floor(v),fx=u-x,fy=v-y,sx=fx*fx
 // No growing cache of slider positions or full-size canvases per layer.
 export function createArtworkTreatment(canvas=()=>document.createElement('canvas')){
   let source=null,prepared=null,baseKey='',state={};
-  const stats={preparations:0,tones:0,masks:0,patterns:0};
+  const stats={preparations:0,tones:0,masks:0,patterns:0,composites:0};
   function fit(input,margin){
     const w=input.width,h=input.height,d=input.getContext('2d').getImageData(0,0,w,h).data;
     let left=w,top=h,right=-1,bottom=-1;
@@ -84,7 +85,7 @@ export function createArtworkTreatment(canvas=()=>document.createElement('canvas
     const grain=l.printPattern==='grain',size=Math.max(.001,Math.min(100,grain?(l.printMarkSize??50):(l.printSize??40))),join=140-120*39/99;
     const cells=size<1?1120/size:size<40?1120*Math.pow(join/1120,(size-1)/39):140-120*(size-1)/99;
     const period=Math.min(crop.fullWidth,crop.fullHeight)/cells,resolved=organic?organic.resolved:clamp((period-.5)/1.5);
-    const key=[l.printPattern,size,l.printAngle??45,organic?l.printSeed??1:0,organic?l.printDensity??50:0,organic?l.printMarkSize??50:0].join('/');
+    const key=[l.printPattern,size,l.printAngle??45,organic?l.printSeed??1:0,organic?l.printDensity??50:0,organic?l.printMarkSize??50:0,l.printBranchMode??'repeat'].join('/');
     if(state.patternKey!==key){
       const thresholds=state.thresholds??=new Float32Array(w*h),angle=(l.printAngle??45)*Math.PI/180,c=Math.cos(angle),s=Math.sin(angle);
       if(resolved>0)for(let y=0,j=0;y<h;y++)for(let x=0;x<w;x++,j++){
@@ -102,7 +103,10 @@ export function createArtworkTreatment(canvas=()=>document.createElement('canvas
   }
   function render(input,l,limit=4096){
     prepare(input,l,limit);
-    const coverage=mask(l),p=pattern(l),{w,h,data,crop}=prepared,ink=l.mode==='ink',pad=ink?4:0,width=w+pad*2,height=h+pad*2;
+    const rounding=(l.printRounding??0)>0;
+    const before={...l,printRounding:0,...(rounding?{solidEdgeSoftness:0}:{})},key=treatmentKey(before);
+    if(rounding&&state.compositeKey===key&&state.composite)return finish(state.composite,l);
+    const coverage=mask(before),p=pattern(before),{w,h,data,crop}=prepared,ink=l.mode==='ink',pad=ink?4:0,width=w+pad*2,height=h+pad*2;
     // Solid needs coverage only. One channel also cuts texture uploads and
     // retained source texture memory to a quarter of the previous RGBA path.
     const output=ink?new Uint8Array(width*height):new Uint8Array(data);
@@ -119,10 +123,26 @@ export function createArtworkTreatment(canvas=()=>document.createElement('canvas
     if(l.printVersion!==2&&hasPrintTexture(l)&&l.printPattern!=='pixel'){
       const rgba=new Uint8ClampedArray(data);
       if(ink)for(let j=0;j<w*h;j++)rgba[j*4+3]=coverage[j];
-      applyPrintTexture(rgba,w,h,l,crop);
+      applyPrintTexture(rgba,w,h,before,crop);
       for(let y=0,j=0;y<h;y++)for(let x=0;x<w;x++,j++)if(ink)output[(y+pad)*width+x+pad]=rgba[j*4+3];else output[j*4+3]=rgba[j*4+3];
     }
-    return {data:output,width,height,coverageOnly:ink,crop:{...crop},padding:pad};
+    stats.composites++;
+    const result={data:output,width,height,coverageOnly:ink,crop:{...crop},padding:pad};
+    if(rounding){state.compositeKey=key;state.composite=result;return finish(result,l);}
+    state.composite=null;state.compositeKey='';return result;
+  }
+  function finish(result,l){
+    const {width:w,height:h,coverageOnly,crop}=result;
+    let data=roundArtwork(result.data,w,h,l,{...crop,coverageOnly});
+    if(data===result.data)data=new data.constructor(data);
+    // Keep legacy projects identical at zero. With rounding enabled, apply the
+    // existing Solid edge feather after rounding, so it remains independently useful.
+    const soft=coverageOnly?Math.round((l.solidEdgeSoftness??0)*Math.min(crop.fullWidth,crop.fullHeight)/1024):0;
+    if(soft){const a=new Float32Array(data),b=new Float32Array(data.length);
+      for(let pass=0;pass<3;pass++){filterCoverage(a,b,w,h,soft,false,'blur');filterCoverage(b,a,w,h,soft,true,'blur');}
+      for(let i=0;i<data.length;i++)data[i]=Math.round(a[i]);
+    }
+    return {...result,data};
   }
   return {render,stats,clear(){source=null;prepared=null;state={};baseKey='';}};
 }
