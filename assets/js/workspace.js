@@ -1,6 +1,6 @@
 import {loadHostedLibrary,fetchHostedArtwork} from './hosted-library.js?v=77';
 import {collectDrop} from './folder-import.js?v=58';
-import {FORMAT_VERSION,LAYER_FIELDS,SETTING_FIELDS,pick,cleanFilename,canvasBlob,downloadBlob,validateProject} from './design-format.js?v=82';
+import {FORMAT_VERSION,LAYER_FIELDS,SETTING_FIELDS,pick,cleanFilename,canvasBlob,downloadBlob,validateProject} from './design-format.js?v=92';
 const $=id=>document.getElementById(id);
 const imageFile=f=>f.type.startsWith('image/')||/\.(png|jpe?g|webp|gif|avif|svg)$/i.test(f.name);
 const pause=()=>new Promise(resolve=>setTimeout(resolve,0));
@@ -54,7 +54,7 @@ export function installWorkspace(api){
     $('shelfCount').textContent=String(visible.size);$('shelfSearch').hidden=visible.size<7;
     for(const [grid,filter,remove] of [[$('shelfGrid'),$('shelfSearch').value,true],[$('assetGrid'),'',false]]){
       grid.replaceChildren();
-      for(const [id,a] of visible){if(!a.name.toLowerCase().includes(filter.toLowerCase()))continue;
+      for(const [id,a] of visible){if(grid===$('assetGrid')&&context.action==='patch-shape'&&!/\.svg$/i.test(a.name)&&a.blob?.type!=='image/svg+xml')continue;if(!a.name.toLowerCase().includes(filter.toLowerCase()))continue;
         const card=document.createElement('div');card.className='shelf-card';
         const button=document.createElement('button');button.type='button';button.className='shelf-use';button.title=a.name;button.setAttribute('aria-label','Use '+a.name);
         const img=new Image();img.src=a.entry.thumb;img.alt='';img.loading='lazy';img.decoding='async';const label=document.createElement('span');label.textContent=a.entry.name;
@@ -71,12 +71,13 @@ export function installWorkspace(api){
       if(asset.hosted){libraryMessage('Loading '+asset.entry.name+'…');asset=await materializeHosted(asset);}
       if(!asset.entry.source)asset.entry={...await api.decode(new File([asset.blob],asset.name,{type:asset.blob.type})),name:asset.entry.name,assetId:asset.id};
       $('assetDialog').close();
-      if(ctx.action==='choose')api.chooseEntries([asset.entry]);
+      if(ctx.action==='patch-shape')await api.chooseShape(asset.entry);
+      else if(ctx.action==='choose')api.chooseEntries([asset.entry]);
       else api.addEntries(ctx.slot,[asset.entry],ctx.action,ctx.target);
       if(libraryName)libraryMessage(libraryName+' · '+hostedAssets.size+' graphics');
     }catch(error){libraryMessage(error.message||'This graphic could not be opened. Click it to retry.');}finally{busy=false;}
   }
-  function openAssets(ctx={action:'choose'}){if(busy||api.busy())return;context=ctx;renderShelf();$('assetTitle').textContent=ctx.action==='replace'?'Replace artwork':ctx.action==='add'?'Add artwork here':'Add artwork';$('assetDialog').showModal();}
+  function openAssets(ctx={action:'choose'}){if(busy||api.busy())return;context=ctx;renderShelf();$('assetTitle').textContent=ctx.action==='patch-shape'?'Choose SVG patch outline':ctx.action==='replace'?'Replace artwork':ctx.action==='add'?'Add artwork here':'Add artwork';$('assetDialog').showModal();}
   async function importImages(files){
     if(busy||api.busy())return;busy=true;$('shelfDropLabel').textContent='Adding artwork…';$('shelfBrowse').disabled=$('folderBrowse').disabled=true;const failed=[];
     try{for(const file of files){if(!imageFile(file)){failed.push(file.name);continue;}try{if(shelfIds.size>=400)throw new Error('Library full');const entry=await register(await api.decode(file));if(!api.snapshot().layers.some(l=>l.assetId===entry.assetId))assets.get(entry.assetId).entry={...entry,source:null};}catch{failed.push(file.name);}await pause();}}
@@ -102,24 +103,26 @@ export function installWorkspace(api){
   $('assetBrowse').onclick=()=>{$('assetDialog').close();api.browse(context);};
   async function packageData(includeLibrary=false,finishEditing=true){
     if(finishEditing)api.finish();const snapshot=api.snapshot();
+    const allLayers=[...snapshot.layers,...(snapshot.companion?.layers||[])];
     // Register sources kept by an undo snapshot or imported before the tray existed.
-    for(const layer of snapshot.layers)if(!assets.has(layer.assetId)){const a=await register(layer,{show:false});layer.assetId=a.assetId;}
-    const ids=new Set(snapshot.layers.map(l=>l.assetId));if(includeLibrary)for(const id of shelfIds)ids.add(id);
+    for(const layer of allLayers)if(!assets.has(layer.assetId)){const a=await register(layer,{show:false});layer.assetId=a.assetId;}
+    const ids=new Set(allLayers.map(l=>l.assetId));if(includeLibrary)for(const id of shelfIds)ids.add(id);
     // Autosave never downloads unused hosted graphics. Explicit Include library does.
     if(includeLibrary&&finishEditing)for(const asset of hostedAssets.values()){const a=await materializeHosted(asset);ids.add(a.id);}
     const records=Array.from(ids).map(id=>assets.get(id));
     const doc={format:'orb-design',version:FORMAT_VERSION,name:$('designName').value.trim()||'Untitled design',garmentId:snapshot.garmentId,settings:pick(snapshot.settings,SETTING_FIELDS),regularBackdrop:snapshot.regularBackdrop,lighting:snapshot.lighting,camera:snapshot.camera,customFlipped:snapshot.customFlipped,active:snapshot.active,layers:snapshot.layers.map(l=>pick(l,LAYER_FIELDS)),assets:records.map(a=>({id:a.id,name:a.name,type:a.blob.type||'image/png',path:'artwork/'+a.id+'.'+(a.blob.type==='image/svg+xml'?'svg':a.blob.type==='image/jpeg'?'jpg':a.blob.type==='image/webp'?'webp':a.blob.type==='image/gif'?'gif':a.blob.type==='image/avif'?'avif':'png')})),shelf:includeLibrary?Array.from(new Set([...shelfIds,...ids])):Array.from(ids)};
-    const model=api.modelFile();if(doc.garmentId==='custom'){if(!model)throw new Error('Please re-upload the custom GLB before saving.');doc.modelPath='model/garment.glb';}
-    const artworkSize=records.reduce((sum,a)=>sum+a.blob.size,0),modelSize=doc.garmentId==='custom'?model.size:0;
+    doc.companion=snapshot.companion?{...pick(snapshot.companion,['garmentId','active','appearance','camera','customFlipped']),layers:snapshot.companion.layers.map(l=>pick(l,LAYER_FIELDS))}:null;
+    const model=api.modelFile();const custom=doc.garmentId==='custom'||doc.companion?.garmentId==='custom';if(custom){if(!model)throw new Error('Please re-upload the custom GLB before saving.');if(doc.garmentId==='custom')doc.modelPath='model/garment.glb';else doc.companion.modelPath='model/garment.glb';}
+    const artworkSize=records.reduce((sum,a)=>sum+a.blob.size,0),modelSize=custom?model.size:0;
     if(artworkSize>300*1024*1024||modelSize>250*1024*1024||artworkSize+modelSize>340*1024*1024)throw new Error('This design is too large to save. Use smaller artwork files or exclude unused library graphics.');
     validateProject(doc,api.schema);
-    return {doc,records:records.map(({id,name,blob})=>({id,name,blob})),model:doc.garmentId==='custom'?model:null};
+    return {doc,records:records.map(({id,name,blob})=>({id,name,blob})),model:custom?model:null};
   }
   async function makeArchive(includeLibrary=false){
     const {doc,records,model}=await packageData(includeLibrary),zip=new window.JSZip();
     zip.file('design.json',JSON.stringify(doc,null,2));
     for(const a of doc.assets)zip.file(a.path,await records.find(r=>r.id===a.id).blob.arrayBuffer());
-    if(model)zip.file(doc.modelPath,await model.arrayBuffer());
+    if(model)zip.file(doc.modelPath||doc.companion.modelPath,await model.arrayBuffer());
     return zip.generateAsync({type:'blob',compression:'STORE'});
   }
   async function autosave(){
@@ -137,14 +140,15 @@ export function installWorkspace(api){
     validateProject(data.doc,api.schema);
     const staged=new Map();
     for(const a of data.doc.assets){const record=data.records.find(r=>r.id===a.id);if(!record?.blob)throw new Error('An artwork file is missing.');
-      const entry=await api.decode(new File([record.blob],a.name,{type:a.type}));entry.assetId=a.id;if(!data.doc.layers.some(l=>l.assetId===a.id))entry.source=null;staged.set(a.id,{...record,name:a.name,entry});
+      const entry=await api.decode(new File([record.blob],a.name,{type:a.type}));entry.assetId=a.id;if(![...data.doc.layers,...(data.doc.companion?.layers||[])].some(l=>l.assetId===a.id))entry.source=null;staged.set(a.id,{...record,name:a.name,entry});
     }
     const layers=data.doc.layers.map(l=>({...staged.get(l.assetId).entry,...pick(l,LAYER_FIELDS),solidInvert:l.solidInvert}));
-    return {staged,layers};
+    const companion=data.doc.companion?{...data.doc.companion,modelFile:data.doc.companion.garmentId==='custom'?data.model:null,layers:data.doc.companion.layers.map(l=>({...staged.get(l.assetId).entry,...pick(l,LAYER_FIELDS),solidInvert:l.solidInvert}))}:null;
+    return {staged,layers,companion};
   }
   async function applyPackage(data,{mergeLibrary=true}={}){
-    const {staged,layers}=await decodePackage(data);
-    const snapshot={...data.doc,layers};
+    const {staged,layers,companion}=await decodePackage(data);
+    const snapshot={...data.doc,layers,companion};
     // Decode and validate everything before replacing the active design.
     await api.restore(snapshot,data.model);
     for(const [id,a] of staged)assets.set(id,a);
@@ -159,7 +163,7 @@ export function installWorkspace(api){
     const doc=validateProject(JSON.parse(await manifest.async('string')),api.schema),records=[];
     let total=0;
     for(const a of doc.assets){const f=zip.file(a.path);if(!f)throw new Error('Missing artwork: '+a.name);total+=f._data.uncompressedSize;if(total>300*1024*1024)throw new Error('The artwork in this design is too large.');records.push({id:a.id,name:a.name,blob:new Blob([await f.async('uint8array')],{type:a.type})});}
-    let model=null;if(doc.modelPath){const f=zip.file(doc.modelPath);if(!f||f._data.uncompressedSize>250*1024*1024)throw new Error('The custom garment is missing or too large.');model=new File([await f.async('uint8array')],'garment.glb',{type:'model/gltf-binary'});}
+    let model=null;const modelPath=doc.modelPath||doc.companion?.modelPath;if(modelPath){const f=zip.file(modelPath);if(!f||f._data.uncompressedSize>250*1024*1024)throw new Error('The custom garment is missing or too large.');model=new File([await f.async('uint8array')],'garment.glb',{type:'model/gltf-binary'});}
     return {doc,records,model};
   }
   async function openFile(file){

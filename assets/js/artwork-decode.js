@@ -18,7 +18,7 @@ export function sizedSvg(text,longEdge=4096,maxEdge=4096,maxPixels=48000000){
   return new XMLSerializer().serializeToString(svg);
 }
 export async function decodeArtworkImage(blob,{longEdge=4096,maxEdge=4096}={}){
-  const svg=blob.type.split(';')[0]==='image/svg+xml'||/\.svg$/i.test(blob.name||'')||/^\s*(?:<\?xml\b[^>]*>\s*)?(?:<!--[\s\S]*?-->\s*)*(?:<!DOCTYPE\s[^>]*>\s*)?<svg[\s>]/i.test(await blob.slice(0,1024).text());
+  const svg=blob.type.split(';')[0]==='image/svg+xml'||(!blob.type||blob.type==='application/octet-stream')&&/\.svg$/i.test(blob.name||'')||/^\s*(?:<\?xml\b[^>]*>\s*)?(?:<!--[\s\S]*?-->\s*)*(?:<!DOCTYPE\s[^>]*>\s*)?<svg[\s>]/i.test(await blob.slice(0,1024).text());
   const source=svg?new Blob([sizedSvg(await blob.text(),longEdge,maxEdge)],{type:'image/svg+xml'}):blob;
   const url=URL.createObjectURL(source);
   try{return await new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(new Error('Unsupported or damaged artwork.'));img.src=url;});}

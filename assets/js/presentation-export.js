@@ -1,9 +1,9 @@
 import {installExportSummary} from './export-summary.js?v=91';
 import {createExportProgress} from './export-progress.js?v=87';
-import {installPrintLayoutUI} from './print-layout-ui.js?v=90';
-import {addPrintLayouts} from './print-package.js?v=87';
-import {addArtworkPackage} from './artwork-export.js?v=87';
-import {canvasBlob,downloadBlob,cleanFilename} from './design-format.js?v=82';
+import {installPrintLayoutUI} from './print-layout-ui.js?v=92';
+import {addPrintLayouts} from './print-package.js?v=92';
+import {addArtworkPackage} from './artwork-export.js?v=92';
+import {canvasBlob,downloadBlob,cleanFilename} from './design-format.js?v=92';
 const $=id=>document.getElementById(id);
 const VIEW_NAMES={front:'Front',angle:'Front three-quarter',side:'Left side',right:'Right side',backangle:'Back three-quarter',back:'Back',detail:'Detail'};
 const turn=()=>new Promise(resolve=>requestAnimationFrame(resolve));
@@ -34,10 +34,12 @@ export function installExports(api){
   const check=()=>{if(cancelled)throw new Error('Export cancelled.');};
   function captureSession(width,height){
     api.finish();api.draw();api.pause(true);
+    const guides=[];scene.traverse(o=>{if(o.userData.orbGuide){guides.push([o,o.visible]);o.visible=false;}});
     const saved={camera:camera.clone(),size:renderer.getSize(new THREE.Vector2()),ratio:renderer.getPixelRatio(),wind:uni.uWind.value,twist:uni.uTwist.value,
       garmentPosition:garment.position.clone(),garmentRotation:garment.rotation.clone(),presentVisible:presentGarment.visible,presentShadowVisible:presentShadow.visible,
       shadowPosition:shirtShadow.position.clone(),shadowVisible:shirtShadow.visible,lighting:api.lighting(),viewport:renderer.getViewport(new THREE.Vector4()),scissor:renderer.getScissor(new THREE.Vector4()),scissorTest:renderer.getScissorTest(),target:renderer.getRenderTarget()};
     const finish=()=>{
+      guides.forEach(([o,v])=>o.visible=v);
       camera.copy(saved.camera);camera.updateMatrixWorld();garment.position.copy(saved.garmentPosition);garment.rotation.copy(saved.garmentRotation);
       presentGarment.visible=saved.presentVisible;presentShadow.visible=saved.presentShadowVisible;shirtShadow.position.copy(saved.shadowPosition);shirtShadow.visible=saved.shadowVisible;
       uni.uWind.value=saved.wind;uni.uTwist.value=saved.twist;api.restoreLighting(saved.lighting);
@@ -108,7 +110,7 @@ export function installExports(api){
         const [az,el]=api.viewAngles(view),focus=center.clone(),shot=api.detailView?.(view);
         const d=shot?shot.distance/Math.min(1,camera.aspect):view==='detail'?distance*.66:distance;
         if(shot)focus.fromArray(shot.point);
-        if(view==='detail')focus.y+=box.getSize(new THREE.Vector3()).y*.17;
+        if(view==='detail'&&!shot)focus.y+=box.getSize(new THREE.Vector3()).y*.17;
         camera.position.set(focus.x+d*Math.sin(el)*Math.sin(az),focus.y+d*Math.cos(el),focus.z+d*Math.sin(el)*Math.cos(az));camera.lookAt(focus);
         const canvas=frame(width,height,options),blob=await canvasBlob(canvas);canvas.width=canvas.height=1;check();
         images.push({view,blob});zip.file(name+'_'+viewLabel(view).replaceAll(' ','-')+'.png',await blob.arrayBuffer());progress.advance();

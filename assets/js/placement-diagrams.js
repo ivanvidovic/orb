@@ -1,6 +1,10 @@
 const teeOutline='M107 49 Q150 77 193 49 L223 62 L286 102 L260 153 L216 132 L216 294 Q150 306 84 294 L84 132 L40 153 L14 102 L77 62 Z';
 const hoodieOutline='M108 78 Q99 37 124 16 Q150 0 176 16 Q201 37 192 78 L220 87 Q237 127 247 175 L274 277 L235 289 L205 195 L211 298 Q150 309 89 298 L95 195 L65 289 L26 277 L53 175 Q63 127 80 87 Z';
 function figure(kind,view,inside){
+  if(kind==='hat'){
+    const isInside=view==='Inside'||inside;
+    return `<svg viewBox="0 0 300 320" aria-hidden="true"><path class="garment-outline" d="${isInside?'M55 105 Q150 25 245 105 L245 224 Q150 290 55 224 Z M85 220 Q150 255 215 220 L226 117 Q150 60 74 117 Z':view==='Back'?'M50 238 Q41 68 150 42 Q259 68 250 238 Q206 254 182 237 L179 211 Q150 176 121 211 L118 237 Q92 254 50 238 Z':'M53 187 Q39 76 150 46 Q261 76 247 187 Q274 234 238 273 Q150 305 62 273 Q26 234 53 187 Z'}"/><g class="garment-seams"><path d="${isInside?'M76 112 Q150 77 224 112 M62 113 L75 221 M238 113 L225 221':view==='Back'?'M150 46 L150 191 M118 237 L182 237':'M53 187 Q150 153 247 187 M86 171 L101 66 M214 171 L199 66 M67 245 Q150 277 233 245'}"/></g></svg>`;
+  }
   const hoodie=kind==='hoodie';
   const cuffs='M89 285 Q150 296 211 285 M29 264 L69 277 M231 277 L270 264';
   // The rear hood shows its center seam, never the face opening or front folds.
@@ -12,6 +16,7 @@ function figure(kind,view,inside){
   return `<svg viewBox="0 0 300 320" aria-hidden="true"><path class="garment-outline" d="${hoodie?hoodieOutline:teeOutline}"/><g class="garment-seams">${detail}${pocket}${tag}</g></svg>`;
 }
 export function placementPins(kind,side){
+  if(kind==='hat')return side==='inside'?[['hatunderbill',150,74],['hatinside',150,148],['hatband',150,231]]:side==='back'?[['hatcrown',150,97],['hatback',150,172]]:[['hatfront',150,137],['hatright',69,179],['hatleft',231,179],['hatbill',150,253]];
   const hoodie=kind==='hoodie';
   if(side==='inside')return [['necktag',150,hoodie?116:90],...(hoodie?[['hoodrightinside',119,49],['hoodleftinside',181,49]]:[])];
   // Back-view left/right are mirrored relative to the front view (wearer's sides).
@@ -24,7 +29,7 @@ export function renderPlacementDiagram(container,{kind,side,available,meta,count
   container.classList.toggle('placement-inside',inside);
   const descriptions=new Map();
   const items=pins.map(([slot,x,y],index)=>{const code=String.fromCharCode(65+index),label=meta[slot].label;descriptions.set(slot,`${label}${counts[slot]?` · ${counts[slot]} added`:''}`);return {slot,x,y,code,label};});
-  container.innerHTML=`<section class="placement-diagram"><h3>${title}</h3><div class="garment-drawing">${figure(kind,title,inside)}${items.map(({slot,x,y,code,label})=>`<div class="placement-pin" style="left:${x/3}%;top:${y/3.2}%"><button type="button" data-place="${slot}" title="${label}" class="pin-button${slot===suggested?' suggested':''}" aria-label="${label}${counts[slot]?', add another graphic':''}">${code}</button></div>`).join('')}</div></section><div class="placement-choice-list" aria-label="${title} placements">${items.map(({slot,code,label})=>`<button type="button" data-place="${slot}" class="placement-choice${slot===suggested?' suggested':''}"><span>${code}</span>${label}${counts[slot]?`<small>${counts[slot]}</small>`:''}</button>`).join('')}</div><p class="placement-caption" aria-live="polite" aria-atomic="true"></p>`;
+  container.innerHTML=`<section class="placement-diagram"><h3>${title}</h3><div class="garment-drawing">${figure(kind,kind==='hat'&&inside?'Inside':title,inside)}${items.map(({slot,x,y,code,label})=>`<div class="placement-pin" style="left:${x/3}%;top:${y/3.2}%"><button type="button" data-place="${slot}" title="${label}" class="pin-button${slot===suggested?' suggested':''}" aria-label="${label}${counts[slot]?', add another graphic':''}">${code}</button></div>`).join('')}</div></section><div class="placement-choice-list" aria-label="${title} placements">${items.map(({slot,code,label})=>`<button type="button" data-place="${slot}" class="placement-choice${slot===suggested?' suggested':''}"><span>${code}</span>${label}${counts[slot]?`<small>${counts[slot]}</small>`:''}</button>`).join('')}</div><p class="placement-caption" aria-live="polite" aria-atomic="true"></p>`;
   const caption=container.querySelector('.placement-caption');
   const describe=target=>{
     const slot=target?.closest?.('[data-place]')?.dataset.place;

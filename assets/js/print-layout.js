@@ -24,14 +24,15 @@ export function collectSurfaces(descriptors){
   const groups=new Map();
   for(const d of descriptors){let surface=groups.get(d.surface);if(!surface){surface={id:d.surface,name:d.surfaceName,kind:d.kind,layers:[],bounds:null};groups.set(d.surface,surface);}
     surface.layers.push(d);
-    if(d.visible!==false&&d.bounds){const b=transformedBounds(d.matrix,d.bounds),old=surface.bounds;surface.bounds=old?[Math.min(old[0],b[0]),Math.min(old[1],b[1]),Math.max(old[2],b[2]),Math.max(old[3],b[3])]:b;}
+    if(d.visible!==false&&(d.bounds||d.surfaceBounds)){const b=d.surfaceBounds||transformedBounds(d.matrix,d.bounds),old=surface.bounds;surface.bounds=old?[Math.min(old[0],b[0]),Math.min(old[1],b[1]),Math.max(old[2],b[2]),Math.max(old[3],b[3])]:b;}
   }
   // An all-hidden surface has no intended print. Its layers remain in the .orb and per-layer package.
   return [...groups.values()].filter(s=>s.bounds&&s.bounds[2]>s.bounds[0]&&s.bounds[3]>s.bounds[1]);
 }
 export function defaultPrintSize(surface){
-  const [w,h]=surface.kind==='torso'?[12,18]:surface.kind==='sleeve'?[4,18]:surface.kind==='neck'?[4,4]:[8,10];
+  const [w,h]=surface.kind==='hat'?[5,3]:surface.kind==='hatbill'?[6,4]:surface.kind==='hatband'?[3,1]:surface.kind==='torso'?[12,18]:surface.kind==='sleeve'?[4,18]:surface.kind==='neck'?[4,4]:[8,10];
   const ratio=(surface.bounds[3]-surface.bounds[1])/(surface.bounds[2]-surface.bounds[0]);
+  if(surface.kind.startsWith('hat')){const aw=(surface.bounds[2]-surface.bounds[0])/.0254,ah=aw*ratio;return {enabled:true,width:Math.max(w,Math.ceil(aw*10)/10),height:Math.max(h,Math.ceil(ah*10)/10),artWidth:+aw.toFixed(4)};}
   return {enabled:true,width:w,height:h,artWidth:Math.floor(Math.min(w,h/ratio)*1000)/1000};
 }
 export function printPlan(surface,size){
@@ -42,7 +43,7 @@ export function printPlan(surface,size){
   const pxWidth=Math.round(width*PRINT_PPI),pxHeight=Math.round(height*PRINT_PPI);
   if(pxWidth<1||pxHeight<1||pxWidth>30000||pxHeight>30000||pxWidth*pxHeight>48000000)throw new Error(`${surface.name}: this canvas exceeds the 48-megapixel browser export budget at 300 PPI. Reduce its dimensions.`);
   const scale=unit*PRINT_PPI,ox=(pxWidth-artWidth*PRINT_PPI)/2-b[0]*scale,oy=(pxHeight-artHeight*PRINT_PPI)/2-b[1]*scale;
-  const layers=surface.layers.map(l=>({...l,matrix:l.matrix.map((v,i)=>v*scale+(i===4?ox:i===5?oy:0))}));
+  const layers=surface.layers.map(l=>({...l,patch:l.patch?{...l.patch,matrix:l.patch.matrix.map((v,i)=>v*scale+(i===4?ox:i===5?oy:0))}:null,matrix:l.matrix.map((v,i)=>v*scale+(i===4?ox:i===5?oy:0))}));
   let pixels=pxWidth*pxHeight*2;
   for(const l of layers){const r=transformedBounds(l.matrix),w=Math.ceil(r[2])-Math.floor(r[0]),h=Math.ceil(r[3])-Math.floor(r[1]);
     if(w>30000||h>30000||w*h>48000000)throw new Error(`${surface.name}: one layer is too large to export safely. Reduce the artwork size.`);pixels+=w*h*2;

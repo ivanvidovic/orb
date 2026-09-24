@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<!-- ORB Studio 91: mockups, per-layer artwork and layered PSD print packages. -->
+<!-- ORB Studio 92: hats, SVG leather patches and layered print packages. -->
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -25,7 +25,7 @@
 @media(prefers-reduced-motion:reduce){#startup{transition:none}.startup-emblem .startup-glint{display:none}}
 </style>
 <script src="./assets/js/brand.js?v=49"></script>
-<link rel="stylesheet" href="./assets/css/studio.css?v=91">
+<link rel="stylesheet" href="./assets/css/studio.css?v=92">
 </head>
 <body data-theme="light" class="startup-lock">
 <div id="startup" aria-label="Loading ORB Garment Studio"><div class="startup-content"><div id="startupProgress" role="progressbar" aria-label="Preparing garment preview" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" class="startup-emblem" aria-hidden="true"><defs><clipPath id="startupReveal"><circle cx="499.8461609" cy="500" r="0"/></clipPath></defs> <circle class="startup-track" fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="500" r="0"/> <g clip-path="url(#startupReveal)"> <path fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" d=" M674.6182861,925.295166V674.7720947C674.6182861,578.2481689,596.3701172,500,499.8461609,500 s-174.7721252,78.2481689-174.7721252,174.7720947V925.295166"/> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="325.2278748" r="174.7721252"/> </g> <g clip-path="url(#startupReveal)"> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="616.5148926" r="116.5148926"/> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="383.4851074" r="116.5148926"/> </g> <circle class="startup-progress" pathLength="100" transform="rotate(-90 499.8461609 500)" fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="500" r="0"/></svg></div><p id="startupStatus" role="status" aria-live="polite">Preparing studio</p><button id="startupRetry" type="button" hidden>Try again</button></div></div>
@@ -100,15 +100,15 @@
 
     </section>
         <div class="garmentChooser">
-          <span class="lbl">Garment</span>
+          <div class="garment-family-row"><span class="lbl">Garment</span><div class="seg" role="group" aria-label="Product family"><button type="button" data-family="apparel" aria-pressed="true">Apparel</button><button type="button" data-family="hats" aria-pressed="false">Hats</button></div></div>
           <select id="garmentSelect" aria-label="Garment" hidden>
-            <option value="mens-tee" selected>Men's T-Shirt</option>
+            <option value="y7005-cap">Yupoong Y7005 Camper cap</option><option value="mens-tee" selected>Men's T-Shirt</option>
             <option value="womens-tee">Women's T-Shirt</option>
             <option value="mens-hoodie">Men's Hoodie</option>
             <option value="womens-hoodie">Women's Hoodie</option>
           </select>
 <div id="garmentButtons" role="group" aria-label="Choose garment"><button type="button" data-garment="mens-tee" aria-pressed="true" title="Men’s T-Shirt" aria-label="Men’s T-Shirt">Men’s Tee</button><button type="button" data-garment="womens-tee" aria-pressed="false" title="Women’s T-Shirt" aria-label="Women’s T-Shirt">Women’s Tee</button><button type="button" data-garment="mens-hoodie" aria-pressed="false" title="Men’s Hoodie" aria-label="Men’s Hoodie">Men’s Hood</button><button type="button" data-garment="womens-hoodie" aria-pressed="false" title="Women’s Hoodie" aria-label="Women’s Hoodie">Women’s Hood</button></div>
-          <p id="modelStatus" role="status" aria-live="polite"></p>
+          <p id="hatProduct" class="muted" hidden>Yupoong Y7005 · Camper cap</p><p id="modelStatus" role="status" aria-live="polite"></p>
           <button id="modelRetry" type="button" hidden>Retry loading</button>
         </div>
     <details class="sectionFold fadein" open>
@@ -120,7 +120,7 @@
           <div class="subsec">
             <div class="grphd fabric-head"><span class="lbl">Fabric color</span><span class="lbl" id="blankName">Chalk</span></div>
             <div class="swatches" id="swatches" role="radiogroup" aria-label="Garment color"></div>
-            <div class="fabric-options"><label class="check-option" data-tip="Use Chalk in light mode and Washed Black in dark mode. Choosing a fabric color turns this off."><input id="matchFabricToTheme" type="checkbox">Match fabric to theme</label></div>
+            <div id="hatColors" class="hat-colors" hidden><label>Upper bill <input id="hatBillColor" type="color" value="#b29268"></label><label>Under bill <input id="hatUnderColor" type="color" value="#b29268"></label></div><div class="fabric-options"><label class="check-option" data-tip="Use Chalk in light mode and Washed Black in dark mode. Choosing a fabric color turns this off."><input id="matchFabricToTheme" type="checkbox">Match fabric to theme</label></div>
 
           </div>
 
@@ -146,7 +146,7 @@
 <section id="artEditor" hidden aria-label="Selected artwork controls">
   <div class="art-editor-head"><strong id="artEditorName" class="sr-only">Artwork placement</strong><button id="artAdd" type="button" title="Add separate layers at this placement">+ Add</button><button id="artReplace" type="button" title="Replace image" aria-label="Replace image">Replace</button><button id="artPosition" type="button" title="Move this layer to a standard placement">Move</button><button id="artDuplicate" type="button">Duplicate</button><button id="artView" type="button" title="View on garment" aria-label="View on garment">View</button><button id="artClose" type="button" aria-label="Close artwork controls" title="Close artwork controls">×</button></div>
   <div id="sleevePresetControl" class="sleeve-preset-row" hidden><span>Sleeve print</span><div role="group" aria-label="Sleeve print preset"><button type="button" data-sleeve-preset="patch" aria-pressed="true">Patch</button><button type="button" data-sleeve-preset="full" aria-pressed="false" title="100% fits shoulder to wrist; scale up to 600%">Full sleeve</button></div></div>
-  <div class="art-modes" role="group" aria-label="Artwork color mode">
+  <div id="hatDecoration"></div><div class="art-modes" role="group" aria-label="Artwork color mode">
     <div class="art-mode-option"><button type="button" data-art-mode="original" aria-pressed="true">Original</button></div>
     <div class="art-mode-option"><button type="button" data-art-mode="tint" aria-pressed="false">Tint</button><button type="button" class="art-color-swatch" data-art-color="tint" aria-label="Choose tint color" title="Choose tint color"></button></div>
     <div class="art-mode-option"><button type="button" data-art-mode="ink" aria-pressed="false">Solid</button><button type="button" class="art-color-swatch" data-art-color="ink" aria-label="Choose solid color" title="Choose solid color"></button></div>
@@ -340,7 +340,7 @@
       <li><span class="guideNumber" aria-hidden="true">04</span><section><h3>Save or export</h3><p>Save an editable design or export PNGs to share.</p></section></li>
     </ol>
     <p class="guideNavigation">Drag to rotate · Scroll or pinch to zoom · Reset view to recenter</p>
-    <details class="guideAdvanced"><summary>Artwork &amp; layers</summary><dl class="guideRows">
+    <details class="guideAdvanced"><summary>Hats &amp; leather patches</summary><p>Switch Apparel / Hats above the garment choices. Both designs stay in the same ORB project, with independent layers and fabric colors and a shared image library. Hats start empty.</p><p>Place prints on the front, both sides, back, crown, upper bill, under bill, inside front, or sweatband. Rotate under the bill using the detail cameras or the 8 key.</p><p>Choose Leather patch on a hat layer. Patch width, height and position control the backing. Artwork position and scale control the engraving independently. Upload a closed, filled SVG silhouette or choose one from the library. A single connected shape with interior cutouts is supported; convert text and strokes to paths first. Print size suggestions are guides, not hard limits.</p><p>Print-package PSDs keep engravings flat and black. A Patches folder includes vector cut outlines and millimetre dimensions when layered layouts are selected. Leather texture, stitches, depth and lighting are preview effects. Embroidery and automatic tracing are not included.</p></details><details class="guideAdvanced"><summary>Artwork &amp; layers</summary><dl class="guideRows">
       <div><dt>Import &amp; library</dt><dd>Drop images or folders into the library, or browse images / folder. Subfolders are included; empty folders and non-image files are skipped. Click a library graphic to place it.</dd></div>
       <div><dt>PNG, JPG &amp; SVG</dt><dd>Use transparent PNG or SVG for artwork without a background. SVGs are rasterized for the preview; the original file is kept for export.</dd></div>
       <div><dt>Layer controls</dt><dd>Click a layer’s name to open its controls. Add here adds another graphic at that placement; Replace swaps its source image.</dd></div>
@@ -402,7 +402,7 @@
       <div><dt>Theme</dt><dd>Light mode uses neutral, muted colors. Match fabric to theme also switches fabric color; manually choosing a fabric color turns that option off.</dd></div>
       <div><dt>White fabric in UV</dt><dd>White and near-white fabric gain a light-blue base in UV mode. Your chosen fabric color stays unchanged in other lighting presets.</dd></div>
     </dl></details>
-    <details class="guideAdvanced"><summary>Keyboard shortcuts</summary><h4>Camera · numbers above the letters</h4><dl class="guideRows"><div><dt><kbd>1</kbd></dt><dd>Front</dd></div><div><dt><kbd>2</kbd></dt><dd>Front three-quarter</dd></div><div><dt><kbd>3</kbd></dt><dd>Side</dd></div><div><dt><kbd>4</kbd></dt><dd>Back three-quarter</dd></div><div><dt><kbd>5</kbd></dt><dd>Back</dd></div><div><dt><kbd>6</kbd></dt><dd>Artwork detail</dd></div><div><dt><kbd>7</kbd></dt><dd>Inside neck tag</dd></div><div><dt><kbd>8</kbd></dt><dd>Cycle through the other detail cameras available for this garment.</dd></div></dl><h4>Lighting · number pad</h4><dl class="guideRows"><div><dt><kbd>Numpad 1</kbd></dt><dd>Studio</dd></div><div><dt><kbd>Numpad 2</kbd></dt><dd>Softbox · Soft</dd></div><div><dt><kbd>Numpad 3</kbd></dt><dd>Outdoor day · Day</dd></div><div><dt><kbd>Numpad 4</kbd></dt><dd>City night · Night</dd></div><div><dt><kbd>Numpad 5</kbd></dt><dd>Black light · UV</dd></div><div><dt><kbd>Numpad 6</kbd></dt><dd>Runway</dd></div><div><dt><kbd>Numpad 7</kbd></dt><dd>Afterglow</dd></div><div><dt><kbd>Numpad 8</kbd></dt><dd>Projector</dd></div></dl><p>Camera and lighting shortcuts pause while editing controls, using dialogs or the color picker, and during loading or export.</p><h4>Editing &amp; navigation</h4><dl class="guideRows"><div><dt><kbd>Ctrl / ⌘ + Z</kbd></dt><dd>Undo a design edit.</dd></div><div><dt><kbd>Ctrl / ⌘ + Shift + Z</kbd></dt><dd>Redo. Ctrl / ⌘ + Y also works.</dd></div><div><dt><kbd>Arrow keys</kbd></dt><dd>Rotate when the garment preview has keyboard focus.</dd></div><div><dt><kbd>↑ / ↓</kbd></dt><dd>Reorder a layer when its drag grip has keyboard focus.</dd></div><div><dt><kbd>F2</kbd></dt><dd>Rename the selected layer when focus is in Artwork.</dd></div><div><dt><kbd>Enter / Esc</kbd></dt><dd>Save / cancel while renaming a layer.</dd></div><div><dt><kbd>Esc</kbd></dt><dd>Close the info panel or detail menu, cancel placement picking, or leave Present mode.</dd></div><div><dt><kbd>Shift + scroll</kbd></dt><dd>Adjust a hovered slider or number field in larger steps.</dd></div></dl></details>
+    <details class="guideAdvanced"><summary>Keyboard shortcuts</summary><h4>Camera · numbers above the letters</h4><dl class="guideRows"><div><dt><kbd>1</kbd></dt><dd>Front</dd></div><div><dt><kbd>2</kbd></dt><dd>Front three-quarter</dd></div><div><dt><kbd>3</kbd></dt><dd>Side</dd></div><div><dt><kbd>4</kbd></dt><dd>Back three-quarter</dd></div><div><dt><kbd>5</kbd></dt><dd>Back</dd></div><div><dt><kbd>6</kbd></dt><dd>Artwork detail</dd></div><div><dt><kbd>7</kbd></dt><dd>Inside neck tag, or inside front branding on hats.</dd></div><div><dt><kbd>8</kbd></dt><dd>Cycle through the other detail cameras available for this garment.</dd></div></dl><h4>Lighting · number pad</h4><dl class="guideRows"><div><dt><kbd>Numpad 1</kbd></dt><dd>Studio</dd></div><div><dt><kbd>Numpad 2</kbd></dt><dd>Softbox · Soft</dd></div><div><dt><kbd>Numpad 3</kbd></dt><dd>Outdoor day · Day</dd></div><div><dt><kbd>Numpad 4</kbd></dt><dd>City night · Night</dd></div><div><dt><kbd>Numpad 5</kbd></dt><dd>Black light · UV</dd></div><div><dt><kbd>Numpad 6</kbd></dt><dd>Runway</dd></div><div><dt><kbd>Numpad 7</kbd></dt><dd>Afterglow</dd></div><div><dt><kbd>Numpad 8</kbd></dt><dd>Projector</dd></div></dl><p>Camera and lighting shortcuts pause while editing controls, using dialogs or the color picker, and during loading or export.</p><h4>Editing &amp; navigation</h4><dl class="guideRows"><div><dt><kbd>Ctrl / ⌘ + Z</kbd></dt><dd>Undo a design edit.</dd></div><div><dt><kbd>Ctrl / ⌘ + Shift + Z</kbd></dt><dd>Redo. Ctrl / ⌘ + Y also works.</dd></div><div><dt><kbd>Arrow keys</kbd></dt><dd>Rotate when the garment preview has keyboard focus.</dd></div><div><dt><kbd>↑ / ↓</kbd></dt><dd>Reorder a layer when its drag grip has keyboard focus.</dd></div><div><dt><kbd>F2</kbd></dt><dd>Rename the selected layer when focus is in Artwork.</dd></div><div><dt><kbd>Enter / Esc</kbd></dt><dd>Save / cancel while renaming a layer.</dd></div><div><dt><kbd>Esc</kbd></dt><dd>Close the info panel or detail menu, cancel placement picking, or leave Present mode.</dd></div><div><dt><kbd>Shift + scroll</kbd></dt><dd>Adjust a hovered slider or number field in larger steps.</dd></div></dl></details>
     <details class="guideAdvanced"><summary>Saving &amp; exporting</summary><dl class="guideRows">
       <div><dt>Save / Open / New</dt><dd>Save downloads an editable .orb file. Open it with Open or drag it into the studio. New starts a fresh design and keeps your library available.</dd></div>
       <div><dt>Include library</dt><dd>Used graphics are always saved with the design. Enable Include unused library graphics to carry the rest of your library with it.</dd></div>
@@ -431,7 +431,7 @@
  <fieldset id="exportShape" class="export-choice"><legend>Shape</legend><div class="export-choice-buttons"><label><input type="radio" name="exportShape" value="square" checked><span><i class="shape-icon shape-square" aria-hidden="true"></i>Square</span></label><label><input type="radio" name="exportShape" value="portrait"><span><i class="shape-icon shape-portrait" aria-hidden="true"></i>Portrait</span></label><label><input type="radio" name="exportShape" value="wide"><span><i class="shape-icon shape-wide" aria-hidden="true"></i>Wide</span></label></div></fieldset>
  <fieldset id="exportSize" class="export-choice"><legend>Image size <small>Longest edge · px</small></legend><div class="export-choice-buttons"><label><input type="radio" name="exportSize" value="2048" checked><span>2048 px</span></label><label><input type="radio" name="exportSize" value="3072"><span>3072 px</span></label><label><input type="radio" name="exportSize" value="4096"><span>4096 px</span></label></div></fieldset>
  <fieldset id="exportBackground" class="export-choice"><legend>Background</legend><div class="export-choice-buttons"><label><input type="radio" name="exportBackground" value="current" checked><span>Scene</span></label><label><input type="radio" name="exportBackground" value="transparent"><span>Transparent</span></label><label><input type="radio" name="exportBackground" value="white"><span>White</span></label></div></fieldset>
- <div id="exportGridOption" class="export-grid-option"><label class="check-option"><input id="exportGrid" type="checkbox" checked>Include grid</label></div>
+ <div id="exportGridOption" class="export-grid-option"><label class="check-option"><input id="exportGrid" type="checkbox">Include grid</label></div>
  </div>
  <div class="export-sheet-option"><label class="check-option"><input id="exportSheet" type="checkbox" checked aria-describedby="exportSheetHelp">Include presentation sheet</label><p id="exportSheetHelp" class="muted">Combine selected views on one page.</p></div>
  </div></details>
@@ -474,6 +474,6 @@
 </script>
 
 <script src="./assets/vendor/jszip/jszip.min.js"></script>
-<script type="module" src="./assets/js/studio.js?v=91"></script>
+<script type="module" src="./assets/js/studio.js?v=92"></script>
 </body>
 </html>

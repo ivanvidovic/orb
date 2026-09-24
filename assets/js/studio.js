@@ -1,20 +1,23 @@
+import {patchContours,patchMatrix} from './patch-shapes.js?v=92';
+import {HAT_ID,HAT_META,HAT_KEYS,HAT_SCALE,isHat,prepareHat,refreshHatGuide} from './hat-model.js?v=92';
+import {createLeatherPatches,installPatchControls} from './leather-patches.js?v=92';
 import {treatmentKey} from './artwork-treatment.js?v=86';
-import {quadTransform,alphaBounds,flattenTransform,collectSurfaces} from './print-layout.js?v=86';
+import {quadTransform,alphaBounds,flattenTransform,collectSurfaces,transformedBounds} from './print-layout.js?v=92';
 import {createTreatmentQueue,createTreatmentProcessor} from './artwork-processing.js?v=86';
 import {hasPrintTexture} from './print-texture.js?v=81';
 import {focusedPanelBounds,layerCustomColor} from './artwork-detail.js?v=78';
 import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=77';
 import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE} from './sleeve-camera.js?v=71';
 import {hasDirectory} from './folder-import.js?v=58';
-import {decodeArtworkImage} from './artwork-decode.js?v=45';
+import {decodeArtworkImage} from './artwork-decode.js?v=92';
 import {createCityTraffic} from './city-night.js?v=43';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=82';
 import {sharedSurfaceProfiles,fitSurfacePlacements} from './surface-layout.js?v=83';
 import {torsoFrame,torsoDistance,previousTorsoFrame,previewDistance,previousPreviewFrame} from './garment-framing.js?v=89';
-import {installWorkspace} from './workspace.js?v=88';
-import {installExports} from './presentation-export.js?v=91';
-import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=82';
-import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
+import {installWorkspace} from './workspace.js?v=92';
+import {installExports} from './presentation-export.js?v=92';
+import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=92';
+import {renderPlacementDiagram} from './placement-diagrams.js?v=92';
 import {installColorPicker} from './color-picker.js?v=36';
 import {installSliderControls,RESET_ICON} from './controls.js?v=44';
 import {installColorActions} from './color-actions.js?v=34';
@@ -93,6 +96,7 @@ Object.assign(ART_META,{
   centerchest:{label:'Center chest',side:'Front',view:'front',w:.12,scale:100,code:'U',detail:true}
 });
 ART_META.lowerback.detail=true;
+for(const [slot,meta] of Object.entries(HAT_META))ART_META[slot]={...meta,scale:100,code:'',view:'placement:'+slot,detail:true,hat:true};
 const STANDARD_PLACEMENTS=['chest','rightchest','front','back','lowerback','leftshoulder','rightshoulder'];
 const ART_KEYS=Object.keys(ART_META);
 let UV_PROFILES={}, modelKind='catalog';
@@ -604,6 +608,7 @@ function rebuildPresentClone(show=false){
   const depthById=new Map();current.traverse(o=>{if(o.isMesh)depthById.set(o.userData.orbMeshId,o.customDepthMaterial);});
   const clone=current.clone(true);
   clone.traverse(o=>{
+    if(o.userData.orbGuide)o.visible=false;
     if(!o.isMesh) return;
     o.frustumCulled=false;
     o.customDepthMaterial=depthById.get(o.userData.orbMeshId);
@@ -660,11 +665,22 @@ function ensurePrintIslands(geometry){
   }
   geometry.setAttribute('aPrintIsland',new THREE.BufferAttribute(panels,1));
 }
-let current=null, isCustom=false;
+let hatGuideVisible=false;
+let current=null, isCustom=false,leatherPatches=null,patchControls=null,companionDesign=null,lastApparelId='mens-tee';
+const copyLayer=e=>({...e,placement:{...e.placement},anchor:e.anchor?structuredClone(e.anchor):null,patch:e.patch?structuredClone(e.patch):undefined});
+const appearanceFields=['blank','garmentCustom','hatBillColor','hatUnderColor'];
+function familySnapshot(){return {garmentId:activeGarmentId,active:activeArtId,layers:artLayers.map(copyLayer),appearance:structuredClone(pick(state,appearanceFields)),camera:{az:state.taz,el:state.tel,r:state.tr,focus:state.focusTarget.toArray(),view:state.view},customFlipped,modelFile:customModelFile};}
+function activateFamily(saved,hat){
+  artLayers=saved?.layers.map(copyLayer)||[];activeArtId=saved?.active||null;activeArtSlot=artEntry()?.slot||(hat?'hatfront':'front');
+  Object.assign(state,saved?.appearance||(hat?{blank:'custom',garmentCustom:'#B29268',hatBillColor:'#B29268',hatUnderColor:'#B29268'}:{blank:0,garmentCustom:'#D8D8D8'}));
+  inspectionFocus=null;
+}
+
 function setGarment(obj, custom){
   shadowDirty=true;
   resetArtworkMaps();
-  artLayers.forEach(layer=>layer.anchor=null);
+  leatherPatches?.clear();
+  if(!historyRestoring)artLayers.forEach(layer=>layer.anchor=null);
   // Remove the old presentation clone before disposing any geometry it shares.
   presentCloneMaterials.forEach(m=>m.dispose?.());
   presentCloneMaterials=[];
@@ -773,6 +789,7 @@ function adopt(root){
 
 // Stable asset IDs and authored filenames are separate from the names shown in the Studio.
 const GARMENT_CATALOG=[
+  {id:HAT_ID,label:'Yupoong Y7005 · Camper cap',file:'orb-cap-y7005-01.glb',type:'hat',distance:1.45},
   {id:'mens-tee',label:"Men's T-Shirt",file:'orb-tee-men-03.glb',type:'tee',distance:1.55},
   {id:'womens-tee',label:"Women's T-Shirt",file:'orb-tee-women-03.glb',type:'tee',distance:1.60},
   {id:'mens-hoodie',label:"Men's Hoodie",file:'orb-hoodie-men-basic-01.glb',type:'hoodie',distance:1.51},
@@ -794,6 +811,7 @@ let retryModel=null;
 function modelBusy(value){
   modelLoading=value;
   garmentSelect.disabled=value;
+  document.querySelectorAll('[data-family]').forEach(b=>b.disabled=value);
   syncGarmentButtons();
   for(const id of ['btnModel','btnShipped','btnFlip'])document.getElementById(id).disabled=value;
   stage.setAttribute('aria-busy',String(value));
@@ -812,12 +830,12 @@ document.getElementById('garmentButtons').addEventListener('click',event=>{
 // Fetch once, share in-flight requests, and retain prepared models for revisits.
 // Touch devices keep two decoded garments; remaining files stay ready in memory.
 const catalogBytes=new Map(),catalogReady=new Map(),catalogPreparing=new Map();
-const readyLimit=MOBILE?2:4;
+const readyLimit=MOBILE?2:5;
 async function getCatalogBytes(item){
   if(catalogBytes.has(item.id))return catalogBytes.get(item.id);
   const task=(async()=>{
     const stem=item.file.replace(/\.glb$/,'');
-    const urls=['../garments/'+item.file,'../calibration/'+stem+'.json','../calibration/'+stem+'.bin'];
+    const urls=item.type==='hat'?['../garments/'+item.file]:['../garments/'+item.file,'../calibration/'+stem+'.json','../calibration/'+stem+'.bin'];
     return Promise.all(urls.map(async (path,index)=>{
       const url=new URL(path,import.meta.url);url.searchParams.set('v',index===0&&item.id==='womens-tee'?'35':'18');
       const response=await fetch(url);
@@ -869,7 +887,12 @@ async function prepareCatalog(item){
         await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
       }
       const gltf=await gltfLoader.parseAsync(bytes,new URL('../garments/',import.meta.url).href);
-      imported=gltf.scene;res=adopt(imported);
+      imported=gltf.scene;
+      if(item.type==='hat'){
+        res=prepareHat(imported,{patchMaterial:patchFabricMaterial,depthMaterial:makeFabricDepthMaterial,anisotropy:Math.min(8,renderer.capabilities.getMaxAnisotropy())});
+        disposeImported(imported);imported=null;res.group.userData.catalogCached=true;catalogReady.set(item.id,res);return res;
+      }
+      res=adopt(imported);
       await applyCalibration(res.group,item,[meta,data]);
       const extra=(await getPlacementCalibration())[item.id];
       if(!extra?.necktag)throw new Error('Additional garment placements are missing.');
@@ -900,6 +923,7 @@ let backgroundCatalogStarted=false;
 async function preloadCatalog(){
   if(backgroundCatalogStarted)return; backgroundCatalogStarted=true;
   for(const item of GARMENT_CATALOG){
+    if(item.type==='hat')continue; // Load the separate product family on demand.
     await idleSlot();
     try{
       await getCatalogBytes(item);
@@ -987,11 +1011,15 @@ async function loadCatalog(id){
   try{
     const res=await prepareCatalog(item);
     if(current)recordArtUndo();
+    const changedFamily=!!activeGarmentId&&isHat(id)!==isHat(activeGarmentId);
+    let restoredFamily=null;
+    if(changedFamily&&!historyRestoring){restoredFamily=companionDesign;companionDesign=familySnapshot();activateFamily(restoredFamily,isHat(id));}
     UV_PROFILES=res.profiles;modelKind='catalog';
     setGarment(res.group,false);trimCatalogCache();
     selectedCatalogId=id;activeGarmentId=id;customModelFile=null;customFlipped=false;
-    garmentCenter.fromArray(torsoFrame(id).center);
-    if(!initialLoad&&!inspectionFocus){
+    garmentCenter.fromArray(torsoFrame(id)?.center||[0,0,0]);
+    if(!isHat(id))lastApparelId=id;
+    if(!initialLoad&&!inspectionFocus&&!changedFamily){
       const ratio=torsoDistance(id)/previousDistance;
       state.r*=ratio;state.tr*=ratio;
       for(const focus of [state.focus,state.focusTarget])focus.sub(previousCenter).multiplyScalar(ratio).add(garmentCenter);
@@ -1005,10 +1033,11 @@ async function loadCatalog(id){
     document.getElementById('modelName').dataset.garmentId=id;
     document.getElementById('modelName').dataset.triangles=res.tris;
     garment.rotation.y=0;
-    requestArtworkRender();syncArtworkUi();applyLook();if(initialLoad)setView('angle');else if(state.view==='neck'||state.view?.startsWith('placement:'))setView(state.view);
+    requestArtworkRender();syncArtworkUi();applyLook();syncHatUi();if(initialLoad||changedFamily)setView('angle');else if(state.view==='neck'||state.view?.startsWith('placement:'))setView(state.view);
     if(inspectionFocus?.slot&&UV_PROFILES[inspectionFocus.slot]){
       inspectionFocus.point.fromArray(cameraPlacementPoint(inspectionFocus.slot));inspectionFocus.point.y-=.350;updateInspectionFocus();
     }
+    if(restoredFamily?.camera){const c=restoredFamily.camera;state.az=state.taz=c.az;state.el=state.tel=c.el;state.r=state.tr=c.r;state.focus.fromArray(c.focus);state.focusTarget.copy(state.focus);state.view=c.view;syncCameraUi();}
     modelStatus.textContent='';artStatus('');workspace?.notify();
     return true;
   }catch(error){
@@ -1080,8 +1109,10 @@ function currentGarment(){
     : GARMENTS[state.blank];
 }
 function inkHex(entry,mode=entry?.mode){
+  if(entry?.decoration==='leather')return '#000000';
   if(mode==='tint')return entry?.tintCustom||'#FFFFFF';
   if(entry?.inkCustom)return entry.inkCustom;
+  if(entry?.decoration==='leather')return '#000000';
   const color=new THREE.Color(currentGarment().hex);
   const luminance=color.r*.2126+color.g*.7152+color.b*.0722;
   // Pick the more legible ink on the actual garment, including custom colors.
@@ -1231,7 +1262,7 @@ function syncFabricColors(){
     root.traverse(o=>{
       if(!o.isMesh)return;
       const mats=Array.isArray(o.material)?o.material:[o.material];
-      mats.forEach(m=>{if(m?.userData.orbTintable&&m.color)m.color.fromArray(m.userData.orbBaseColor).multiply(color);});
+      mats.forEach(m=>{if(m?.userData.orbTintable&&m.color)m.color.fromArray(m.userData.orbBaseColor).multiply(m.userData.hatRole==='bill'?renderedFabricColor(state.hatBillColor||currentGarment().hex):m.userData.hatRole==='under'?renderedFabricColor(state.hatUnderColor||currentGarment().hex):color);});
     });
   };
   sync(current);
@@ -1280,12 +1311,13 @@ function artControlPair(slot,prop){return artControlElements[prop];}
 
 function artScaleMax(entry){
   // Retain an enlarged sleeve value when switching to a short-sleeved garment.
+  if(ART_META[entry?.slot]?.hat)return 600;
   return ART_META[entry?.slot]?.side==='Sleeve'&&entry?.sleevePreset==='full'?600:200;
 }
 function artInputBounds(entry,prop){
   const meta=ART_INPUT_META[prop],value=entry?.placement?.[prop];
   const current=value===undefined?0:prop==='scale'?value*100:(prop==='x'||prop==='y')?value/.0018:value;
-  return {min:Math.min(meta.min,Math.floor(current)),max:Math.max(prop==='scale'?artScaleMax(entry):meta.max,Math.ceil(current))};
+  return {min:Math.min(ART_META[entry?.slot]?.hat&&prop==='scale'?1:meta.min,Math.floor(current)),max:Math.max(prop==='scale'?artScaleMax(entry):meta.max,Math.ceil(current))};
 }
 function normalizeArtValue(slotForNormalize,prop,raw,entry=artEntry()){
   const meta=ART_INPUT_META[prop],{min,max}=artInputBounds(entry,prop);
@@ -1392,7 +1424,7 @@ canvas.addEventListener('pointermove',e=>{
   const sampleDt=Math.max(0.008,Math.min(0.08,(now-lastOrbitInputTime)/1000));
   const dAz=-dx*0.008;
   state.taz+=dAz;
-  state.tel=clamp(state.tel-(e.clientY-lastY)*0.006,0.55,2.05);
+  state.tel=clamp(state.tel-(e.clientY-lastY)*0.006,isHat(activeGarmentId)?.08:.55,isHat(activeGarmentId)?3.06:2.05);
 
   // Raw manual orbit speed in radians/second. A short low-pass happens
   // in the animation loop before this becomes fabric motion.
@@ -1446,7 +1478,7 @@ canvas.setAttribute('aria-label','Garment preview. Arrow keys rotate.');
 canvas.addEventListener('keydown',e=>{
   const k={ArrowLeft:[-0.14,0],ArrowRight:[0.14,0],ArrowUp:[0,0.10],ArrowDown:[0,-0.10]}[e.key];
   if(!k) return; e.preventDefault();
-  state.taz+=k[0]; state.tel=clamp(state.tel-k[1],0.55,2.05); setView(null);
+  state.taz+=k[0]; state.tel=clamp(state.tel-k[1],isHat(activeGarmentId)?.08:.55,isHat(activeGarmentId)?3.06:2.05); setView(null);
 });
 
 let inspectionFocus=null;
@@ -1505,11 +1537,12 @@ function viewArtwork(slot){
   setView(meta.detail&&!isCustom?'placement:'+slot:meta.view);
   if(q&&!isCustom){
     state.focusTarget.fromArray(cameraPlacementPoint(slot));state.focusTarget.y-=.350;
-    state.tr=meta.side==='Inside'?.48:.60;
+    state.tr=isHat(activeGarmentId)?detailCamera('placement:'+slot).distance:meta.side==='Inside'?.48:.60;
     inspectionFocus={point:state.focusTarget.clone(),distance:state.tr,slot};
   }
 }
 function detailCamera(view){
+  if(isHat(activeGarmentId)){const slot=view==='neck'?'hatinside':view==='detail'?(artEntry()?.slot||'hatfront'):view?.startsWith('placement:')?view.slice(10):null;const q=UV_PROFILES[slot],m=HAT_META[slot];if(!q||!m)return null;return {point:[q.point[0],q.point[1]-.35,q.point[2]],angles:m.angles,distance:['hatbill','hatunderbill','hatcrown'].includes(slot)?1.02:['hatinside','hatband'].includes(slot)?.80:.64};}
   const slot=view==='neck'?'necktag':view?.startsWith('placement:')?view.slice(10):null;
   if(!slot||isCustom||!UV_PROFILES[slot])return null;
   const q=UV_PROFILES[slot],meta=ART_META[slot],wrist=slot.endsWith('wrist');
@@ -1518,13 +1551,14 @@ function detailCamera(view){
   return {point:[point[0],point[1]-.350,point[2]],angles:[az,slot==='necktag'?1.12:wrist?1.4:1.35],distance:slot==='necktag'?.48:wrist?.40:slot==='backneck'?.46:slot==='lowerback'?.80:.60};
 }
 function setView(v){
+  if(isHat(activeGarmentId)&&(v==='neck'||v==='detail'))v='placement:'+(v==='neck'?'hatinside':artEntry()?.slot||'hatfront');
   const placement=v?.startsWith('placement:')?v.slice(10):null;
   if(placement&&(isCustom||!UV_PROFILES[placement]))v='detail';
   if(v==='neck'&&(isCustom||!UV_PROFILES.necktag))v='detail';
   state.view=v;syncCameraUi();
   if(!v) return;
   inspectionFocus=null;state.focusTarget.copy(garmentCenter);
-  state.tr=previewDistance(activeGarmentId,v);
+  state.tr=isHat(activeGarmentId)?1.45:previewDistance(activeGarmentId,v);
   if(v.startsWith('placement:')){
     const shot=detailCamera(v),[az,el]=shot.angles;
     state.focusTarget.fromArray(shot.point);
@@ -1876,7 +1910,7 @@ document.getElementById('selfShadows').addEventListener('change',e=>{
 });
 segment('segView',v=>setView(v));
 const detailToggle=document.getElementById('detailCameraToggle'),detailMenu=document.getElementById('detailCameraMenu');
-for(const [label,slots] of [['Front',['centerchest','lefthem','righthem']],['Back',['backneck','leftblade','rightblade','lowerback']],['Sleeves',['leftwrist','rightwrist']]]){
+for(const [label,slots] of [['Front',['centerchest','lefthem','righthem']],['Back',['backneck','leftblade','rightblade','lowerback']],['Sleeves',['leftwrist','rightwrist']],['Hat',HAT_KEYS]]){
   const group=document.createElement('div');group.className='detail-camera-group';
   const heading=document.createElement('span');heading.textContent=label;group.append(heading);
   for(const slot of slots){const button=document.createElement('button');button.type='button';button.dataset.detailView='placement:'+slot;button.textContent=ART_META[slot].label;button.setAttribute('aria-pressed','false');group.append(button);}
@@ -1890,8 +1924,8 @@ function syncCameraUi(){
   toggle.textContent=state.view==='neck'?'Neck tag':'Detail';
   document.querySelectorAll('[data-detail-view]').forEach(b=>{
     b.setAttribute('aria-pressed',String(b.dataset.detailView===state.view));
-    if(b.dataset.detailView.startsWith('placement:')){const slot=b.dataset.detailView.slice(10);b.hidden=!!ART_META[slot]?.hoodie&&!UV_PROFILES[slot];b.disabled=isCustom||!UV_PROFILES[slot];}
-    if(b.dataset.detailView==='neck'){b.disabled=isCustom||!UV_PROFILES.necktag;b.title=b.disabled?'Neck tag view is available on the built-in garments':'';}
+    if(b.dataset.detailView.startsWith('placement:')){const slot=b.dataset.detailView.slice(10);b.hidden=isHat(activeGarmentId)?!ART_META[slot]?.hat:!!ART_META[slot]?.hat||!!ART_META[slot]?.hoodie&&!UV_PROFILES[slot];b.disabled=isCustom||!UV_PROFILES[slot];}
+    if(b.dataset.detailView==='neck'){b.disabled=isCustom||!(UV_PROFILES.necktag||UV_PROFILES.hatinside);b.textContent=isHat(activeGarmentId)?'Inside front':'Inside neck tag';b.title='Inside branding · 7';}
   });
   document.querySelectorAll('.detail-camera-group').forEach(g=>g.hidden=!Array.from(g.querySelectorAll('button')).some(b=>!b.hidden));
 }
@@ -2204,13 +2238,14 @@ async function printLayouts(){
     const chart=`${q.mesh||1}:${q.island}`;
     const primary=priority.find(slot=>{const p=UV_PROFILES[slot];return p&&`${p.mesh||1}:${p.island}`===chart;});
     const basis=primary?UV_PROFILES[primary].basis:q.basis,meta=ART_META[layer.slot];
-    const kind=['front','back'].includes(primary)?'torso':['leftshoulder','rightshoulder'].includes(primary)?'sleeve':primary==='necktag'?'neck':'other';
+    const kind=HAT_META[primary]?(primary==='hatband'?'hatband':['hatbill','hatunderbill'].includes(primary)?'hatbill':'hat'):['front','back'].includes(primary)?'torso':['leftshoulder','rightshoulder'].includes(primary)?'sleeve':primary==='necktag'?'neck':'other';
     const surfaceName=primary==='front'?'Front':primary==='back'?'Back':primary?ART_META[primary].label:`Panel ${chart}`;
     const fullLength=hasFullSleeve(layer)&&layer.sleevePreset==='full'?UV_PROFILES[layer.slot]?.full?.printLength:0;
     const matrix=flattenTransform(quadTransform(layer,q,image,meta,{fullLength,custom:isCustom,offset:placementOffsets(layer,q)}),basis);
     const tex=image.texture.image,w=image.width,h=image.height,pad=image.padding||0,crop=image.crop||{fullWidth:w,fullHeight:h,offsetX:0,offsetY:0};
     const data=tex.data||tex.getContext('2d',{willReadFrequently:true}).getImageData(0,0,w,h).data;
-    descriptors.push({id:layer.id,surface:chart,surfaceName,kind,visible:layer.visible,slot:layer.slot,matrix,
+    const patch=layer.decoration==='leather'&&layer.patch?{contours:patchContours(layer.patch),matrix:flattenTransform(patchMatrix(layer.patch,q),basis),thickness:layer.patch.thickness,stitch:layer.patch.stitch,color:layer.patch.color}:null;
+    descriptors.push({patch,surfaceBounds:patch?transformedBounds(patch.matrix):null,id:layer.id,surface:chart,surfaceName,kind,visible:layer.visible,slot:layer.slot,matrix,
       bounds:alphaBounds(data,w,h,image.coverageOnly?1:4),crop:[crop.offsetX/crop.fullWidth,crop.offsetY/crop.fullHeight,(w-2*pad)/crop.fullWidth,(h-2*pad)/crop.fullHeight],pad:[pad/w,pad/h]});
   }
   return {surfaces:collectSurfaces(descriptors),garment:activeGarmentId};
@@ -2424,9 +2459,9 @@ function flushArtwork(){
   try{
     trimArtworkSources();
     current.traverse(mesh=>{
-      if(!mesh.isMesh)return;
+      if(!mesh.isMesh||mesh.userData.orbPatch||mesh.userData.orbGuide)return;
       const geometry=mesh.geometry,meshId=mesh.userData.orbMeshId||1,map=getArtworkMap(meshId),bounds=artworkPanelBounds(geometry);
-      const layers=artLayers.filter(layer=>{const q=layerProfile(layer);return q&&(q.mesh||1)===meshId&&bounds.has(q.island);});
+      const layers=artLayers.filter(layer=>{const q=layerProfile(layer);return layer.decoration!=='leather'&&q&&(q.mesh||1)===meshId&&bounds.has(q.island);});
       const panels=[...new Set(layers.map(layer=>layerProfile(layer).island))].sort((a,b)=>a-b);
       const changed=layoutArtworkMap(map,geometry,panels,layers),ids=new Set(layers.map(layer=>layer.id));
       for(const [id,quad] of map.quads)if(!ids.has(id)){quad.removeFromParent();quad.material.dispose();map.quads.delete(id);}
@@ -2449,6 +2484,10 @@ function flushArtwork(){
       renderEffectPanels(map,dirty);
       renderArtworkSpill(map,dirty);
     });
+    const patchesChanged=leatherPatches?.update(current,artLayers,UV_PROFILES,artworkSource);
+    if(patchesChanged){presentCloneMaterials.forEach(m=>m.dispose());rebuildPresentClone(presentGarment.visible);}
+    refreshHatGuide(current,artEntry()?.slot||activeArtSlot,hatGuideVisible);
+    if(isHat(activeGarmentId))shadowDirty=true;
     artworkDirty=false;artworkDirtyAll=false;artworkDirtyPanels.clear();
   }finally{
     renderer.autoClear=oldAutoClear;renderer.setClearColor(artworkClearColor,oldAlpha);
@@ -2488,9 +2527,9 @@ function uniqueArtworkName(name,names){
   names.add(result.toLocaleLowerCase());return result;
 }
 function initializeLayer(entry,slot,anchor=null,names=new Set(artLayers.map(e=>e.name.toLocaleLowerCase()))){
-  const name=uniqueArtworkName(entry.name,names);
-  return {...entry,placementSpace:PLACEMENT_SPACE,tintCustom:entry.tintCustom??null,defaultMode:entry.mode,defaultSlot:slot,defaultScale:ART_META[slot].scale,name,autoName:name,nameEdited:false,id:'art-'+nextArtId++,slot,sleevePreset:'patch',visible:true,glow:false,uvReactive:false,emission:100,anchor:anchor?structuredClone(anchor):null,
-    placement:{x:0,y:0,scale:ART_META[slot].scale/100,rot:0}};
+  const name=uniqueArtworkName(entry.name,names),hat=HAT_META[slot],aspect=(entry.source?.height||1)/(entry.source?.width||1),initialScale=hat?Math.max(.01,Math.min(1,hat.area[0]/hat.w,hat.area[1]/(hat.w*aspect))*.85):ART_META[slot].scale/100;
+  return {...entry,placementSpace:PLACEMENT_SPACE,tintCustom:entry.tintCustom??null,defaultMode:entry.mode,defaultSlot:slot,defaultScale:Math.round(initialScale*100),name,autoName:name,nameEdited:false,id:'art-'+nextArtId++,slot,sleevePreset:'patch',visible:true,glow:false,uvReactive:false,emission:100,anchor:anchor?structuredClone(anchor):null,
+    placement:{x:0,y:0,scale:initialScale,rot:0}};
 }
 function beginArtworkRename(id){
   const entry=artEntry(id);if(artLoading||!entry)return;
@@ -2635,7 +2674,7 @@ function syncArtworkUi(){
     const row=wrap.firstElementChild,selected=layer.id===activeArtId;row.dataset.slot=layer.slot;
     wrap.classList.toggle('active',selected);
     row.classList.toggle('selected',selected);row.classList.toggle('art-hidden',!layer.visible);
-    const label=ART_META[layer.slot].label+(hasFullSleeve(layer)&&layer.sleevePreset==='full'?' · Full sleeve':'');
+    const label=ART_META[layer.slot].label+(layer.decoration==='leather'?' · Leather patch':'')+(hasFullSleeve(layer)&&layer.sleevePreset==='full'?' · Full sleeve':'');
     row.querySelector('.art-layer-name').textContent=layer.name;syncLayerColor(layer);
     const sourceName=layer.sourceName||layer.name;
     row.querySelector('.art-layer-name').title=`${layer.name}\nSource: ${sourceName}`;
@@ -2683,7 +2722,9 @@ function syncArtworkUi(){
   document.getElementById('artLower').disabled=artLoading||index<0||index>=artLayers.length-1;
   document.querySelectorAll('[data-art-range],[data-art-num],[data-reset-art-one]').forEach(el=>el.disabled=artLoading||!entry);
   document.getElementById('artEmpty').hidden=artLayers.length>0;
-  syncInkUi();syncArtControls();
+  syncInkUi();syncArtControls();patchControls?.sync();
+  refreshHatGuide(current,entry?.slot||activeArtSlot,hatGuideVisible);
+  const leather=entry?.decoration==='leather';document.querySelector('#artEditor .art-modes').hidden=leather;document.querySelector('#artEditor .emission-controls').hidden=leather;
 }
 function prepareArtworkSource(img){
   const limit=Math.max(1,Math.min(4096,renderer.capabilities.maxTextureSize-8));
@@ -2765,6 +2806,7 @@ function addArtworkEntries(slot,entries,action='add',targetId=null){
   });
   if(action==='replace'&&target){
     added[0].id=target.id;added[0].placement={...target.placement};added[0].visible=target.visible;
+    added[0].decoration=target.decoration;added[0].patch=target.patch?structuredClone(target.patch):undefined;
     for(const prop of ['placementSpace','fit','mode','defaultMode','inkCustom','tintCustom','solidCutoff','solidSoftness','solidMaskSource','solidSpread','solidEdgeSoftness','solidInvert','defaultSolidInvert','printPattern','printSize','printAngle','printStrength','printVersion','printMarkSize','printTone','printErosion','printPixelScale','glow','uvReactive','emission'])added[0][prop]=target[prop];
     if(target.nameEdited){added[0].name=target.name;added[0].nameEdited=true;}
     artLayers.splice(index,1,...added);
@@ -2872,7 +2914,7 @@ document.getElementById('artUndo').onclick=()=>undoArtwork();
 document.getElementById('artRedo').onclick=()=>undoArtwork(true);
 document.getElementById('artDuplicate').onclick=()=>{
   const entry=artEntry();if(!entry||artLoading)return;if(artLayers.length>=200){artStatus('This design has reached its 200-layer limit.');return;}recordArtUndo();
-  const layer={...entry,id:'art-'+nextArtId++,name:uniqueArtworkName(entry.name,new Set(artLayers.map(l=>l.name.toLowerCase()))),placement:{...entry.placement},anchor:entry.anchor?structuredClone(entry.anchor):null};
+  const layer={...copyLayer(entry),id:'art-'+nextArtId++,name:uniqueArtworkName(entry.name,new Set(artLayers.map(l=>l.name.toLowerCase()))),placement:{...entry.placement},anchor:entry.anchor?structuredClone(entry.anchor):null};
   artLayers.splice(artLayers.indexOf(entry),0,layer);activeArtId=layer.id;requestArtworkRender();syncArtworkUi();workspace?.notify();
 };
 document.getElementById('artView').onclick=()=>viewArtwork(activeArtSlot);
@@ -3080,8 +3122,15 @@ placementDialog.querySelector('.placement-options').addEventListener('click',asy
   closePlacementPicker();
   if(moveId){
     const entry=artEntry(moveId);if(!entry||!UV_PROFILES[slot])return;
-    recordArtUndo();entry.slot=slot;entry.defaultSlot=slot;entry.defaultScale=ART_META[slot].scale;
-    entry.anchor=null;entry.sleevePreset='patch';entry.placement={x:0,y:0,scale:ART_META[slot].scale/100,rot:0};
+    recordArtUndo();const previousSlot=entry.slot,previous={...entry.placement},hat=HAT_META[slot];
+    const aspect=entry.source.height/entry.source.width,scale=hat?Math.max(.01,Math.min(1,hat.area[0]/hat.w,hat.area[1]/(hat.w*aspect))*.85):ART_META[slot].scale/100;
+    entry.slot=slot;entry.defaultSlot=slot;entry.defaultScale=Math.round(scale*100);
+    entry.anchor=null;entry.sleevePreset='patch';entry.placement={x:0,y:0,scale,rot:0};
+    if(hat&&entry.decoration==='leather'&&entry.patch){
+      // Relocate the assembled patch without resizing its engraving.
+      entry.placement={x:previous.x-entry.patch.x/220,y:previous.y+entry.patch.y/220,scale:previous.scale*ART_META[previousSlot].w/hat.w,rot:previous.rot};
+      entry.patch.x=entry.patch.y=0;
+    }
     activeArtSlot=slot;activeArtId=moveId;requestArtworkRender();syncArtworkUi();viewArtwork(slot);workspace?.notify();return;
   }
   const added=entries.length?addArtworkEntries(slot,entries):await loadArtFiles(slot,files,'add');
@@ -3457,6 +3506,8 @@ const loadSvg=(url,longEdge)=>new Promise((resolve,reject)=>{
 function initializeBrandArtwork(logo,back){
   return [[logo,'Emblem','chest'],[back,'Wordmark','back']].map(([image,name,slot])=>{
     const entry=makeArtworkEntry(image,BRAND.name+' '+name+'.svg');
+    const svgURL=image.src,comma=svgURL.indexOf(','),svg=svgURL.slice(0,comma).includes(';base64')?atob(svgURL.slice(comma+1)):decodeURIComponent(svgURL.slice(comma+1));
+    entry.originalFile=new File([svg],entry.sourceName,{type:'image/svg+xml'});
     entry.solidInvert=true; // The bundled ORB graphics are black on transparent.
     entry.mode='ink'; // Only the startup graphics override the Original default.
     // A null custom color follows the garment until the user picks a color.
@@ -3478,6 +3529,8 @@ function resetStudioColor(id,keepOpen=false){
   if(!keepOpen)colorPicker?.close();
   if(id==='inkCustom'||id==='tintCustom'){
     if(artLoading||!entry)return;recordArtUndo();entry[id]=null;requestArtworkRender(entry);syncInkUi();
+  }else if(id==='hatBillColor'||id==='hatUnderColor'){recordArtUndo();state[id]=currentGarment().hex;document.getElementById(id).value=state[id];syncFabricColors();workspace?.notify();
+  }else if(id==='patchColor'){if(!entry?.patch)return;recordArtUndo();entry.patch.color='#A46F42';document.getElementById(id).value=entry.patch.color;requestArtworkRender(entry);patchControls.sync();workspace?.notify();
   }else if(id==='garmentCustom'){
     useManualFabricColor();state.blank=0;state.garmentCustom='#D8D8D8';
     document.getElementById(id).value=state.garmentCustom;document.querySelector('#swatches .custom i').style.background=state.garmentCustom;
@@ -3532,9 +3585,10 @@ function designSnapshot(){
     settings:structuredClone(pick(state,SETTING_FIELDS)),regularBackdrop:regularBackdrop?{...regularBackdrop}:null,
     lighting:{reference:lightReference.toArray(),quaternion:lightRig.quaternion.toArray()},
     camera:{az:state.taz,el:state.tel,r:state.tr,focus:state.focusTarget.toArray(),view:state.view,framing:'proportions-v4'},
-    layers:artLayers.map(e=>({...e,placement:{...e.placement},anchor:e.anchor?structuredClone(e.anchor):null}))};
+    companion:companionDesign?{...companionDesign,appearance:structuredClone(companionDesign.appearance),camera:structuredClone(companionDesign.camera),layers:companionDesign.layers.map(copyLayer)}:null,
+    layers:artLayers.map(copyLayer)};
 }
-function historyKey(snapshot){return JSON.stringify({name:snapshot.name,garmentId:snapshot.garmentId,customFlipped:snapshot.customFlipped,modelToken:snapshot.modelToken,settings:snapshot.settings,regularBackdrop:snapshot.regularBackdrop,layers:snapshot.layers.map(e=>pick(e,LAYER_FIELDS))});}
+function historyKey(snapshot){return JSON.stringify({name:snapshot.name,garmentId:snapshot.garmentId,customFlipped:snapshot.customFlipped,modelToken:snapshot.modelToken,settings:snapshot.settings,regularBackdrop:snapshot.regularBackdrop,companion:snapshot.companion?{...snapshot.companion,modelFile:undefined,layers:snapshot.companion.layers.map(e=>pick(e,LAYER_FIELDS))}:null,layers:snapshot.layers.map(e=>pick(e,LAYER_FIELDS))});}
 function legacySolidInvert(source){
   // Migrate pre-v37 Solid layers once; new artwork always uses explicit polarity.
   const w=source.width,h=source.height,d=source.getContext('2d').getImageData(0,0,w,h).data;
@@ -3549,7 +3603,8 @@ function legacySolidInvert(source){
 }
 function restoreDesignState(snapshot,restoreCamera=true){
   colorPicker?.close();colorActions?.cancel();cancelAnchorPick();finishArtworkRename(false);
-  artLayers=snapshot.layers.map(e=>({...e,placement:{...e.placement},anchor:e.anchor?structuredClone(e.anchor):null}));
+  artLayers=snapshot.layers.map(copyLayer);
+  companionDesign=snapshot.companion?{...snapshot.companion,layers:snapshot.companion.layers.map(copyLayer)}:null;
   for(const layer of artLayers)if(layer.solidInvert===undefined){
     layer.solidInvert=(layer.mode==='ink'||layer.defaultMode==='ink')?legacySolidInvert(layer.source):false;
     layer.defaultSolidInvert=layer.defaultMode==='ink'&&layer.solidInvert;
@@ -3557,7 +3612,7 @@ function restoreDesignState(snapshot,restoreCamera=true){
   for(const layer of artLayers)migratePlacement(layer,layerProfile(layer));
   activeArtId=artLayers.some(e=>e.id===snapshot.active)?snapshot.active:null;
   if(artEntry())activeArtSlot=artEntry().slot;
-  nextArtId=Math.max(nextArtId,...artLayers.map(e=>(Number(e.id.replace(/^art-/,''))||0)+1));
+  nextArtId=Math.max(nextArtId,...[...artLayers,...(companionDesign?.layers||[])].map(e=>(Number(e.id.replace(/^art-/,''))||0)+1));
   Object.assign(state,{...CREATIVE_DEFAULTS,runwayPaused:REDUCED,afterglowPaused:REDUCED,projectorPaused:REDUCED,nightLightPower:100,nightTraffic:'subtle',nightPaused:REDUCED},structuredClone(pick(snapshot.settings,SETTING_FIELDS)));
   if(state.light==='night')state.lightPower=state.nightLightPower;
   document.getElementById('designName').value=snapshot.name||'Untitled design';
@@ -3575,7 +3630,7 @@ function restoreDesignState(snapshot,restoreCamera=true){
   applyLightingPreset();
   renderer.shadowMap.enabled=state.selfShadows;shadowDirty=true;
   scene.traverse(o=>{if(o.isMesh)for(const m of Array.isArray(o.material)?o.material:[o.material])m.needsUpdate=true;});
-  if(restoreCamera&&snapshot.camera){const c=migrateCameraFrame(snapshot.camera);state.az=state.taz=c.az;state.el=state.tel=clamp(c.el,.25,2.8);state.r=state.tr=clamp(c.r,.08,10);state.focus.fromArray(c.focus);state.focusTarget.copy(state.focus);state.view=c.view;inspectionFocus=state.focusTarget.distanceTo(garmentCenter)>.03?{point:state.focusTarget.clone(),distance:state.tr}:null;}
+  if(restoreCamera&&snapshot.camera){const c=migrateCameraFrame(snapshot.camera);state.az=state.taz=c.az;state.el=state.tel=clamp(c.el,isHat(activeGarmentId)?.08:.25,isHat(activeGarmentId)?3.06:2.8);state.r=state.tr=clamp(c.r,.08,10);state.focus.fromArray(c.focus);state.focusTarget.copy(state.focus);state.view=c.view;inspectionFocus=state.focusTarget.distanceTo(garmentCenter)>.03?{point:state.focusTarget.clone(),distance:state.tr}:null;}
   document.getElementById('garmentCustom').value=state.garmentCustom;document.querySelector('#swatches .custom i').style.background=state.garmentCustom;
   for(const id of ['bgCustom','gridColor']){document.getElementById(id).value=id==='bgCustom'?state.bg:state[id];const chip=document.getElementById(id==='bgCustom'?'bgColorChip':id+'Chip');if(chip)chip.style.background=id==='bgCustom'?state.bg:state[id];}
   for(const id of ['matchFabricToTheme','dotGrid','selfShadows'])document.getElementById(id).checked=state[id];
@@ -3586,7 +3641,7 @@ function restoreDesignState(snapshot,restoreCamera=true){
   document.getElementById('inertiaEnabled').checked=state.inertia.enabled;
   applyGridScale(state.gridScale);applyGridCharSize(state.gridCharSize);applyGridStroke(state.gridStroke);
   syncCameraUi();syncGridStyle();syncLightPowerControl();setArtworkGlossiness(state.artGlossiness);syncGarmentSwatches();
-  requestArtworkRender();syncArtworkUi();applyLook();applyBackground();
+  requestArtworkRender();syncArtworkUi();applyLook();applyBackground();syncHatUi();
 }
 async function restoreSnapshotGarment(snapshot,model){
   if(snapshot.garmentId==='custom'){
@@ -3624,7 +3679,7 @@ function installDesignHistory(){
 const defaultDesignSettings=structuredClone(pick(state,SETTING_FIELDS));
 workspace=installWorkspace({
   schema:{garments:GARMENT_CATALOG.map(g=>g.id),slots:ART_KEYS},busy:()=>artLoading||modelLoading||designLocked,
-  snapshot:designSnapshot,modelFile:()=>customModelFile,decode:decodeArtworkFile,
+  snapshot:designSnapshot,modelFile:()=>customModelFile||companionDesign?.modelFile,decode:decodeArtworkFile,
   finish:()=>{finishArtworkRename(true);colorPicker?.close();},lock:setWorkspaceLock,
   clearHistory:()=>{artHistory.length=0;artFuture.length=0;syncArtworkUi();},
   async restore(snapshot,model){
@@ -3632,13 +3687,32 @@ workspace=installWorkspace({
     try{await restoreSnapshotGarment(snapshot,model);restoreDesignState(snapshot);await settleArtworkTreatment();}finally{historyRestoring=false;}
   },
   newDesign:()=>{
-    const snapshot=designSnapshot();snapshot.layers=[];snapshot.active=null;snapshot.name='Untitled design';snapshot.settings=structuredClone(defaultDesignSettings);snapshot.regularBackdrop=null;
+    const snapshot=designSnapshot();snapshot.layers=[];snapshot.companion=null;snapshot.active=null;snapshot.name='Untitled design';snapshot.settings=structuredClone(defaultDesignSettings);snapshot.regularBackdrop=null;
     recordArtUndo();restoreDesignState(snapshot,false);setView('angle');
   },
   chooseEntries:openEntryPicker,
   addEntries:(slot,entries,action,target)=>{addArtworkEntries(slot,entries,action,target);viewArtwork(slot);},
-  browse:ctx=>{pendingUploadAction=ctx.action;pendingSlot=ctx.slot||activeArtSlot;pendingLayerId=ctx.target||null;fileInput.value='';fileInput.click();}
+  chooseShape:entry=>patchControls?.useShape(entry),
+  browse:ctx=>{if(ctx.action==='patch-shape'){document.getElementById('patchShapeFile').click();return;}pendingUploadAction=ctx.action;pendingSlot=ctx.slot||activeArtSlot;pendingLayerId=ctx.target||null;fileInput.value='';fileInput.click();}
 });
+
+function syncHatUi(){
+ const hat=isHat(activeGarmentId);document.getElementById('garmentButtons').hidden=hat;document.getElementById('hatProduct').hidden=!hat;document.getElementById('hatColors').hidden=!hat;
+ for(const b of document.querySelectorAll('[data-family]'))b.setAttribute('aria-pressed',String((b.dataset.family==='hats')===hat));
+ for(const [id,key] of [['hatBillColor','hatBillColor'],['hatUnderColor','hatUnderColor']])document.getElementById(id).value=state[key]||currentGarment().hex;
+ document.getElementById('garmentCustom').value=state.garmentCustom;document.querySelector('#swatches .custom i').style.background=state.garmentCustom;syncGarmentSwatches();
+}
+for(const b of document.querySelectorAll('[data-family]'))b.onclick=async()=>{
+ if(modelLoading||designLocked)return;
+ if(b.dataset.family==='hats'){await loadCatalog(HAT_ID);return;}
+ if(!isHat(activeGarmentId))return;
+ if(companionDesign?.garmentId==='custom'&&companionDesign.modelFile){const saved=companionDesign,hat=familySnapshot();if(await loadModel(saved.modelFile)){companionDesign=hat;activateFamily(saved,false);requestArtworkRender();syncArtworkUi();syncHatUi();applyLook();setView('angle');}return;}
+ await loadCatalog(companionDesign?.garmentId||lastApparelId);
+};
+for(const id of ['hatBillColor','hatUnderColor'])document.getElementById(id).addEventListener('input',e=>{state[id]=e.target.value;syncFabricColors();workspace?.notify();});
+leatherPatches=createLeatherPatches({THREE,renderer});
+patchControls=installPatchControls({sync:syncArtworkUi,getLayer:artEntry,isHat:()=>isHat(activeGarmentId),before:recordArtUndo,changed:()=>{requestArtworkRender();workspace?.notify();},status:artStatus,guide:checked=>{hatGuideVisible=checked;refreshHatGuide(current,artEntry()?.slot,checked);},library:()=>workspace.openAssets({action:'patch-shape'}),decode:decodeArtworkFile,register:entry=>workspace.register(entry)});
+
 installDesignHistory();
 document.getElementById('resetView').onclick=()=>setView('angle');
 const cameraLabels={front:'Front',angle:'Front ¾',side:'Left',backangle:'Back ¾',back:'Back',detail:'Detail'};
@@ -3660,7 +3734,7 @@ setTip('#detailCameraToggle','Detail cameras · top-row 6: Artwork close-up; 7: 
 function cycleDetailCamera(){
   syncCameraUi();
   const views=Array.from(detailMenu.querySelectorAll('[data-detail-view]'))
-    .filter(button=>button.dataset.detailView.startsWith('placement:')&&!button.hidden&&!button.disabled)
+    .filter(button=>button.dataset.detailView!=='placement:hatinside'&&button.dataset.detailView.startsWith('placement:')&&!button.hidden&&!button.disabled)
     .map(button=>button.dataset.detailView);
   if(!views.length)return;
   const next=(views.indexOf(state.view)+1)%views.length;
@@ -3683,7 +3757,7 @@ installExports({THREE,renderer,scene,camera,garment,presentGarment,shirtShadow,p
   restoreLighting:s=>{lightReference.copy(s.reference);lightRig.quaternion.copy(s.quaternion);updateLightLock();},
   finish:()=>{finishArtworkRename(true);colorPicker?.close();colorActions?.cancel();},
   name:()=>document.getElementById('designName').value,
-  detailView:detailCamera,detailViews:[{id:'neck',label:'Inside neck tag'},...ART_KEYS.filter(k=>ART_META[k].detail).map(k=>({id:'placement:'+k,label:ART_META[k].label}))],
+  detailView:v=>isHat(activeGarmentId)&&v==='neck'?null:detailCamera(v),detailViews:[{id:'neck',label:'Inside neck tag'},...ART_KEYS.filter(k=>ART_META[k].detail).map(k=>({id:'placement:'+k,label:ART_META[k].label}))],
   viewAngles:v=>detailCamera(v)?.angles||(v==='right'?[-Math.PI/2,1.45]:VIEWS[v]),
   framing:()=>{const f=torsoFrame(activeGarmentId);return f?{center:new THREE.Vector3(...f.center),points:f.points.map(p=>new THREE.Vector3(...p))}:null;},
   label:()=>GARMENT_CATALOG.find(g=>g.id===activeGarmentId)?.label||'Custom garment'
