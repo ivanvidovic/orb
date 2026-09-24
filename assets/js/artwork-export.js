@@ -1,6 +1,6 @@
 import {applyPrintTexture,hasPrintTexture,capturePrintTone,pixelateArtwork} from './print-texture.js?v=81';
-import {decodeArtworkImage} from './artwork-decode.js?v=92';
-import {canvasBlob,cleanFilename} from './design-format.js?v=92';
+import {decodeArtworkImage} from './artwork-decode.js?v=45';
+import {canvasBlob,cleanFilename} from './design-format.js?v=82';
 import {solidCoverageLut,applySolidMask} from './solid-mask.js?v=81';
 export {solidCoverageLut} from './solid-mask.js?v=81';
 const linear=v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4;

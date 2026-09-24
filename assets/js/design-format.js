@@ -1,15 +1,15 @@
 import {CREATIVE_DEFAULTS} from './creative-lighting.js?v=74';
 // Portable ORB files contain a versioned manifest and deduplicated image bytes.
-export const FORMAT_VERSION=4;
-export const LAYER_FIELDS=['decoration','patch','id','assetId','sourceName','name','autoName','nameEdited','slot','defaultSlot','defaultMode','defaultScale','mode','inkCustom','tintCustom','solidCutoff','solidSoftness','solidMaskSource','solidSpread','solidEdgeSoftness','solidInvert','defaultSolidInvert','printPattern','printSize','printAngle','printStrength','printVersion','printMarkSize','printTone','printErosion','printPixelScale','fit','sleevePreset','visible','glow','uvReactive','emission','anchor','placementSpace','placement'];
-export const SETTING_FIELDS=[...Object.keys(CREATIVE_DEFAULTS),'hatBillColor','hatUnderColor','themeMode','blank','garmentCustom','artGlossiness','matchFabricToTheme','bg','dotGrid','gridType','gridColor','gridColorCustom','gridStroke','gridScale','gridCharSize','light','lightPower','blackLightPower','regularLightPower','nightLightPower','nightTraffic','nightPaused','lightLocked','nightGreen','nightMagenta','selfShadows','wind','inertia'];
+export const FORMAT_VERSION=3;
+export const LAYER_FIELDS=['id','assetId','sourceName','name','autoName','nameEdited','slot','defaultSlot','defaultMode','defaultScale','mode','inkCustom','tintCustom','solidCutoff','solidSoftness','solidMaskSource','solidSpread','solidEdgeSoftness','solidInvert','defaultSolidInvert','printPattern','printSize','printAngle','printStrength','printVersion','printMarkSize','printTone','printErosion','printPixelScale','fit','sleevePreset','visible','glow','uvReactive','emission','anchor','placementSpace','placement'];
+export const SETTING_FIELDS=[...Object.keys(CREATIVE_DEFAULTS),'themeMode','blank','garmentCustom','artGlossiness','matchFabricToTheme','bg','dotGrid','gridType','gridColor','gridColorCustom','gridStroke','gridScale','gridCharSize','light','lightPower','blackLightPower','regularLightPower','nightLightPower','nightTraffic','nightPaused','lightLocked','nightGreen','nightMagenta','selfShadows','wind','inertia'];
 export function pick(object,keys){return Object.fromEntries(keys.filter(k=>object[k]!==undefined).map(k=>[k,object[k]]));}
 export function cleanFilename(value){return String(value||'Untitled design').replace(/[<>:"/\\|?*\x00-\x1f]/g,'').replace(/[. ]+$/,'').trim().slice(0,80)||'Untitled design';}
 const fail=message=>{throw new Error(message);};
 const finite=(v,min,max)=>typeof v==='number'&&Number.isFinite(v)&&v>=min&&v<=max;
 const color=v=>typeof v==='string'&&/^#[a-f\d]{6}$/i.test(v);
 export function validateProject(doc,{garments,slots}){
-  if(!doc||doc.format!=='orb-design'||![1,2,3,FORMAT_VERSION].includes(doc.version))fail('This is not a supported ORB design file.');
+  if(!doc||doc.format!=='orb-design'||![1,2,FORMAT_VERSION].includes(doc.version))fail('This is not a supported ORB design file.');
   if(!garments.includes(doc.garmentId)&&doc.garmentId!=='custom')fail('This design uses an unknown garment.');
   if(typeof doc.name!=='string'||doc.name.length>80)fail('The design name is invalid.');
   if(!Array.isArray(doc.layers)||doc.layers.length>200||!Array.isArray(doc.assets)||doc.assets.length>400)fail('The design has too many layers or assets.');
@@ -21,16 +21,6 @@ export function validateProject(doc,{garments,slots}){
   for(const l of doc.layers){
     if(!l||typeof l.id!=='string'||!/^art-\d{1,12}$/.test(l.id)||layerIds.has(l.id)||!assetIds.has(l.assetId)||!slots.includes(l.slot)||!['original','ink','tint'].includes(l.mode)||typeof l.name!=='string'||l.name.length>512)fail('A design layer is invalid.');
     layerIds.add(l.id);
-    if(l.decoration!==undefined&&!['print','leather'].includes(l.decoration))fail('Unknown decoration type.');
-    if(l.patch){const p=l.patch;
-      if(!['rounded','oval','shield','custom'].includes(p.shape)||!color(p.color))fail('Invalid leather patch.');
-      for(const [k,min,max] of [['width',2,400],['height',2,400],['x',-300,300],['y',-300,300],['thickness',.2,5],['corner',0,50],['depth',0,100]])if(!finite(p[k],min,max))fail('Invalid patch dimensions.');
-      if(typeof p.stitch!=='boolean')fail('Invalid patch stitching.');
-      if(p.shape==='custom'){
-        const c=p.outline?.contours;if(!Array.isArray(c)||!c.length||c.length>32||c.reduce((n,c)=>n+(c?.length||0),0)>4096)fail('Invalid SVG patch outline.');
-        for(const loop of c)if(!Array.isArray(loop)||loop.length<3||!loop.every(v=>Array.isArray(v)&&v.length===2&&v.every(n=>finite(n,0,1))))fail('Invalid SVG patch coordinates.');
-      }
-    }
     if(l.placementSpace!==undefined&&!['relative-v1','surface-v2'].includes(l.placementSpace))fail('Unsupported placement reference.');
     const relative=['relative-v1','surface-v2'].includes(l.placementSpace),offsetLimit=relative?100:10;
     if(!l.placement||!finite(l.placement.x,-offsetLimit,offsetLimit)||!finite(l.placement.y,-offsetLimit,offsetLimit)||!finite(l.placement.scale,relative?.000001:.001,relative?1000:100)||!finite(l.placement.rot,-360,360))fail('A layer has an invalid position.');
@@ -48,13 +38,7 @@ export function validateProject(doc,{garments,slots}){
       if(typeof l.anchor.mesh!=='number')fail('A custom placement has no mesh.');
     }
   }
-  if(doc.companion){const c=doc.companion;
-    if(!c||typeof c!=='object'||!Array.isArray(c.layers)||(c.garmentId==='y7005-cap')===(doc.garmentId==='y7005-cap'))fail('Invalid companion design.');
-    validateProject({...doc,...c,companion:null,settings:{...doc.settings,...c.appearance}}, {garments,slots});
-    if(c.layers.some(l=>layerIds.has(l.id)))fail('Layer IDs must be unique across product families.');
-  }
   const s=doc.settings;
-  for(const k of ['hatBillColor','hatUnderColor'])if(s?.[k]!==undefined&&!color(s[k]))fail('Invalid hat color.');
   if(!s||!['light','dark','system'].includes(s.themeMode)||!['studio','softbox','day','night','uv','runway','afterglow','projector'].includes(s.light)||!['square','pattern'].includes(s.gridType)||!(s.blank==='custom'||Number.isInteger(s.blank)&&s.blank>=0&&s.blank<5))fail('The design settings are invalid.');
   for(const k of ['garmentCustom','bg','gridColor','nightGreen','nightMagenta'])if(!color(s[k]))fail('A design color is invalid.');
   for(const [k,min,max] of [['artGlossiness',0,100],['lightPower',0,Number.MAX_VALUE],['blackLightPower',0,Number.MAX_VALUE],['regularLightPower',0,Number.MAX_VALUE],['gridStroke',.1,10],['gridScale',1,500],['gridCharSize',1,500],['wind',0,2]])if(!finite(s[k],min,max))fail('A design setting is out of range.');

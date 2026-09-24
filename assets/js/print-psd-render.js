@@ -1,7 +1,7 @@
 import {createArtworkTreatment} from './artwork-treatment.js?v=86';
-import {treatPixels} from './artwork-export.js?v=92';
+import {treatPixels} from './artwork-export.js?v=87';
 import {pixelateArtwork} from './print-texture.js?v=81';
-import {transformedBounds} from './print-layout.js?v=92';
+import {transformedBounds} from './print-layout.js?v=86';
 // This module runs in an export-only worker. Slider rendering is unchanged.
 export function createPrintRenderer(canvasFactory){
   const canvas=(w,h)=>{const c=canvasFactory();c.width=w;c.height=h;return c;};
@@ -11,7 +11,6 @@ export function createPrintRenderer(canvasFactory){
   function place(source,desc,name,hidden){
     const m=desc.matrix,b=transformedBounds(m),left=Math.floor(b[0]),top=Math.floor(b[1]),w=Math.max(1,Math.ceil(b[2])-left),h=Math.max(1,Math.ceil(b[3])-top),out=canvas(w,h),ctx=out.getContext('2d');
     ctx.setTransform(m[0]/source.width,m[1]/source.width,m[2]/source.height,m[3]/source.height,m[4]-left,m[5]-top);
-    if(desc.patch){const p=desc.patch;ctx.setTransform(p.matrix[0],p.matrix[1],p.matrix[2],p.matrix[3],p.matrix[4]-left,p.matrix[5]-top);ctx.beginPath();for(const loop of p.contours){loop.forEach((v,i)=>i?ctx.lineTo(...v):ctx.moveTo(...v));ctx.closePath();}ctx.clip('evenodd');ctx.setTransform(m[0]/source.width,m[1]/source.width,m[2]/source.height,m[3]/source.height,m[4]-left,m[5]-top);}
     ctx.imageSmoothingEnabled=!(Math.abs(m[0])===source.width&&Math.abs(m[3])===source.height&&m[1]===0&&m[2]===0&&Number.isInteger(m[4])&&Number.isInteger(m[5]));ctx.imageSmoothingQuality='high';ctx.drawImage(source,0,0);
     const im=pixels(out);out.width=out.height=1;
     // Crop channels, not layer coordinates. Small logos don't occupy a whole PSD canvas.
@@ -39,7 +38,6 @@ export function createPrintRenderer(canvasFactory){
     let rgba=result.data;
     if(result.coverageOnly){const rgb=color.slice(1).match(/../g).map(x=>parseInt(x,16));rgba=new Uint8ClampedArray(result.width*result.height*4);for(let i=0,j=0;i<result.data.length;i++,j+=4){rgba[j]=rgb[0];rgba[j+1]=rgb[1];rgba[j+2]=rgb[2];rgba[j+3]=result.data[i];}}
     else if(settings.mode==='tint')treatPixels(rgba,settings,color,result.width,result.height);
-    if(desc.patch)for(let i=0;i<rgba.length;i+=4)rgba[i]=rgba[i+1]=rgba[i+2]=0;
     const treatedCanvas=canvas(result.width,result.height);put(treatedCanvas,rgba,result.width,result.height);
     tx.clearRect(0,0,tw,th);const p=result.padding||0;
     tx.drawImage(treatedCanvas,p,p,result.width-2*p,result.height-2*p,dx,dy,dw,dh);
