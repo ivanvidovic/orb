@@ -1003,3 +1003,16 @@ body.present .stage-reset,body.present .stage-help{display:none}
 /* Inline help uses the same compact type and muted color as control labels. */
 #artWorkspace .control-help{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;min-width:0;min-height:0;padding:0;margin:0;border:0;background:transparent;color:var(--graphite);font:inherit;font-size:11px;letter-spacing:0;vertical-align:middle;cursor:help}
 #artWorkspace .control-help:focus-visible{outline:1px solid var(--ink);outline-offset:2px}
+
+/* Compact toolbar lighting selector, matching the existing camera controls. */
+#lightingPresetToggle{width:auto;min-width:112px;padding:0 9px;white-space:nowrap;font-size:10px;letter-spacing:0}
+#lightingPresetToggle[aria-expanded="true"]{background:var(--wash)}
+.lighting-preset-menu{width:300px;max-width:calc(100vw - 16px);display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px;box-sizing:border-box}
+.lighting-preset-menu button{padding:10px 4px;font-size:11px;white-space:nowrap}
+@media(min-width:821px) and (max-width:1280px){header{flex-wrap:wrap;height:auto;min-height:90px;padding-top:8px;padding-bottom:8px}.topTools{order:5;width:100%;justify-content:center}.hspacer{display:block}}
+@media(max-width:820px){.topTools{grid-template-columns:minmax(0,3fr) auto minmax(0,1.3fr);gap:8px}.quickLighting{min-width:0}#lightingPresetToggle{min-width:105px;padding:0 7px;font-size:9px}}
+@media(max-width:600px){.topTools{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.topTools>.quickGroup:first-child{grid-column:1/-1}.quickLighting .quickSeg,.quickLighting #lightingPresetToggle{width:100%}}
+@media(min-width:821px){.topTools{display:flex;grid-template-columns:none}}
+@media(max-width:600px){.quickLighting{align-self:end}}
+@media(min-width:821px){.topTools>.quickGroup{width:auto;flex-direction:row;align-items:center}.topTools .quickSeg{width:auto;flex:0 0 auto}}
+.lighting-preset-menu button{text-align:center}

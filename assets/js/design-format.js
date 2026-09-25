@@ -1,4 +1,4 @@
-import {CREATIVE_DEFAULTS,PROJECTOR_PATTERNS} from './creative-lighting.js?v=91-projector';
+import {CREATIVE_DEFAULTS,PROJECTOR_PATTERNS} from './creative-lighting.js?v=91-toolbar';
 // Portable ORB files contain a versioned manifest and deduplicated image bytes.
 export const FORMAT_VERSION=3;
 export const LAYER_FIELDS=['id','assetId','sourceName','name','autoName','nameEdited','slot','defaultSlot','defaultMode','defaultScale','mode','inkCustom','tintCustom','solidCutoff','solidSoftness','solidMaskSource','solidSpread','solidEdgeSoftness','solidInvert','defaultSolidInvert','printPattern','printSize','printAngle','printStrength','printVersion','printMarkSize','printTone','printErosion','printPixelScale','printDensity','printSeed','printBranchMode','printRounding','fit','sleevePreset','visible','glow','uvReactive','emission','anchor','placementSpace','placement'];

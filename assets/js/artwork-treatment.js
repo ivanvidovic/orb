@@ -1,8 +1,8 @@
-import {createArtworkRounder} from './artwork-rounding.js?v=91-projector';
-import {isOrganic,organicSampler} from './organic-pattern.js?v=91-projector';
+import {createArtworkRounder} from './artwork-rounding.js?v=91-toolbar';
+import {isOrganic,organicSampler} from './organic-pattern.js?v=91-toolbar';
 import {solidCoverageLut,resolveMaskSource,filterCoverage} from './solid-mask.js?v=81';
-import {applyPrintTexture,hasPrintTexture,capturePrintTone,pixelateArtwork} from './print-texture.js?v=91-projector';
-import {patternWorkingSource} from './artwork-detail.js?v=91-projector';
+import {applyPrintTexture,hasPrintTexture,capturePrintTone,pixelateArtwork} from './print-texture.js?v=91-toolbar';
+import {patternWorkingSource} from './artwork-detail.js?v=91-toolbar';
 
 export function treatmentKey(l){
   const pattern=l.printPattern||'none';

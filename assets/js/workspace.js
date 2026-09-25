@@ -1,7 +1,7 @@
 import {installArtworkPaste} from './clipboard-artwork.js?v=91-paste';
 import {loadHostedLibrary,fetchHostedArtwork} from './hosted-library.js?v=77';
 import {collectDrop} from './folder-import.js?v=58';
-import {FORMAT_VERSION,LAYER_FIELDS,SETTING_FIELDS,pick,cleanFilename,canvasBlob,downloadBlob,validateProject} from './design-format.js?v=91-projector';
+import {FORMAT_VERSION,LAYER_FIELDS,SETTING_FIELDS,pick,cleanFilename,canvasBlob,downloadBlob,validateProject} from './design-format.js?v=91-toolbar';
 const $=id=>document.getElementById(id);
 const imageFile=f=>f.type.startsWith('image/')||/\.(png|jpe?g|webp|gif|avif|svg)$/i.test(f.name);
 const pause=()=>new Promise(resolve=>setTimeout(resolve,0));

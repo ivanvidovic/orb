@@ -1,9 +1,9 @@
-import {treatmentKey} from './artwork-treatment.js?v=91-projector';
+import {treatmentKey} from './artwork-treatment.js?v=91-toolbar';
 import {quadTransform,alphaBounds,flattenTransform,collectSurfaces} from './print-layout.js?v=86';
-import {createTreatmentQueue,createTreatmentProcessor} from './artwork-processing.js?v=91-projector';
-import {hasPrintTexture} from './print-texture.js?v=91-projector';
-import {focusedPanelBounds,layerCustomColor} from './artwork-detail.js?v=91-projector';
-import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=91-projector';
+import {createTreatmentQueue,createTreatmentProcessor} from './artwork-processing.js?v=91-toolbar';
+import {hasPrintTexture} from './print-texture.js?v=91-toolbar';
+import {focusedPanelBounds,layerCustomColor} from './artwork-detail.js?v=91-toolbar';
+import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=91-toolbar';
 import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE,fullSleeveCamera} from './sleeve-camera.js?v=91-camera';
 import {hasDirectory} from './folder-import.js?v=58';
 import {decodeArtworkImage} from './artwork-decode.js?v=45';
@@ -11,9 +11,9 @@ import {createCityTraffic} from './city-night.js?v=43';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=82';
 import {sharedSurfaceProfiles,fitSurfacePlacements} from './surface-layout.js?v=83';
 import {torsoFrame,torsoDistance,previousTorsoFrame,previewDistance,previousPreviewFrame} from './garment-framing.js?v=89';
-import {installWorkspace} from './workspace.js?v=91-projector';
-import {installExports} from './presentation-export.js?v=91-projector';
-import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=91-projector';
+import {installWorkspace} from './workspace.js?v=91-toolbar';
+import {installExports} from './presentation-export.js?v=91-toolbar';
+import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=91-toolbar';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
 import {installColorPicker} from './color-picker.js?v=36';
 import {installSliderControls,RESET_ICON} from './controls.js?v=44';
@@ -232,6 +232,7 @@ function syncLightingBackdrop(){
   applyBackground();
 }
 function applyLightingPreset(){
+  syncQuickLighting();
   syncLightingBackdrop();
   syncFabricColors();
   const p=LIGHT_PRESETS[state.light]||LIGHT_PRESETS.studio,power=state.lightPower/100*(state.light==='uv'?8:1);
@@ -1902,6 +1903,48 @@ segment('segLight',v=>{
   state.light=v;state.lightPower=v==='uv'?state.blackLightPower:v==='night'?state.nightLightPower:isCreative(v)?state[v+'Power']:state.regularLightPower;
   syncLightPowerControl();applyLightingPreset();
 });
+// Quick lighting uses the existing Environment switch path, including history.
+function quickLightName(id){return {studio:'Studio',softbox:'Soft',day:'Day',night:'Night',uv:'UV',runway:'Runway',afterglow:'Afterglow',projector:'Projector'}[id]||'Studio';}
+function syncQuickLighting(){
+  const toggle=document.getElementById('lightingPresetToggle');
+  const name=quickLightName(state.light);
+  if(toggle){toggle.textContent='Light: '+name+' ▾';toggle.setAttribute('aria-label','Lighting preset: '+name);}
+  document.querySelectorAll('[data-quick-light]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.quickLight===state.light)));
+}
+const lightingToggle=document.getElementById('lightingPresetToggle');
+const lightingMenu=document.createElement('div');
+lightingMenu.id='lightingPresetMenu';lightingMenu.className='detail-camera-menu lighting-preset-menu';
+lightingMenu.hidden=true;lightingMenu.setAttribute('role','group');lightingMenu.setAttribute('aria-label','Lighting presets');
+document.body.append(lightingMenu);
+function closeLightingMenu(restore=false){lightingMenu.hidden=true;lightingToggle.setAttribute('aria-expanded','false');if(restore)lightingToggle.focus({preventScroll:true});}
+function positionLightingMenu(){
+  if(lightingMenu.hidden)return;
+  const r=lightingToggle.getBoundingClientRect();
+  lightingMenu.style.left=Math.max(8,Math.min(r.left,innerWidth-lightingMenu.offsetWidth-8))+'px';
+  lightingMenu.style.top=Math.max(8,Math.min(r.bottom+6,innerHeight-lightingMenu.offsetHeight-8))+'px';
+}
+for(const source of document.querySelectorAll('#segLight button[data-v]')){
+  const b=document.createElement('button');b.type='button';b.dataset.quickLight=source.dataset.v;
+  b.textContent=quickLightName(source.dataset.v);
+  b.onclick=()=>{if(!document.querySelector('header').inert&&!source.disabled)source.click();closeLightingMenu(true);};
+  lightingMenu.append(b);
+}
+lightingToggle.onclick=()=>{
+  if(!lightingMenu.hidden){closeLightingMenu();return;}
+  if(document.querySelector('header').inert)return;
+  syncQuickLighting();lightingMenu.hidden=false;lightingToggle.setAttribute('aria-expanded','true');positionLightingMenu();
+  lightingMenu.querySelector('[aria-pressed="true"]')?.focus({preventScroll:true});
+};
+lightingMenu.addEventListener('keydown',e=>{
+  const buttons=[...lightingMenu.querySelectorAll('button')],i=buttons.indexOf(document.activeElement);
+  const delta={ArrowRight:1,ArrowLeft:-1,ArrowDown:4,ArrowUp:-4}[e.key];
+  if(delta!==undefined){e.preventDefault();buttons[(i+delta+buttons.length)%buttons.length].focus({preventScroll:true});}
+});
+document.addEventListener('pointerdown',e=>{if(!lightingMenu.hidden&&!lightingMenu.contains(e.target)&&!lightingToggle.contains(e.target))closeLightingMenu();});
+document.addEventListener('focusin',e=>{if(!lightingMenu.hidden&&!lightingMenu.contains(e.target)&&e.target!==lightingToggle)closeLightingMenu();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!lightingMenu.hidden){e.preventDefault();closeLightingMenu(true);}});
+window.addEventListener('resize',positionLightingMenu);window.addEventListener('scroll',positionLightingMenu,true);
+syncQuickLighting();
 document.getElementById('lightPower').addEventListener('input',event=>{
   state.lightPower=Number(event.target.value);state[state.light==='uv'?'blackLightPower':state.light==='night'?'nightLightPower':isCreative(state.light)?state.light+'Power':'regularLightPower']=state.lightPower;document.getElementById('lightPowerValue').value=state.lightPower;applyLightingPreset();
 });
@@ -3676,6 +3719,7 @@ async function restoreSnapshotGarment(snapshot,model){
   }else if(!await loadCatalog(snapshot.garmentId))throw new Error('The garment could not load. Your design was not replaced.');
 }
 function setWorkspaceLock(value,message='Working…'){
+  if(value)closeLightingMenu();
   designLocked=value;document.querySelector('header').inert=value;document.querySelector('main').inert=value;
   document.getElementById('workspaceBusy').hidden=!value;document.querySelector('#workspaceBusy span').textContent=message;
 }
