@@ -1,4 +1,5 @@
-import {createGlowHistory} from './glow-history.js?v=91-charge14';
+import {prepareChargeGeometry} from './glow-layout.js?v=91-glow15';
+import {createGlowHistory} from './glow-history.js?v=91-glow15';
 import {setupProjectorControls,syncProjectorButtons} from './projector-controls.js?v=91-history13';
 import {installMappedRanges} from './mapped-ranges.js?v=91-history13';
 import {treatmentKey} from './artwork-treatment.js?v=91-history13';
@@ -334,6 +335,7 @@ const uni = {
 const VERT_HEAD=`
   uniform float uTime; uniform float uWind; uniform float uTwist; uniform float uFlowHalfWidth;
   uniform float uTwistFlowPower; uniform float uSleeveBoost; uniform float uSleeveArc; uniform vec3 uDir;
+  attribute vec2 aChargeUv; attribute vec4 aChargeClamp; varying vec2 vGlowUv; varying vec4 vGlowClamp;
   attribute float aFlow; attribute vec3 aMotionAnchor; attribute vec2 aArtworkUv; attribute vec4 aArtworkClamp; varying vec2 vArtworkUv; varying vec4 vArtworkClamp;
   vec3 gDisp;
 
@@ -408,7 +410,9 @@ const VERT_HEAD=`
 const FRAG_HEAD=`
 uniform float uArtRough,uHasArtwork;
 uniform sampler2D uGlowPrevious,uGlowCurrent;
-uniform float uGlowBlend,uGlowEnabled;
+uniform float uGlowBlend,uGlowEnabled,uGlowPacked;
+varying vec2 vGlowUv; varying vec4 vGlowClamp;
+vec2 boundedGlowUv(){return clamp(vGlowUv,vGlowClamp.xy,vGlowClamp.zw);}
 uniform sampler2D uArtwork,uArtworkEffects,uSpillGlow,uSpillUV;
 uniform float uHasEffects,uBlackLight,uFabricReactive,uGlowSceneLevel,uAfterglow,uAfterPhase,uAfterFade,uAfterSpeed,uAfterPower;
 uniform mat3 uAfterRotation;
@@ -445,8 +449,10 @@ float kVisible=max(0.0,kIlluminance+kAmbient);
 // Stored charge emits continuously. Surrounding illumination determines contrast.
 float kStoredGlow=0.0;
 if(uGlowEnabled>.5){
- vec4 history=mix(texture2D(uGlowPrevious,boundedArtworkUv()),texture2D(uGlowCurrent,boundedArtworkUv()),uGlowBlend);
- kStoredGlow=1.25*history.r;
+ vec4 history=texture2D(uGlowCurrent,boundedGlowUv());
+ vec2 charge=history.rg;
+ if(uGlowPacked>.5)charge=vec2(dot(history.rg,vec2(65280.,255.)),dot(history.ba,vec2(65280.,255.)))/65535.;
+ kStoredGlow=dot(charge,vec2(.9,.75));
 }
 // Scattered room UV keeps the fluorescence alive in directional UV shadows.
 // Weak shape fill barely suppresses it; strong ordinary light reduces contrast.
@@ -497,7 +503,7 @@ function patchFabricMaterial(mat){
     const artwork=getArtworkMap(mat.userData.orbMeshId||1);
     sh.uniforms.uArtwork=artwork.map;sh.uniforms.uHasArtwork=artwork.has;
     sh.uniforms.uGlowPrevious=artwork.glow.previous;sh.uniforms.uGlowCurrent=artwork.glow.current;
-    sh.uniforms.uGlowBlend=artwork.glow.blend;sh.uniforms.uGlowEnabled=artwork.glow.enabled;
+    sh.uniforms.uGlowPacked=artwork.glow.packed;sh.uniforms.uGlowBlend=artwork.glow.blend;sh.uniforms.uGlowEnabled=artwork.glow.enabled;
     sh.uniforms.uArtworkEffects=artwork.effects;sh.uniforms.uHasEffects=artwork.hasEffects;
     sh.uniforms.uSpillGlow=artwork.spillGlow;sh.uniforms.uSpillUV=artwork.spillUV;
     Object.assign(sh.uniforms,effectUniforms);
@@ -540,7 +546,7 @@ function patchFabricMaterial(mat){
     sh.vertexShader = VERT_HEAD + sh.vertexShader;
     sh.vertexShader = sh.vertexShader.replace('#include <beginnormal_vertex>',
       `#include <beginnormal_vertex>
-       vArtworkUv = aArtworkUv; vArtworkClamp = aArtworkClamp;
+       vArtworkUv = aArtworkUv; vArtworkClamp = aArtworkClamp; vGlowUv=aChargeUv; vGlowClamp=aChargeClamp;
        gDisp = kFabricDisp(aMotionAnchor, aFlow);
        if (aFlow > 0.001) {
          vec3 T1 = normalize(cross(objectNormal, vec3(0.0,1.0,0.0)) + vec3(1e-5));
@@ -566,7 +572,11 @@ function patchFabricMaterial(mat){
       '#include <map_fragment>\n' + FRAG_PRINT);
     sh.fragmentShader=sh.fragmentShader.replace('#include <aomap_fragment>','#include <aomap_fragment>\n'+FRAG_EMISSION);
     if(mat.userData.orbChargePass){
-      sh.vertexShader=sh.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\n gl_Position=vec4(aArtworkUv*2.0-1.0,0.0,1.0);');
+      // UV winding does not define the physical front of the garment.
+      // Expand this include BEFORE replacing gl_FrontFacing; replacing only
+      // the unexpanded shader left Three's normal inversion active.
+      sh.fragmentShader=sh.fragmentShader.replace('#include <normal_fragment_begin>',THREE.ShaderChunk.normal_fragment_begin.replaceAll('gl_FrontFacing','true'));
+      sh.vertexShader=sh.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\n gl_Position=vec4(aChargeUv*2.0-1.0,0.0,1.0);');
       sh.fragmentShader=sh.fragmentShader.replace(FRAG_EMISSION,`float kVisible=max(0.0,kIlluminance+dot(irradiance+iblIrradiance,vec3(.2126,.7152,.0722)));`)
        .replaceAll('gl_FrontFacing','true')
        .replace('#include <dithering_fragment>','#include <dithering_fragment>\n gl_FragColor=vec4(1.0-exp(-kVisible*.6),0.0,0.0,1.0);');
@@ -574,7 +584,7 @@ function patchFabricMaterial(mat){
     sh.fragmentShader = sh.fragmentShader.replace('#include <roughnessmap_fragment>',
       '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, clamp(uArtRough, 0.02, 1.0), clamp(kArtworkMask, 0.0, 1.0));');
   };
-  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v91-charge14'+(mat.userData.orbChargePass?'-light-pass':'');
+  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v91-glow15'+(mat.userData.orbChargePass?'-light-pass':'');
   mat.needsUpdate=true;
   return mat;
 }
@@ -2198,7 +2208,7 @@ document.getElementById('resetGridStroke').addEventListener('click',()=>applyGri
 const artworkMaps=new Map(),artworkSources=new Map(),artworkBoundsCache=new WeakMap();
 const glowHistory=createGlowHistory(THREE,renderer,scene,camera,{
  mapFor:mesh=>getArtworkMap(mesh.userData.orbMeshId||1),
- materialFor:mat=>{const m=mat.clone();m.userData.orbChargePass=true;m.side=THREE.DoubleSide;m.transparent=false;m.opacity=1;m.depthTest=false;m.depthWrite=false;m.blending=THREE.NoBlending;m.toneMapped=false;return patchFabricMaterial(m);}
+ materialFor:mat=>{const m=mat.clone();m.userData.orbChargePass=true;m.side=THREE.DoubleSide;m.transparent=false;m.opacity=1;m.depthTest=false;m.depthWrite=false;m.blending=THREE.NoBlending;m.toneMapped=false;m.normalMap=null;m.bumpMap=null;m.displacementMap=null;return patchFabricMaterial(m);}
 });
 const artworkDirtyPanels=new Set();
 let artworkDirty=true,artworkDirtyAll=true;
@@ -2376,6 +2386,7 @@ function artworkLayerBounds(layer){
   return {minU:u-du,maxU:u+du,minV:v-dv,maxV:v+dv};
 }
 function layoutArtworkMap(map,geometry,panelIds,layers){
+  prepareChargeGeometry(THREE,geometry,renderer.capabilities.maxTextureSize);
   const bounds=new Map(artworkPanelBounds(geometry));
   for(const id of panelIds)bounds.set(id,focusedPanelBounds(bounds.get(id),layers.filter(l=>layerProfile(l).island===id).map(artworkLayerBounds)));
   const key=JSON.stringify([...bounds].filter(([id])=>panelIds.includes(id)));
@@ -3534,8 +3545,8 @@ function draw(){
   renderer.setScissor(vx,vy,vr.width,vr.height);
   renderer.setScissorTest(true);
   updateShadowMap();
-  renderer.render(scene,camera);
   glowHistory.update(current,state);
+  renderer.render(scene,camera);
   renderer.setScissorTest(false);
 }
 function tick(){
