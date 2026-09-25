@@ -1,5 +1,5 @@
 import {withPrintProfile} from './print-color-profile.js?v=86';
-import {createPrintRenderer} from './print-psd-render.js?v=91-pocket';
+import {createPrintRenderer} from './print-psd-render.js?v=91-projector';
 import {writePsdUint8Array,initializeCanvas} from '../vendor/ag-psd/writer.js?v=86';
 initializeCanvas((w,h)=>new OffscreenCanvas(w,h));
 const render=createPrintRenderer(()=>new OffscreenCanvas(1,1));let plan,pairs=[];

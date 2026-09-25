@@ -1,5 +1,5 @@
 import {decodeArtworkImage} from './artwork-decode.js?v=86';
-import {cleanFilename} from './design-format.js?v=91-pocket';
+import {cleanFilename} from './design-format.js?v=91-projector';
 export function psdSupported(){return typeof Worker!=='undefined'&&typeof OffscreenCanvas!=='undefined'&&typeof createImageBitmap==='function';}
 export function workerRequest(worker,payload,transfer,check){
   return new Promise((resolve,reject)=>{
@@ -17,7 +17,7 @@ export async function addPrintLayouts(zip,data,plans,colorFor,{check=()=>{},mess
   const {doc,records}=data,reference={design:doc.name,garment:doc.garmentId,ppi:300,units:'inches',surfaces:[],omittedLayers:doc.layers.filter(l=>!plans.some(p=>p.layers.some(d=>d.id===l.id))).map(l=>({id:l.id,name:l.name,placement:l.slot}))};
   const exported=new Set();
   for(const [index,plan] of plans.entries()){
-    check();const worker=new Worker(new URL('./print-psd-worker.js?v=91-pocket',import.meta.url),{type:'module'}),layers=[];
+    check();const worker=new Worker(new URL('./print-psd-worker.js?v=91-projector',import.meta.url),{type:'module'}),layers=[];
     try{
       await workerRequest(worker,{type:'start',plan},[],check);
       for(const [i,desc] of plan.layers.entries()){

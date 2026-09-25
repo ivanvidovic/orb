@@ -1,9 +1,9 @@
-import {treatmentKey} from './artwork-treatment.js?v=91-pocket';
+import {treatmentKey} from './artwork-treatment.js?v=91-projector';
 import {quadTransform,alphaBounds,flattenTransform,collectSurfaces} from './print-layout.js?v=86';
-import {createTreatmentQueue,createTreatmentProcessor} from './artwork-processing.js?v=91-pocket';
-import {hasPrintTexture} from './print-texture.js?v=91-pocket';
-import {focusedPanelBounds,layerCustomColor} from './artwork-detail.js?v=91-pocket';
-import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=77';
+import {createTreatmentQueue,createTreatmentProcessor} from './artwork-processing.js?v=91-projector';
+import {hasPrintTexture} from './print-texture.js?v=91-projector';
+import {focusedPanelBounds,layerCustomColor} from './artwork-detail.js?v=91-projector';
+import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=91-projector';
 import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE,fullSleeveCamera} from './sleeve-camera.js?v=91-camera';
 import {hasDirectory} from './folder-import.js?v=58';
 import {decodeArtworkImage} from './artwork-decode.js?v=45';
@@ -11,9 +11,9 @@ import {createCityTraffic} from './city-night.js?v=43';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=82';
 import {sharedSurfaceProfiles,fitSurfacePlacements} from './surface-layout.js?v=83';
 import {torsoFrame,torsoDistance,previousTorsoFrame,previewDistance,previousPreviewFrame} from './garment-framing.js?v=89';
-import {installWorkspace} from './workspace.js?v=91-pocket';
-import {installExports} from './presentation-export.js?v=91-pocket';
-import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=91-pocket';
+import {installWorkspace} from './workspace.js?v=91-projector';
+import {installExports} from './presentation-export.js?v=91-projector';
+import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=91-projector';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
 import {installColorPicker} from './color-picker.js?v=36';
 import {installSliderControls,RESET_ICON} from './controls.js?v=44';
@@ -187,7 +187,7 @@ function updateShadowMap(){
 const LIGHT_PRESETS={
   runway:{label:'Runway',description:'Moving overhead light, fast passing highlights and irregular camera flashes. Pause to hold a moment.',exposure:1,hemi:.035,hemiSky:'#bfcce3',hemiGround:'#25252d',key:.20,keyColor:'#fff5e9',keyPos:[-1,2,1],fill:.06,fillColor:'#e0e9ff',fillPos:[1,.5,1],rim:.3,rimColor:'#ffffff',rimPos:[0,1,-2]},
   afterglow:{label:'Afterglow',description:'A circling light charges Glow in the dark artwork, leaving a fading trail. Enable Glow on a layer.',exposure:1,hemi:.008,hemiSky:'#a2acc3',hemiGround:'#161820',key:.025,keyColor:'#c5d4ee',keyPos:[-1,2,1],fill:.008,fillColor:'#ced8f0',fillPos:[1,.5,1],rim:.065,rimColor:'#9aaada',rimPos:[0,1,-2]},
-  projector:{label:'Projector',description:'Moving caustics, stripes or geometric light projected onto fabric. Self-shadows block projection behind folds.',exposure:1,hemi:.018,hemiSky:'#c2cede',hemiGround:'#20252d',key:.075,keyColor:'#c4d2e8',keyPos:[-1,2,1],fill:.02,fillColor:'#c5d1ed',fillPos:[1,.5,1],rim:.16,rimColor:'#acbfdf',rimPos:[0,1,-2]},
+  projector:{label:'Projector',description:'Patterns and color palettes projected onto fabric. Self-shadows block projection behind folds.',exposure:1,hemi:.018,hemiSky:'#c2cede',hemiGround:'#20252d',key:.075,keyColor:'#c4d2e8',keyPos:[-1,2,1],fill:.02,fillColor:'#c5d1ed',fillPos:[1,.5,1],rim:.16,rimColor:'#acbfdf',rimPos:[0,1,-2]},
   softbox:{label:'Softbox',description:'Even neutral light with gentle highlights and filled shadows for reviewing artwork.',
     exposure:.98,hemi:.42,hemiSky:'#ffffff',hemiGround:'#dedede',
     key:1.25,keyColor:'#ffffff',keyPos:[-1.65,1.85,1.35],
@@ -245,6 +245,15 @@ function applyLightingPreset(){
   document.getElementById('nightPaused').disabled=state.nightTraffic==='off';
   for(const mode of ['runway','afterglow','projector'])document.getElementById(mode+'Controls').hidden=state.light!==mode;
   for(const id of Object.keys(CREATIVE_DEFAULTS)){const input=document.getElementById(id);if(!input)continue;if(input.type==='checkbox')input.checked=state[id];else{input.value=state[id];const number=document.getElementById(id+'Value');if(number)number.value=input.value;}}
+  const palette=state.projectorColorMode!=='solid';
+  document.getElementById('projectorGradientRow').hidden=!palette;
+  document.getElementById('projectorCountRow').hidden=!palette;
+  document.getElementById('projectorColorAngleRow').hidden=!palette||state.projectorGradient==='radial';
+  document.getElementById('projectorColorSpeedRow').hidden=state.projectorColorMode!=='flow';
+  document.getElementById('projectorWarpRow').hidden=['caustics','stripes','geometry'].includes(state.projectorPattern);
+  document.getElementById('projectorSymmetryRow').hidden=state.projectorPattern!=='kaleidoscope';
+  document.querySelector('#projectorPattern option[value="geometry"]').hidden=state.projectorPattern!=='geometry';
+  for(const swatch of document.querySelectorAll('[data-projector-swatch]')){const i=Number(swatch.dataset.projectorSwatch);swatch.hidden=i>(palette?state.projectorColorCount:1);swatch.querySelector('i').style.background=state['projectorColor'+i];}
   const lock=document.getElementById('lightLock');lock.disabled=false;lock.checked=!state.lightLocked;
   updateCityTraffic();updateCreativeLighting();
   shadowDirty=true;
@@ -1902,7 +1911,7 @@ document.getElementById('lightLock').addEventListener('change',event=>{
   lightReference.copy(lightRig.quaternion).invert().multiply(camera.quaternion);
   updateLightLock();shadowDirty=true;
 });
-for(const id of Object.keys(CREATIVE_DEFAULTS)){const input=document.getElementById(id);if(!input)continue;input.addEventListener(input.type==='range'?'input':'change',()=>{state[id]=input.type==='checkbox'?input.checked:input.tagName==='SELECT'?input.value:Number(input.value);applyLightingPreset();workspace?.notify();});}
+for(const id of Object.keys(CREATIVE_DEFAULTS)){const input=document.getElementById(id);if(!input)continue;input.addEventListener(['range','color'].includes(input.type)?'input':'change',()=>{state[id]=input.type==='checkbox'?input.checked:typeof CREATIVE_DEFAULTS[id]==='number'?Number(input.value):input.value;applyLightingPreset();workspace?.notify();});}
 document.getElementById('nightTraffic').addEventListener('change',event=>{state.nightTraffic=event.target.value;applyLightingPreset();});
 document.getElementById('nightPaused').addEventListener('change',event=>{state.nightPaused=event.target.checked;});
 document.getElementById('selfShadows').addEventListener('change',e=>{
@@ -2669,10 +2678,13 @@ function syncArtworkUi(){
   syncCameraUi();
   const list=document.getElementById('artLayers'),editor=document.getElementById('artEditor');
   const entry=artEntry();
-  // Park the shared form before removing a row so its controls and listeners survive.
-  const parent=entry?layerRows.get(entry.id):null;
-  if(editor.parentElement!==parent)document.getElementById('artEditorParking').appendChild(editor);
-  for(const [id,wrap] of layerRows)if(!artEntry(id)){wrap.remove();layerRows.delete(id);}
+  // Keep the live editor attached during ordinary refreshes and layer switches.
+  // A temporary move into the hidden parking area collapses the scroll extent.
+  const pane=document.getElementById('panel'),scrollTop=pane.scrollTop;
+  for(const [id,wrap] of layerRows)if(!artEntry(id)){
+    if(wrap.contains(editor))document.getElementById('artEditorParking').appendChild(editor);
+    wrap.remove();layerRows.delete(id);
+  }
   let cursor=list.firstElementChild;
   for(const layer of artLayers){
     let wrap=layerRows.get(layer.id);
@@ -2712,6 +2724,7 @@ function syncArtworkUi(){
     document.getElementById('artEditorName').textContent=ART_META[entry.slot].label;
     editor.setAttribute('aria-label',`Controls for ${entry.name}, ${ART_META[entry.slot].label}`);
   }
+  if(!entry&&editor.parentElement.id!=='artEditorParking')document.getElementById('artEditorParking').appendChild(editor);
   editor.hidden=!entry;
   document.getElementById('artPosition').hidden=!current;
   document.getElementById('artPosition').textContent=isCustom?'Set position':'Move';
@@ -2731,6 +2744,9 @@ function syncArtworkUi(){
   document.querySelectorAll('[data-art-range],[data-art-num],[data-reset-art-one]').forEach(el=>el.disabled=artLoading||!entry);
   document.getElementById('artEmpty').hidden=artLayers.length>0;
   syncInkUi();syncArtControls();
+  // Restore only inside this synchronous update, never in a scroll listener.
+  // Native clamping still handles deliberate collapses and shorter content.
+  if(pane.scrollTop!==scrollTop)pane.scrollTop=scrollTop;
 }
 function prepareArtworkSource(img){
   const limit=Math.max(1,Math.min(4096,renderer.capabilities.maxTextureSize-8));
@@ -3547,7 +3563,8 @@ function resetStudioColor(id,keepOpen=false){
     syncGarmentSwatches();applyLook();
   }else if(id==='gridColor'){
     state.gridColorCustom=false;state.gridColor=state.light==='uv'?UV_BACKDROP.gridColor:BRAND[state.theme].grid;document.getElementById(id).value=state.gridColor;drawPatternBackground();
-  }else if(id==='bgCustom')setStudioInput(id,state.light==='uv'?UV_BACKDROP.bg:THEMES[state.theme].bg);
+  }else if(/^projectorColor[1-4]$/.test(id))setStudioInput(id,CREATIVE_DEFAULTS[id]);
+  else if(id==='bgCustom')setStudioInput(id,state.light==='uv'?UV_BACKDROP.bg:THEMES[state.theme].bg);
   if(keepOpen)colorPicker?.refresh();
 }
 function installGroupResets(){

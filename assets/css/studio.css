@@ -124,7 +124,7 @@
     pointer-events:none;z-index:0
   }
   header{position:relative;z-index:5;background:var(--paper)}
-  main{position:relative;z-index:2;flex:1 1 auto;display:flex;min-height:0;overflow:hidden}
+  main{position:relative;z-index:2;flex:1 1 auto;display:flex;min-height:0;overflow:clip}
   #panel{position:relative;z-index:4}
   #stage{position:relative;z-index:1;flex:1 1 auto;min-width:0;min-height:0;background:transparent}
 
@@ -144,9 +144,9 @@
   #boot.gone{opacity:0;pointer-events:none}
   #boot p{max-width:32ch;text-align:center;line-height:1.9;padding:0 24px}
 
-  #panel{order:-1;flex:0 0 318px;border-right:1px solid var(--rule);padding:20px var(--pad) 28px;min-height:0;overflow-y:auto;overflow-x:hidden;overflow-anchor:none;display:flex;flex-direction:column;gap:22px;background:var(--wash)}
-  /* Expanded sections contribute their full height to the single sidebar scroller. */
-  #panel > *{flex-shrink:0}
+  #panel{order:-1;flex:0 0 318px;border-right:1px solid var(--rule);padding:20px var(--pad) 28px;min-height:0;overflow-y:auto;overflow-x:hidden;overflow-anchor:none;scrollbar-gutter:stable;display:block;background:var(--wash)}
+  /* Normal block flow keeps expanding details in the native scroll extent.
+     The sidebar is the only scroll container; main must never scroll on focus. */
   .grp{display:flex;flex-direction:column;gap:14px;padding-top:18px;border-top:1px solid var(--rule)}
   .grp:first-child{padding-top:0;border-top:0}
   .subsec{display:flex;flex-direction:column;gap:10px}

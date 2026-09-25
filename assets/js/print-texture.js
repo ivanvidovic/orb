@@ -1,4 +1,4 @@
-import {isOrganic,organicSampler} from './organic-pattern.js?v=91-pocket';
+import {isOrganic,organicSampler} from './organic-pattern.js?v=91-projector';
 import {resolveMaskSource} from './solid-mask.js?v=81';
 // Deterministic artwork-space coverage patterns, shared by preview and export.
 export const hasPrintTexture=l=>['dots','lines','grain','pixel','maze','branching'].includes(l.printPattern)&&(l.printVersion===2||(l.printStrength??100)>0);
