@@ -1,7 +1,7 @@
-import {createArtworkTreatment} from './artwork-treatment.js?v=91-zoom';
-import {applyPrintTexture,hasPrintTexture,capturePrintTone,pixelateArtwork} from './print-texture.js?v=91-zoom';
+import {createArtworkTreatment} from './artwork-treatment.js?v=91-pocket';
+import {applyPrintTexture,hasPrintTexture,capturePrintTone,pixelateArtwork} from './print-texture.js?v=91-pocket';
 import {decodeArtworkImage} from './artwork-decode.js?v=45';
-import {canvasBlob,cleanFilename} from './design-format.js?v=91-zoom';
+import {canvasBlob,cleanFilename} from './design-format.js?v=91-pocket';
 import {solidCoverageLut,applySolidMask} from './solid-mask.js?v=81';
 export {solidCoverageLut} from './solid-mask.js?v=81';
 const linear=v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4;

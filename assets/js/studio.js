@@ -1,8 +1,8 @@
-import {treatmentKey} from './artwork-treatment.js?v=91-zoom';
+import {treatmentKey} from './artwork-treatment.js?v=91-pocket';
 import {quadTransform,alphaBounds,flattenTransform,collectSurfaces} from './print-layout.js?v=86';
-import {createTreatmentQueue,createTreatmentProcessor} from './artwork-processing.js?v=91-zoom';
-import {hasPrintTexture} from './print-texture.js?v=91-zoom';
-import {focusedPanelBounds,layerCustomColor} from './artwork-detail.js?v=91-zoom';
+import {createTreatmentQueue,createTreatmentProcessor} from './artwork-processing.js?v=91-pocket';
+import {hasPrintTexture} from './print-texture.js?v=91-pocket';
+import {focusedPanelBounds,layerCustomColor} from './artwork-detail.js?v=91-pocket';
 import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=77';
 import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE,fullSleeveCamera} from './sleeve-camera.js?v=91-camera';
 import {hasDirectory} from './folder-import.js?v=58';
@@ -11,9 +11,9 @@ import {createCityTraffic} from './city-night.js?v=43';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=82';
 import {sharedSurfaceProfiles,fitSurfacePlacements} from './surface-layout.js?v=83';
 import {torsoFrame,torsoDistance,previousTorsoFrame,previewDistance,previousPreviewFrame} from './garment-framing.js?v=89';
-import {installWorkspace} from './workspace.js?v=91-zoom';
-import {installExports} from './presentation-export.js?v=91-zoom';
-import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=91-zoom';
+import {installWorkspace} from './workspace.js?v=91-pocket';
+import {installExports} from './presentation-export.js?v=91-pocket';
+import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=91-pocket';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
 import {installColorPicker} from './color-picker.js?v=36';
 import {installSliderControls,RESET_ICON} from './controls.js?v=44';
@@ -848,7 +848,8 @@ function trimCatalogCache(){
 }
 let placementCalibrationPromise=null,surfaceCalibration=null;
 function getPlacementCalibration(){
-  if(!placementCalibrationPromise)placementCalibrationPromise=Promise.all(['placements-63.json','surface-layout-84.json'].map(async file=>{
+  // Pocket charts are separate from the front body; the front canvas must not remap them.
+  if(!placementCalibrationPromise)placementCalibrationPromise=Promise.all(['placements-91-pocket.json','surface-layout-91-pocket.json'].map(async file=>{
     const response=await fetch(new URL('../calibration/'+file,import.meta.url));
     if(!response.ok)throw new Error('Placement calibration could not load.');return response.json();
   })).then(([profiles,layout])=>{surfaceCalibration=layout;return Object.fromEntries(Object.entries(profiles).map(([id,native])=>[id,sharedSurfaceProfiles(native,layout,id)]));})

@@ -1,6 +1,6 @@
-import {createArtworkTreatment} from './artwork-treatment.js?v=91-zoom';
-import {treatPixels} from './artwork-export.js?v=91-zoom';
-import {pixelateArtwork} from './print-texture.js?v=91-zoom';
+import {createArtworkTreatment} from './artwork-treatment.js?v=91-pocket';
+import {treatPixels} from './artwork-export.js?v=91-pocket';
+import {pixelateArtwork} from './print-texture.js?v=91-pocket';
 import {transformedBounds} from './print-layout.js?v=86';
 // This module runs in an export-only worker. Slider rendering is unchanged.
 export function createPrintRenderer(canvasFactory){
