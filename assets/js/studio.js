@@ -1,11 +1,12 @@
-import {setupProjectorControls,syncProjectorButtons} from './projector-controls.js?v=91-projector12';
-import {installMappedRanges} from './mapped-ranges.js?v=91-projector12';
-import {treatmentKey} from './artwork-treatment.js?v=91-projector12';
+import {createGlowHistory} from './glow-history.js?v=91-history13';
+import {setupProjectorControls,syncProjectorButtons} from './projector-controls.js?v=91-history13';
+import {installMappedRanges} from './mapped-ranges.js?v=91-history13';
+import {treatmentKey} from './artwork-treatment.js?v=91-history13';
 import {quadTransform,alphaBounds,flattenTransform,collectSurfaces} from './print-layout.js?v=86';
-import {createTreatmentQueue,createTreatmentProcessor} from './artwork-processing.js?v=91-projector12';
-import {hasPrintTexture} from './print-texture.js?v=91-projector12';
-import {focusedPanelBounds,layerCustomColor} from './artwork-detail.js?v=91-projector12';
-import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=91-projector12';
+import {createTreatmentQueue,createTreatmentProcessor} from './artwork-processing.js?v=91-history13';
+import {hasPrintTexture} from './print-texture.js?v=91-history13';
+import {focusedPanelBounds,layerCustomColor} from './artwork-detail.js?v=91-history13';
+import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=91-history13';
 import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE,fullSleeveCamera} from './sleeve-camera.js?v=91-camera';
 import {hasDirectory} from './folder-import.js?v=58';
 import {decodeArtworkImage} from './artwork-decode.js?v=45';
@@ -13,12 +14,12 @@ import {createCityTraffic} from './city-night.js?v=43';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=82';
 import {sharedSurfaceProfiles,fitSurfacePlacements} from './surface-layout.js?v=83';
 import {torsoFrame,torsoDistance,previousTorsoFrame,previewDistance,previousPreviewFrame} from './garment-framing.js?v=89';
-import {installWorkspace} from './workspace.js?v=91-projector12';
-import {installExports} from './presentation-export.js?v=91-projector12';
-import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=91-projector12';
+import {installWorkspace} from './workspace.js?v=91-history13';
+import {installExports} from './presentation-export.js?v=91-history13';
+import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=91-history13';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
 import {installColorPicker} from './color-picker.js?v=36';
-import {installSliderControls,RESET_ICON} from './controls.js?v=91-projector12';
+import {installSliderControls,rangeDisplayValue,RESET_ICON} from './controls.js?v=91-history13';
 import {installColorActions} from './color-actions.js?v=34';
 let colorPicker=null,colorActions=null,workspace=null;
 let renderSuspended=false,designLocked=false,historyRestoring=false,customModelFile=null,customFlipped=false;
@@ -250,7 +251,7 @@ function applyLightingPreset(){
   document.getElementById('nightPaused').checked=state.nightPaused;
   document.getElementById('nightPaused').disabled=state.nightTraffic==='off';
   for(const mode of ['runway','afterglow','projector'])document.getElementById(mode+'Controls').hidden=state.light!==mode;
-  for(const id of Object.keys(CREATIVE_DEFAULTS)){const input=document.getElementById(id);if(!input)continue;if(input.type==='checkbox')input.checked=state[id];else{input.value=state[id];const number=document.getElementById(id+'Value');if(number)number.value=input.value;}}
+  for(const id of Object.keys(CREATIVE_DEFAULTS)){const input=document.getElementById(id);if(!input)continue;if(input.type==='checkbox')input.checked=state[id];else{input.value=state[id];const number=document.getElementById(id+'Value');if(number)number.value=rangeDisplayValue(input);}}
   const palette=state.projectorColorMode!=='solid';
   document.getElementById('projectorGradientRow').hidden=!palette;
   document.getElementById('projectorCountRow').hidden=!palette;
@@ -406,6 +407,8 @@ const VERT_HEAD=`
 
 const FRAG_HEAD=`
 uniform float uArtRough,uHasArtwork;
+uniform sampler2D uGlowPrevious,uGlowCurrent;
+uniform float uGlowBlend,uGlowEnabled;
 uniform sampler2D uArtwork,uArtworkEffects,uSpillGlow,uSpillUV;
 uniform float uHasEffects,uBlackLight,uFabricReactive,uGlowSceneLevel,uAfterglow,uAfterPhase,uAfterFade,uAfterSpeed,uAfterPower;
 uniform mat3 uAfterRotation;
@@ -439,22 +442,16 @@ const FRAG_EMISSION=`
 // Macro normals drive the response; weave normals still shade the material.
 float kAmbient=dot(irradiance+iblIrradiance,vec3(.2126,.7152,.0722));
 float kVisible=max(0.0,kIlluminance+kAmbient);
-// Emission is independent of local fold illumination. Bright reflected light
-// naturally reduces its contrast. A modest scene-wide adaptation retains a
-// restrained daylight preview without drawing emissive shadow boundaries.
-float kDark=.16/(1.0+2.0*uGlowSceneLevel*uGlowSceneLevel);
+// Stored incident-light history, not an instantaneous shadow mask.
+float kDark=0.0;
+if(uGlowEnabled>.5){
+ vec4 history=mix(texture2D(uGlowPrevious,boundedArtworkUv()),texture2D(uGlowCurrent,boundedArtworkUv()),uGlowBlend);
+ kDark=.45*history.r*history.b;
+}
 // Scattered room UV keeps the fluorescence alive in directional UV shadows.
 // Weak shape fill barely suppresses it; strong ordinary light reduces contrast.
 // UV strength is calibrated to half the previous output at a 100% slider.
 float kUV=1.25*(1.0-exp(-1.8*(.14*uBlackLight+.86*kUVExposure)))/(1.0+4.0*kVisible*kVisible+2.0*uGlowSceneLevel*uGlowSceneLevel);
-// Stylized periodic charging around the garment, retained independently of camera angle.
-if(uAfterglow>.5){
- vec3 chargePosition=uAfterRotation*vec3(vChargePosition.x,vChargePosition.y-.350,vChargePosition.z);
- float surfacePhase=atan(chargePosition.x,chargePosition.z);
- float elapsed=mod(uAfterPhase-surfacePhase+6.2831853,6.2831853)*12.0/(6.2831853*max(.05,uAfterSpeed));
- float charge=exp(-elapsed/max(.25,uAfterFade))*uAfterPower;
- kDark*=charge;
-}
 float kGlow=kArtEffects.r*kDark+kArtEffects.g*kUV;
 totalEmissiveRadiance+=kArtColor*kGlow;
 // Preserve v27's actual black-light reflections and shadowing. Fabric color
@@ -499,6 +496,8 @@ function patchFabricMaterial(mat){
     sh.uniforms.uFlowHalfWidth={value:mat.userData.orbFlowHalfWidth||.3};
     const artwork=getArtworkMap(mat.userData.orbMeshId||1);
     sh.uniforms.uArtwork=artwork.map;sh.uniforms.uHasArtwork=artwork.has;
+    sh.uniforms.uGlowPrevious=artwork.glow.previous;sh.uniforms.uGlowCurrent=artwork.glow.current;
+    sh.uniforms.uGlowBlend=artwork.glow.blend;sh.uniforms.uGlowEnabled=artwork.glow.enabled;
     sh.uniforms.uArtworkEffects=artwork.effects;sh.uniforms.uHasEffects=artwork.hasEffects;
     sh.uniforms.uSpillGlow=artwork.spillGlow;sh.uniforms.uSpillUV=artwork.spillUV;
     Object.assign(sh.uniforms,effectUniforms);
@@ -566,10 +565,16 @@ function patchFabricMaterial(mat){
     sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>',
       '#include <map_fragment>\n' + FRAG_PRINT);
     sh.fragmentShader=sh.fragmentShader.replace('#include <aomap_fragment>','#include <aomap_fragment>\n'+FRAG_EMISSION);
+    if(mat.userData.orbChargePass){
+      sh.vertexShader=sh.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\n gl_Position=vec4(aArtworkUv*2.0-1.0,0.0,1.0);');
+      sh.fragmentShader=sh.fragmentShader.replace(FRAG_EMISSION,`float kVisible=max(0.0,kIlluminance+dot(irradiance+iblIrradiance,vec3(.2126,.7152,.0722)));`)
+       .replaceAll('gl_FrontFacing','true')
+       .replace('#include <dithering_fragment>','#include <dithering_fragment>\n gl_FragColor=vec4(1.0-exp(-kVisible*.6),0.0,0.0,1.0);');
+    }
     sh.fragmentShader = sh.fragmentShader.replace('#include <roughnessmap_fragment>',
       '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, clamp(uArtRough, 0.02, 1.0), clamp(kArtworkMask, 0.0, 1.0));');
   };
-  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v78-detail';
+  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v91-history'+(mat.userData.orbChargePass?'-light-pass':'');
   mat.needsUpdate=true;
   return mat;
 }
@@ -2191,6 +2196,10 @@ document.getElementById('resetGridStroke').addEventListener('click',()=>applyGri
 // Artwork is composited on the GPU into isolated native-UV panels. Moving a
 // graphic changes its quad matrix, never its image pixels or source texture.
 const artworkMaps=new Map(),artworkSources=new Map(),artworkBoundsCache=new WeakMap();
+const glowHistory=createGlowHistory(THREE,renderer,scene,camera,{
+ mapFor:mesh=>getArtworkMap(mesh.userData.orbMeshId||1),
+ materialFor:mat=>{const m=mat.clone();m.userData.orbChargePass=true;m.side=THREE.DoubleSide;m.transparent=false;m.opacity=1;m.depthTest=false;m.depthWrite=false;m.blending=THREE.NoBlending;m.toneMapped=false;return patchFabricMaterial(m);}
+});
 const artworkDirtyPanels=new Set();
 let artworkDirty=true,artworkDirtyAll=true;
 const artworkClearColor=new THREE.Color();
@@ -2232,12 +2241,13 @@ function requestArtworkRender(layer=null){
 function getArtworkMap(meshId){
   if(!artworkMaps.has(meshId))artworkMaps.set(meshId,{
     map:{value:null},has:{value:0},effects:{value:null},hasEffects:{value:0},effectTarget:null,target:null,layoutKey:'',geometry:null,
-    spillGlow:{value:null},spillUV:{value:null},spillTargets:null,
+    glow:glowHistory.blank(),hasGlow:false,spillGlow:{value:null},spillUV:{value:null},spillTargets:null,
     tiles:new Map(),scenes:new Map(),quads:new Map(),camera:new THREE.OrthographicCamera(0,1,1,0,-1,1)
   });
   return artworkMaps.get(meshId);
 }
 function resetArtworkMaps(){
+  glowHistory.reset();
   for(const map of artworkMaps.values()){
     map.target?.dispose();map.target=null;map.map.value=null;map.has.value=0;
     map.effectTarget?.dispose();map.effectTarget=null;map.effects.value=null;map.hasEffects.value=0;disposeArtworkSpill(map);
@@ -2444,6 +2454,7 @@ function updateArtworkQuad(map,layer,index,total){
   uniforms.uEffects.value.set(layer.glow?(layer.emission??100)/400:0,layer.uvReactive?(layer.emission??100)/400:0);
 }
 function prepareEffectMap(map,layers){
+  map.hasGlow=layers.some(l=>l.visible&&l.glow);
   const enabled=layers.some(l=>l.visible&&(l.glow||l.uvReactive));
   map.hasEffects.value=enabled?1:0;
   if(!enabled){map.effectTarget?.dispose();map.effectTarget=null;map.effects.value=null;disposeArtworkSpill(map);return false;}
@@ -3524,6 +3535,7 @@ function draw(){
   renderer.setScissorTest(true);
   updateShadowMap();
   renderer.render(scene,camera);
+  glowHistory.update(current,state);
   renderer.setScissorTest(false);
 }
 function tick(){
@@ -3531,6 +3543,7 @@ function tick(){
   const dt=Math.min(0.05,clock.getDelta());
   if(renderSuspended)return;
   uni.uTime.value+=dt;
+  glowHistory.advance(dt);
   updateCityTraffic(dt);updateCreativeLighting(dt);
   if(intro<1){
     intro=Math.min(1,intro+dt/1.15);

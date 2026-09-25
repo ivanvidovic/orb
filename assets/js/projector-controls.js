@@ -27,7 +27,6 @@ export function setupProjectorControls(){
  }));
  const line=palette.parentElement;line.classList.add('projector-palette-line');line.querySelector('.lbl').replaceWith(heading);
  const pause=document.getElementById('projectorPaused').parentElement;pause.classList.add('projector-pause');
- const motion=document.getElementById('projectorSpeed').parentElement,label=motion.querySelector('label');
- const motionHeading=document.createElement('div');motionHeading.className='projector-motion-label';label.before(motionHeading);motionHeading.append(label,pause);
+ const row=document.createElement('div');row.className='projector-motion-actions';row.append(pause);document.getElementById('projectorSpeed').parentElement.after(row);
  syncProjectorButtons();
 }

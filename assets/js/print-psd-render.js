@@ -1,6 +1,6 @@
-import {createArtworkTreatment} from './artwork-treatment.js?v=91-projector12';
-import {treatPixels} from './artwork-export.js?v=91-projector12';
-import {pixelateArtwork} from './print-texture.js?v=91-projector12';
+import {createArtworkTreatment} from './artwork-treatment.js?v=91-history13';
+import {treatPixels} from './artwork-export.js?v=91-history13';
+import {pixelateArtwork} from './print-texture.js?v=91-history13';
 import {transformedBounds} from './print-layout.js?v=86';
 // This module runs in an export-only worker. Slider rendering is unchanged.
 export function createPrintRenderer(canvasFactory){

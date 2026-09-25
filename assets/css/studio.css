@@ -554,7 +554,7 @@ select,select option,select optgroup{color:var(--ink);background-color:var(--pap
 #modelRetry{justify-self:start;font:inherit;font-size:11px;padding:7px 11px;background:var(--paper);color:var(--ink);border:1px solid var(--rule-mid);cursor:pointer}
 
 /* Direct garment selection remains visible above the appearance fold. */
-#panel > .garmentChooser{margin-bottom:18px;padding:0 0 18px}
+#panelContent > .garmentChooser{margin-bottom:18px;padding:0 0 18px}
 #garmentSelect[hidden]{display:none}
 #garmentButtons{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 #garmentButtons button{min-height:44px;padding:10px 6px;border:1px solid var(--rule-mid);background:var(--paper);color:var(--ink);font:inherit;font-size:11px;cursor:pointer}
@@ -847,7 +847,7 @@ body.present .stage-reset,body.present .stage-help{display:none}
 #designStatus:focus-visible::after{content:attr(aria-label);position:absolute;top:100%;right:0;width:180px;padding:8px;background:var(--paper);color:var(--ink);border:1px solid var(--rule-mid);font:11px/1.5 var(--sans);z-index:10}
 #designStatus[data-state="error"]{grid-column:1/-1;grid-row:2;font:11px/1.5 var(--sans);justify-content:flex-start;gap:6px;cursor:default}
 #designStatus[data-state="error"] + .design-actions{grid-column:2/-1;grid-row:1;justify-self:end}
-#panel > .garmentChooser{gap:6px;margin-bottom:10px;padding-bottom:10px}
+#panelContent > .garmentChooser{gap:6px;margin-bottom:10px;padding-bottom:10px}
 #garmentButtons{display:flex;flex-wrap:nowrap;gap:4px}
 #garmentButtons button{flex:1 0 auto;min-width:max-content;min-height:32px;padding:5px 6px;font:400 10px/1.3 var(--sans);white-space:nowrap}
 #modelStatus:empty{display:none}
@@ -1028,12 +1028,20 @@ body.present .stage-reset,body.present .stage-help{display:none}
 #projectorControls .projector-color-cell{display:flex;align-items:center;gap:3px;min-width:0}
 #projectorControls .projector-shuffle{display:inline-flex;align-items:center;justify-content:center;min-width:24px;width:24px;height:28px;padding:3px;border:0;background:transparent;color:inherit;opacity:.75}
 #projectorControls .projector-shuffle:hover{opacity:1;background:rgba(128,128,128,.15)}
-#projectorControls .projector-pause{display:flex;align-items:center;gap:4px;margin:0;font-size:10px}
+#projectorControls .projector-pause{display:flex;align-items:center;gap:4px;margin:0;font-size:inherit}
 #projectorControls .adjustFold{margin-top:8px}
 #projectorControls [hidden]{display:none!important}
 
 #projectorControls .adjustBody{gap:6px;padding:2px 0 8px}
 #projectorControls .adjustFold>summary{padding:9px 0}
 #projectorControls .projector-choice-row{margin:4px 0}
-#projectorControls .projector-motion-label{display:flex;flex-direction:column;align-items:flex-start;gap:1px}
 #projectorControls .projector-pause input{width:auto}
+
+#projectorControls .projector-motion-actions{display:flex;justify-content:flex-end;align-items:center;clear:both;min-height:26px;margin:2px 0 4px}
+
+/* A single native scroller measures one stable, untransformed content box.
+   Expanding details no longer animates the geometry used for scroll bounds. */
+#panel{transform:none;overscroll-behavior-y:contain}
+#panelContent{display:flow-root;min-width:0;height:auto;overflow:visible}
+#panelContent>.sectionFold{flex:none}
+#panel .sectionFold[open]>.sectionBody{animation:none}

@@ -7,8 +7,8 @@ export function installMappedRanges(){
   const min=Number(el.min),max=Number(el.max),initial=Number(el.value),zero=min===0;
   el.dataset.valueMin=min;el.dataset.valueMax=max;el.min='0';el.max='1';el.step='0.00001';
   let lastTrack=null,lastValue=initial;
-  Object.defineProperty(el,'value',{configurable:true,get(){const track=native.get.call(this);if(track!==lastTrack){lastTrack=track;lastValue=Number(fromTrack(Number(track),min,max,zero).toPrecision(6));}return String(lastValue);},set(value){const n=Number(value);if(Number.isFinite(n)){lastValue=Math.max(min,Math.min(max,n));native.set.call(this,toTrack(lastValue,min,max,zero));lastTrack=native.get.call(this);this.setAttribute('aria-valuetext',this.value);}}});
+  Object.defineProperty(el,'value',{configurable:true,get(){const track=native.get.call(this);if(track!==lastTrack){lastTrack=track;lastValue=Number(fromTrack(Number(track),min,max,zero).toPrecision(6));}return String(lastValue);},set(value){const n=Number(value);if(Number.isFinite(n)){lastValue=Math.max(min,Math.min(max,n));native.set.call(this,toTrack(lastValue,min,max,zero));lastTrack=native.get.call(this);this.setAttribute('aria-valuetext',String(Number((Number(this.value)*Number(this.dataset.displayFactor||1)).toPrecision(9))));}}});
   Object.defineProperty(el,'valueAsNumber',{configurable:true,get(){return Number(this.value);},set(value){this.value=value;}});
-  el.value=initial;el.addEventListener('input',()=>el.setAttribute('aria-valuetext',el.value));
+  el.value=initial;el.addEventListener('input',()=>el.setAttribute('aria-valuetext',String(Number((Number(el.value)*Number(el.dataset.displayFactor||1)).toPrecision(9)))));
  }
 }
