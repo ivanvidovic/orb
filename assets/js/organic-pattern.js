@@ -88,8 +88,8 @@ export function organicSampler(layer,fullWidth,fullHeight){
   return {sample,aa:aa*.08,mark:Math.SQRT1_2,resolved:1};
 }
 
-// Artwork-wide connected growth. Scale and Thickness only sample this cached
-// distance field; they never regenerate trees or substitute uniform coverage.
+// A larger, continuous branching world. Scale changes the centered viewport;
+// strand width is compensated for zoom and controlled separately by Thickness.
 const naturalCache=new Map();
 function naturalSampler(layer,w,h){
   const aspect=Math.round(w/h*1e6)/1e6,density=clamp((layer.printDensity??50)/100);
@@ -97,14 +97,14 @@ function naturalSampler(layer,w,h){
   let field=naturalCache.get(key);
   if(!field){
     const W=Math.max(32,Math.round(1536*Math.min(1,aspect))),H=Math.max(32,Math.round(1536*Math.min(1,1/aspect)));
-    const short=Math.min(W,H),rand=random(layer.printSeed??1),data=new Float32Array(W*H).fill(4096);
+    const short=Math.min(W,H)/4,rand=random(layer.printSeed??1),data=new Float32Array(W*H).fill(4096);
     const ids=new Int32Array(W*H).fill(-1),segments=[];
     const paths=[],angle=(layer.printAngle??45)*Math.PI/180;
-    const roots=Math.round(5+density*15),step=short/250,maxRadius=short/1024*10.2;
+    const roots=Math.round((5+density*15)*16),step=short/250,maxRadius=Math.min(W,H)/1024*4;
     // Long trunks originate throughout the canvas. Offshoots stay attached to
     // their parents, with both substantial limbs and finer tertiary branches.
     for(let k=0;k<roots;k++)paths.push({x:rand()*W,y:rand()*H,a:rand()*Math.PI*2+angle,length:short*(.8+rand()*.8),width:.85+rand()*.65,depth:0});
-    for(let p=0;p<paths.length&&p<1800;p++){
+    for(let p=0;p<paths.length&&p<3600;p++){
       let {x,y,a,length,width,depth}=paths[p],turn=0;
       const steps=Math.ceil(length/step),interval=Math.max(7,Math.round((26-density*15)*(depth?1.2:1)));
       const phase=rand()*Math.PI*2;
@@ -121,7 +121,7 @@ function naturalSampler(layer,w,h){
           const t=clamp(((xx-ax)*dx+(yy-ay)*dy)*inv),ex=xx-ax-t*dx,ey=yy-ay-t*dy,d=(ex*ex+ey*ey)*rr,i=yy*W+xx;
           if(d<data[i]){data[i]=d;ids[i]=id;}
         }
-        if(depth<3&&k>8&&k<steps*.8&&k%interval===0&&rand()<.6+density*.35&&paths.length<1800){
+        if(depth<3&&k>8&&k<steps*.8&&k%interval===0&&rand()<.6+density*.35&&paths.length<3600){
           const reach=depth===0?short*(.18+rand()*.4):length*(.25+rand()*.4);
           paths.push({x,y,a:a+(rand()<.5?-1:1)*(.35+rand()*.8),length:reach,width:radius*(.5+rand()*.18),depth:depth+1});
         }
@@ -129,12 +129,15 @@ function naturalSampler(layer,w,h){
       }
     }
     field={ids,segments,W,H};naturalCache.set(key,field);
-    if(naturalCache.size>3)naturalCache.delete(naturalCache.keys().next().value);
+    if(naturalCache.size>2)naturalCache.delete(naturalCache.keys().next().value);
   }
   const {ids,segments,W,H}=field,scale=clamp(layer.printSize??40,.001,100);
-  const radius=Math.min(W,H)/1024*(.015+5*(scale/100)**1.45)*Math.max(.01,(layer.printMarkSize??50)/50);
+  // 24x continuous zoom range. The widest view stays inside the generated
+  // world, so there is no clamping, edge stretching or tiled repetition.
+  const windowScale=.95*Math.pow(24,-scale/100);
+  const radius=Math.min(W,H)/1024*(.015+5*.4**1.45)*windowScale*Math.max(.01,(layer.printMarkSize??50)/50);
   const gain=.25/Math.max(.001,radius),sample=(x,y)=>{
-    const u=clamp(x/w)*(W-1),v=clamp(y/h)*(H-1),ix=Math.floor(u),iy=Math.floor(v),fx=u-ix,fy=v-iy;
+    const u=(.5+(clamp(x/w)-.5)*windowScale)*(W-1),v=(.5+(clamp(y/h)-.5)*windowScale)*(H-1),ix=Math.floor(u),iy=Math.floor(v);
     const xx=Math.min(W-1,ix+1),yy=Math.min(H-1,iy+1);
     let distance=64,previous=-1;
     // Evaluate the actual nearby segments, avoiding raster-grid breaks in fine
@@ -147,5 +150,5 @@ function naturalSampler(layer,w,h){
     return .5+distance*gain;
   };
   // Antialias only near real strands. No global average-fill fallback.
-  return {sample,aa:.65*W/w*gain,mark:Math.SQRT1_2,resolved:1};
+  return {sample,aa:.65*(W-1)/w*windowScale*gain,mark:Math.SQRT1_2,resolved:1};
 }

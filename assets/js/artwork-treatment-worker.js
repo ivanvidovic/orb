@@ -1,4 +1,4 @@
-import {createArtworkTreatment} from './artwork-treatment.js?v=91-flow';
+import {createArtworkTreatment} from './artwork-treatment.js?v=91-zoom';
 const canvas=()=>new OffscreenCanvas(1,1),engine=createArtworkTreatment(canvas);
 let source=null;
 self.onmessage=event=>{
