@@ -1,5 +1,5 @@
 import {prepareChargeGeometry} from './glow-layout.js?v=91-glow15';
-import {createGlowHistory} from './glow-history.js?v=91-glow15';
+import {createGlowHistory} from './glow-history.js?v=91-glow16';
 import {setupProjectorControls,syncProjectorButtons} from './projector-controls.js?v=91-history13';
 import {installMappedRanges} from './mapped-ranges.js?v=91-history13';
 import {treatmentKey} from './artwork-treatment.js?v=91-history13';
@@ -452,7 +452,8 @@ if(uGlowEnabled>.5){
  vec4 history=texture2D(uGlowCurrent,boundedGlowUv());
  vec2 charge=history.rg;
  if(uGlowPacked>.5)charge=vec2(dot(history.rg,vec2(65280.,255.)),dot(history.ba,vec2(65280.,255.)))/65535.;
- kStoredGlow=dot(charge,vec2(.9,.75));
+ // Low radiance is visible in darkness without washing out normally lit ink.
+ kStoredGlow=dot(charge,vec2(.06,.04));
 }
 // Scattered room UV keeps the fluorescence alive in directional UV shadows.
 // Weak shape fill barely suppresses it; strong ordinary light reduces contrast.
@@ -584,7 +585,7 @@ function patchFabricMaterial(mat){
     sh.fragmentShader = sh.fragmentShader.replace('#include <roughnessmap_fragment>',
       '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, clamp(uArtRough, 0.02, 1.0), clamp(kArtworkMask, 0.0, 1.0));');
   };
-  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v91-glow15'+(mat.userData.orbChargePass?'-light-pass':'');
+  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v91-glow16'+(mat.userData.orbChargePass?'-light-pass':'');
   mat.needsUpdate=true;
   return mat;
 }

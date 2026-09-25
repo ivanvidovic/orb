@@ -9,7 +9,9 @@ void main(){
  // Two bounded reservoirs: bright initial emission and a long, dimmer tail.
  // Both accumulate exposure continuously, independently of the active preset.
  float light=max(0.0,lit.r);
- vec2 rate=light*vec2(1.2,.55);
+ // Weak room fill should not recharge the long-lived reservoir like a beam.
+ float excitation=min(1.0,2.0*light*light);
+ vec2 rate=excitation*vec2(1.2,.55);
  vec2 decay=1.0/vec2(max(2.0,fade),max(90.0,fade*45.0));
  vec2 equilibrium=rate/(rate+decay);
  vec2 charge=clamp(equilibrium+(old.rg-equilibrium)*exp(-(rate+decay)*dt),0.,1.);
