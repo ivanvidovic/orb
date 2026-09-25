@@ -5,17 +5,15 @@ varying vec2 v;uniform sampler2D previous,exposure;uniform float dt,fade,quantiz
 void main(){
  vec4 old=texture2D(previous,v),lit=texture2D(exposure,v);
  if(lit.a<.5){gl_FragColor=vec4(0.);return;}
- float light=lit.r;
- float chargeRate=smoothstep(.035,.65,light)*.65;
+ // Incident exposure adds to retained charge. Smooth saturation preserves
+ // brighter overlaps; darkness never creates charge or gates emission.
+ float light=max(0.0,lit.r);
+ float chargeRate=2.0*light;
  float decay=1./max(.5,fade);
+ // Exact integration of dQ/dt = chargeRate*(1-Q) - decay*Q.
  float equilibrium=chargeRate/(chargeRate+decay);
- float charge=equilibrium+(old.r-equilibrium)*exp(-(chargeRate+decay)*dt);
- float dark=1.-smoothstep(.025,.16,light);
- // Accumulate sustained darkness, then reveal gently. Passing folds do not flash.
- float age=clamp(old.g+dt*(dark>.65?1./1.2:-4.),0.,1.);
- float goal=dark*smoothstep(.35,1.,age);
- float reveal=mix(old.b,goal,1.-exp(-dt/(goal>old.b?1.0:.18)));
- vec3 result=vec3(charge,age,reveal);
+ float charge=clamp(equilibrium+(old.r-equilibrium)*exp(-(chargeRate+decay)*dt),0.,1.);
+ vec3 result=vec3(charge,0.,0.);
  if(quantize>.5){float noise=fract(sin(dot(gl_FragCoord.xy+sequence,vec2(12.9898,78.233)))*43758.5453);result=floor(result*255.+noise)/255.;}
  gl_FragColor=vec4(result,1.);
 }`;

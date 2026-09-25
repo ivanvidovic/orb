@@ -1,4 +1,4 @@
-import {createGlowHistory} from './glow-history.js?v=91-history13';
+import {createGlowHistory} from './glow-history.js?v=91-charge14';
 import {setupProjectorControls,syncProjectorButtons} from './projector-controls.js?v=91-history13';
 import {installMappedRanges} from './mapped-ranges.js?v=91-history13';
 import {treatmentKey} from './artwork-treatment.js?v=91-history13';
@@ -442,17 +442,17 @@ const FRAG_EMISSION=`
 // Macro normals drive the response; weave normals still shade the material.
 float kAmbient=dot(irradiance+iblIrradiance,vec3(.2126,.7152,.0722));
 float kVisible=max(0.0,kIlluminance+kAmbient);
-// Stored incident-light history, not an instantaneous shadow mask.
-float kDark=0.0;
+// Stored charge emits continuously. Surrounding illumination determines contrast.
+float kStoredGlow=0.0;
 if(uGlowEnabled>.5){
  vec4 history=mix(texture2D(uGlowPrevious,boundedArtworkUv()),texture2D(uGlowCurrent,boundedArtworkUv()),uGlowBlend);
- kDark=.45*history.r*history.b;
+ kStoredGlow=1.25*history.r;
 }
 // Scattered room UV keeps the fluorescence alive in directional UV shadows.
 // Weak shape fill barely suppresses it; strong ordinary light reduces contrast.
 // UV strength is calibrated to half the previous output at a 100% slider.
 float kUV=1.25*(1.0-exp(-1.8*(.14*uBlackLight+.86*kUVExposure)))/(1.0+4.0*kVisible*kVisible+2.0*uGlowSceneLevel*uGlowSceneLevel);
-float kGlow=kArtEffects.r*kDark+kArtEffects.g*kUV;
+float kGlow=kArtEffects.r*kStoredGlow+kArtEffects.g*kUV;
 totalEmissiveRadiance+=kArtColor*kGlow;
 // Preserve v27's actual black-light reflections and shadowing. Fabric color
 // controls the UV-only pale-fabric lift and a small existing-reflection gain.
@@ -474,7 +474,7 @@ totalEmissiveRadiance+=.008*kFabricColor*kFabricLight*kUVExposure*uFabricReactiv
 if(gl_FrontFacing&&uHasEffects>.5&&vArtworkUv.x>=0.0&&vArtworkUv.y>=0.0){
   // A short-range surface bounce approximation. Cached colors retain the
   // separate glow/UV strengths; current lighting gates their visible spill.
-  vec3 bounce=4.0*(texture2D(uSpillGlow,boundedArtworkUv()).rgb*kDark+texture2D(uSpillUV,boundedArtworkUv()).rgb*kUV);
+  vec3 bounce=4.0*(texture2D(uSpillGlow,boundedArtworkUv()).rgb*kStoredGlow+texture2D(uSpillUV,boundedArtworkUv()).rgb*kUV);
   totalEmissiveRadiance+=bounce*.20*sqrt(clamp(kFabricColor,0.0,1.0)+vec3(.01))*(1.0-kArtworkMask);
 }
 `;
@@ -574,7 +574,7 @@ function patchFabricMaterial(mat){
     sh.fragmentShader = sh.fragmentShader.replace('#include <roughnessmap_fragment>',
       '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, clamp(uArtRough, 0.02, 1.0), clamp(kArtworkMask, 0.0, 1.0));');
   };
-  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v91-history'+(mat.userData.orbChargePass?'-light-pass':'');
+  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v91-charge14'+(mat.userData.orbChargePass?'-light-pass':'');
   mat.needsUpdate=true;
   return mat;
 }
