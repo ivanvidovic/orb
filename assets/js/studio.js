@@ -1,8 +1,8 @@
-import {treatmentKey} from './artwork-treatment.js?v=91-natural';
+import {treatmentKey} from './artwork-treatment.js?v=91-flow';
 import {quadTransform,alphaBounds,flattenTransform,collectSurfaces} from './print-layout.js?v=86';
-import {createTreatmentQueue,createTreatmentProcessor} from './artwork-processing.js?v=91-natural';
-import {hasPrintTexture} from './print-texture.js?v=91-natural';
-import {focusedPanelBounds,layerCustomColor} from './artwork-detail.js?v=91-natural';
+import {createTreatmentQueue,createTreatmentProcessor} from './artwork-processing.js?v=91-flow';
+import {hasPrintTexture} from './print-texture.js?v=91-flow';
+import {focusedPanelBounds,layerCustomColor} from './artwork-detail.js?v=91-flow';
 import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=77';
 import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE,fullSleeveCamera} from './sleeve-camera.js?v=91-camera';
 import {hasDirectory} from './folder-import.js?v=58';
@@ -11,9 +11,9 @@ import {createCityTraffic} from './city-night.js?v=43';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=82';
 import {sharedSurfaceProfiles,fitSurfacePlacements} from './surface-layout.js?v=83';
 import {torsoFrame,torsoDistance,previousTorsoFrame,previewDistance,previousPreviewFrame} from './garment-framing.js?v=89';
-import {installWorkspace} from './workspace.js?v=91-natural';
-import {installExports} from './presentation-export.js?v=91-natural';
-import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=91-natural';
+import {installWorkspace} from './workspace.js?v=91-flow';
+import {installExports} from './presentation-export.js?v=91-flow';
+import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=91-flow';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
 import {installColorPicker} from './color-picker.js?v=36';
 import {installSliderControls,RESET_ICON} from './controls.js?v=44';
@@ -1784,6 +1784,8 @@ document.addEventListener('focusout',e=>{
   if(tooltipSource(e.target)) hideTooltip();
 });
 document.addEventListener('pointerdown',()=>hideTooltip(),true);
+document.querySelectorAll('.control-help').forEach(button=>button.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();showTooltip(button,true);}));
+document.addEventListener('keydown',event=>{if(event.key==='Escape')hideTooltip();});
 addEventListener('scroll',hideTooltip,{passive:true});
 addEventListener('resize',hideTooltip);
 

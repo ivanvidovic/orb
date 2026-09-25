@@ -88,51 +88,64 @@ export function organicSampler(layer,fullWidth,fullHeight){
   return {sample,aa:aa*.08,mark:Math.SQRT1_2,resolved:1};
 }
 
-// Unique, bounded artwork-wide field. Paths cross root regions freely: no tile
-// wrapping, mirrored copies or repeated stamps. Frozen seeds survive exports.
+// Artwork-wide connected growth. Scale and Thickness only sample this cached
+// distance field; they never regenerate trees or substitute uniform coverage.
 const naturalCache=new Map();
 function naturalSampler(layer,w,h){
-  const aspect=w/h,scale=clamp(layer.printSize??40,.001,100),density=clamp((layer.printDensity??50)/100);
-  const fieldShort=1536*Math.min(aspect,1/aspect);
-  const fineTile=fieldShort*.035*Math.pow(60,Math.max(1,scale)/100)*Math.min(1,scale);
-  if(fineTile/256<=.12)return {sample:()=>.5,aa:.1,mark:Math.SQRT1_2,resolved:0};
-  const key=[aspect,scale,density,layer.printSeed??1,layer.printAngle??45].join('/');
+  const aspect=Math.round(w/h*1e6)/1e6,density=clamp((layer.printDensity??50)/100);
+  const key=[aspect,density,layer.printSeed??1,layer.printAngle??45].join('/');
   let field=naturalCache.get(key);
   if(!field){
     const W=Math.max(32,Math.round(1536*Math.min(1,aspect))),H=Math.max(32,Math.round(1536*Math.min(1,1/aspect)));
-    const tile=Math.min(W,H)*.035*Math.pow(60,Math.max(1,scale)/100)*Math.min(1,scale);
-    // Below the field's sampling footprint, integrate into average coverage.
-    // This avoids unstable aliasing and unbounded subpixel tree generation.
-    const unit=Math.max(.38,tile/256),rand=random(layer.printSeed??1),data=new Float32Array(W*H).fill(16);
-    const roots=Math.min(2500,Math.max(2,Math.round(W*H/(256*unit)**2*(4+density*12))));
+    const short=Math.min(W,H),rand=random(layer.printSeed??1),data=new Float32Array(W*H).fill(4096);
+    const ids=new Int32Array(W*H).fill(-1),segments=[];
     const paths=[],angle=(layer.printAngle??45)*Math.PI/180;
-    for(let k=0;k<roots;k++)paths.push({x:rand()*W,y:rand()*H,a:rand()*Math.PI*2+angle,steps:80+rand()*65,width:1.5+rand(),depth:0});
-    let budget=450000;
-    for(let p=0;p<paths.length&&p<16000&&budget>0;p++){
-      let {x,y,a,steps,width,depth}=paths[p],turn=0;
-      for(let k=0;k<steps&&budget-->0;k++){
-        turn=turn*.88+(rand()-.5)*.16;a+=turn;
-        const ax=x,ay=y;x+=Math.cos(a)*1.15*unit;y+=Math.sin(a)*1.15*unit;
-        const r=Math.max(.45,width*(1-k/steps*.85)),pad=(r+4)*unit+1,dx=x-ax,dy=y-ay,length=dx*dx+dy*dy;
+    const roots=Math.round(5+density*15),step=short/250,maxRadius=short/1024*10.2;
+    // Long trunks originate throughout the canvas. Offshoots stay attached to
+    // their parents, with both substantial limbs and finer tertiary branches.
+    for(let k=0;k<roots;k++)paths.push({x:rand()*W,y:rand()*H,a:rand()*Math.PI*2+angle,length:short*(.8+rand()*.8),width:.85+rand()*.65,depth:0});
+    for(let p=0;p<paths.length&&p<1800;p++){
+      let {x,y,a,length,width,depth}=paths[p],turn=0;
+      const steps=Math.ceil(length/step),interval=Math.max(7,Math.round((26-density*15)*(depth?1.2:1)));
+      const phase=rand()*Math.PI*2;
+      for(let k=0;k<steps;k++){
+        turn=turn*.93+(rand()-.5)*.065;
+        a+=turn+Math.sin(k*.035+phase)*.012;
+        const ax=x,ay=y;x+=Math.cos(a)*step;y+=Math.sin(a)*step;
+        const radius=Math.max(.15,width*(1-.82*(k/steps)**1.8)),pad=maxRadius*radius+1;
+        const dx=x-ax,dy=y-ay,inv=1/(dx*dx+dy*dy),rr=1/(radius*radius);
+        const id=segments.length;segments.push([ax,ay,dx,dy,inv,rr,radius]);
         const top=Math.max(0,Math.floor(Math.min(ay,y)-pad)),bottom=Math.min(H-1,Math.ceil(Math.max(ay,y)+pad));
         const left=Math.max(0,Math.floor(Math.min(ax,x)-pad)),right=Math.min(W-1,Math.ceil(Math.max(ax,x)+pad));
         for(let yy=top;yy<=bottom;yy++)for(let xx=left;xx<=right;xx++){
-          const t=clamp(((xx-ax)*dx+(yy-ay)*dy)/length),d=Math.hypot(xx-ax-t*dx,yy-ay-t*dy)/unit-r,i=yy*W+xx;
-          if(d<data[i])data[i]=d;
+          const t=clamp(((xx-ax)*dx+(yy-ay)*dy)*inv),ex=xx-ax-t*dx,ey=yy-ay-t*dy,d=(ex*ex+ey*ey)*rr,i=yy*W+xx;
+          if(d<data[i]){data[i]=d;ids[i]=id;}
         }
-        if(depth<3&&k>12&&k<steps*.75&&rand()<.026+density*.025&&paths.length<16000)
-          paths.push({x,y,a:a+(rand()<.5?-1:1)*(.45+rand()*.55),steps:(steps-k)*(.6+rand()*.25),width:width*.67,depth:depth+1});
+        if(depth<3&&k>8&&k<steps*.8&&k%interval===0&&rand()<.6+density*.35&&paths.length<1800){
+          const reach=depth===0?short*(.18+rand()*.4):length*(.25+rand()*.4);
+          paths.push({x,y,a:a+(rand()<.5?-1:1)*(.35+rand()*.8),length:reach,width:radius*(.5+rand()*.18),depth:depth+1});
+        }
+        if(x<-short*.2||x>W+short*.2||y<-short*.2||y>H+short*.2)break;
       }
     }
-    field={data,W,H,unit,tile};naturalCache.set(key,field);
+    field={ids,segments,W,H};naturalCache.set(key,field);
     if(naturalCache.size>3)naturalCache.delete(naturalCache.keys().next().value);
   }
-  const {data,W,H,unit,tile}=field,thickness=((layer.printMarkSize??50)-50)*.07;
-  const sample=(x,y)=>{
+  const {ids,segments,W,H}=field,scale=clamp(layer.printSize??40,.001,100);
+  const radius=Math.min(W,H)/1024*(.015+5*(scale/100)**1.45)*Math.max(.01,(layer.printMarkSize??50)/50);
+  const gain=.25/Math.max(.001,radius),sample=(x,y)=>{
     const u=clamp(x/w)*(W-1),v=clamp(y/h)*(H-1),ix=Math.floor(u),iy=Math.floor(v),fx=u-ix,fy=v-iy;
     const xx=Math.min(W-1,ix+1),yy=Math.min(H-1,iy+1);
-    const d=(data[iy*W+ix]*(1-fx)+data[iy*W+xx]*fx)*(1-fy)+(data[yy*W+ix]*(1-fx)+data[yy*W+xx]*fx)*fy;
-    return .5+(d-thickness)*.08;
+    let distance=64,previous=-1;
+    // Evaluate the actual nearby segments, avoiding raster-grid breaks in fine
+    // strands. The lookup field only finds candidates, not final edge quality.
+    for(let k=0;k<4;k++){
+      const id=ids[(k<2?iy:yy)*W+(k%2?xx:ix)];if(id<0||id===previous)continue;previous=id;
+      const q=segments[id],dx=u-q[0],dy=v-q[1],t=clamp((dx*q[2]+dy*q[3])*q[4]);
+      const ex=dx-t*q[2],ey=dy-t*q[3],d=Math.sqrt(ex*ex+ey*ey)-radius*q[6];if(d<distance)distance=d;
+    }
+    return .5+distance*gain;
   };
-  return {sample,aa:Math.max(.3,.65/unit,.65/(unit*w/W))*.08,mark:Math.SQRT1_2,resolved:clamp((tile/256-.12)/.26)};
+  // Antialias only near real strands. No global average-fill fallback.
+  return {sample,aa:.65*W/w*gain,mark:Math.SQRT1_2,resolved:1};
 }

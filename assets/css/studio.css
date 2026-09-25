@@ -997,3 +997,7 @@ body.present .stage-reset,body.present .stage-help{display:none}
 @media(max-width:480px){.export-grid-option{padding-left:0}}
 
 #artWorkspace .art-toolbar[hidden]{display:none}
+
+/* Inline help uses the same compact type and muted color as control labels. */
+#artWorkspace .control-help{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;min-width:0;min-height:0;padding:0;margin:0;border:0;background:transparent;color:var(--graphite);font:inherit;font-size:11px;letter-spacing:0;vertical-align:middle;cursor:help}
+#artWorkspace .control-help:focus-visible{outline:1px solid var(--ink);outline-offset:2px}

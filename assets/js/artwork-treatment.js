@@ -1,8 +1,8 @@
-import {roundArtwork} from './artwork-rounding.js?v=91-natural';
-import {isOrganic,organicSampler} from './organic-pattern.js?v=91-natural';
+import {createArtworkRounder} from './artwork-rounding.js?v=91-flow';
+import {isOrganic,organicSampler} from './organic-pattern.js?v=91-flow';
 import {solidCoverageLut,resolveMaskSource,filterCoverage} from './solid-mask.js?v=81';
-import {applyPrintTexture,hasPrintTexture,capturePrintTone,pixelateArtwork} from './print-texture.js?v=91-natural';
-import {patternWorkingSource} from './artwork-detail.js?v=91-natural';
+import {applyPrintTexture,hasPrintTexture,capturePrintTone,pixelateArtwork} from './print-texture.js?v=91-flow';
+import {patternWorkingSource} from './artwork-detail.js?v=91-flow';
 
 export function treatmentKey(l){
   const pattern=l.printPattern||'none';
@@ -17,6 +17,7 @@ const noise=(u,v)=>{const x=Math.floor(u),y=Math.floor(v),fx=u-x,fy=v-y,sx=fx*fx
 // No growing cache of slider positions or full-size canvases per layer.
 export function createArtworkTreatment(canvas=()=>document.createElement('canvas')){
   let source=null,prepared=null,baseKey='',state={};
+  const roundArtwork=createArtworkRounder();
   const stats={preparations:0,tones:0,masks:0,patterns:0,composites:0};
   function fit(input,margin){
     const w=input.width,h=input.height,d=input.getContext('2d').getImageData(0,0,w,h).data;
@@ -33,7 +34,7 @@ export function createArtworkTreatment(canvas=()=>document.createElement('canvas
     const margin=ink?Math.ceil((Math.abs(l.solidSpread??0)+3*(l.solidEdgeSoftness??0))*Math.min(input.width,input.height)/1024):0;
     const key=[!!l.fit,l.fit?margin:0,pixel?`pixel/${l.printPixelScale??35}`:['dots','lines','grain','maze','branching'].includes(l.printPattern)?limit:0].join('/');
     if(source===input&&baseKey===key)return;
-    state={};prepared=null;source=input;baseKey=key;
+    state={};roundArtwork.clear();prepared=null;source=input;baseKey=key;
     let work=pixel?pixelateArtwork(input,l,canvas):input;
     if(l.fit)work=fit(work,margin);
     work=patternWorkingSource(work,l,limit,canvas);
@@ -89,6 +90,7 @@ export function createArtworkTreatment(canvas=()=>document.createElement('canvas
     if(state.patternKey!==key){
       const thresholds=state.thresholds??=new Float32Array(w*h),angle=(l.printAngle??45)*Math.PI/180,c=Math.cos(angle),s=Math.sin(angle);
       if(resolved>0)for(let y=0,j=0;y<h;y++)for(let x=0;x<w;x++,j++){
+        if(organic){thresholds[j]=organic.sample(x+crop.offsetX+.5,y+crop.offsetY+.5);continue;}
         const px=(x+crop.offsetX+.5-crop.fullWidth/2)/period,py=(y+crop.offsetY+.5-crop.fullHeight/2)/period,u=px*c+py*s,v=-px*s+py*c;
         const fx=u-Math.floor(u),fy=v-Math.floor(v);let threshold;
         if(organic)threshold=organic.sample(x+crop.offsetX+.5,y+crop.offsetY+.5);
@@ -144,5 +146,5 @@ export function createArtworkTreatment(canvas=()=>document.createElement('canvas
     }
     return {...result,data};
   }
-  return {render,stats,clear(){source=null;prepared=null;state={};baseKey='';}};
+  return {render,stats,clear(){source=null;prepared=null;state={};baseKey='';roundArtwork.clear();}};
 }

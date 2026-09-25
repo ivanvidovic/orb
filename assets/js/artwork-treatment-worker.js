@@ -1,4 +1,4 @@
-import {createArtworkTreatment} from './artwork-treatment.js?v=91-natural';
+import {createArtworkTreatment} from './artwork-treatment.js?v=91-flow';
 const canvas=()=>new OffscreenCanvas(1,1),engine=createArtworkTreatment(canvas);
 let source=null;
 self.onmessage=event=>{
