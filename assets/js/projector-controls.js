@@ -7,7 +7,7 @@ export function setupProjectorControls(){
  for(const id of ['projectorPattern','projectorColorMode','projectorGradient','projectorWarpShape','projectorShape']){
   const select=document.getElementById(id);select.hidden=true;
   const row=select.parentElement;row.classList.add('projector-choice-row');
-  const grid=document.createElement('div');grid.className='projector-choices';grid.setAttribute('role','group');grid.setAttribute('aria-label',row.querySelector('label').textContent);
+  const grid=document.createElement('div');grid.className='quickSeg sidebar-presets projector-choices';grid.setAttribute('role','group');grid.setAttribute('aria-label',row.querySelector('label').textContent);
   if(id==='projectorPattern')grid.classList.add('projector-effects');
   const buttons=[...select.options].map(option=>{const button=document.createElement('button');button.type='button';button.textContent=option.textContent;button.addEventListener('click',()=>{select.value=option.value;select.dispatchEvent(new Event('change',{bubbles:true}));});grid.append(button);return [option,button];});
   row.append(grid);groups.push({select,buttons});
@@ -26,6 +26,8 @@ export function setupProjectorControls(){
   for(const input of inputs){input.value=randomColor();input.dispatchEvent(new Event('input',{bubbles:true}));}
  }));
  const line=palette.parentElement;line.classList.add('projector-palette-line');line.querySelector('.lbl').replaceWith(heading);
- const pause=document.getElementById('projectorPaused').parentElement;pause.classList.add('projector-pause');document.getElementById('projectorSpeed').parentElement.after(pause);
+ const pause=document.getElementById('projectorPaused').parentElement;pause.classList.add('projector-pause');
+ const motion=document.getElementById('projectorSpeed').parentElement,label=motion.querySelector('label');
+ const motionHeading=document.createElement('div');motionHeading.className='projector-motion-label';label.before(motionHeading);motionHeading.append(label,pause);
  syncProjectorButtons();
 }

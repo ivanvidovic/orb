@@ -1,4 +1,4 @@
-import {createArtworkTreatment} from './artwork-treatment.js?v=91-projector11';
+import {createArtworkTreatment} from './artwork-treatment.js?v=91-projector12';
 const canvas=()=>new OffscreenCanvas(1,1),engine=createArtworkTreatment(canvas);
 let source=null;
 self.onmessage=event=>{

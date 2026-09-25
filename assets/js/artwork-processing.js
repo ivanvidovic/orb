@@ -1,4 +1,4 @@
-import {createArtworkTreatment} from './artwork-treatment.js?v=91-projector11';
+import {createArtworkTreatment} from './artwork-treatment.js?v=91-projector12';
 
 // One running job and one newest pending value per layer. Completed samples
 // can display during a drag; obsolete queued values never build a backlog.
@@ -30,7 +30,7 @@ export function createTreatmentProcessor(){
     if(!disabled&&typeof Worker!=='undefined'&&typeof OffscreenCanvas!=='undefined'&&typeof createImageBitmap==='function'){
       let bitmap;
       try{
-        worker??=new Worker(new URL('./artwork-treatment-worker.js?v=91-projector11',import.meta.url),{type:'module'});
+        worker??=new Worker(new URL('./artwork-treatment-worker.js?v=91-projector12',import.meta.url),{type:'module'});
         if(lastSource!==job.source)bitmap=await createImageBitmap(job.source);
         const id=++sequence;
         const result=await new Promise((resolve,reject)=>{
