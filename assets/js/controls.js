@@ -25,8 +25,8 @@ export function installSliderControls(defaultArtworkValue){
       number.addEventListener('change',()=>{number.value=range.value;range.dispatchEvent(new Event('change',{bubbles:true}));});
     }
     number.addEventListener('blur',()=>number.value=range.value);
-    number.min=range.min;if(range.dataset.expandRange==='true')number.removeAttribute('max');else number.max=range.max;number.step=range.step||'1';number.value=range.value;
-    number.inputMode=Number(number.step)<1?'decimal':'numeric';
+    number.min=range.dataset.valueMin??range.min;if(range.dataset.expandRange==='true')number.removeAttribute('max');else number.max=range.dataset.valueMax??range.max;number.step=range.dataset.logRange!==undefined?'any':range.step||'1';number.value=range.value;
+    number.inputMode=range.dataset.logRange!==undefined||Number(number.step)<1?'decimal':'numeric';
     const label=unitLabels[range.id]||row.querySelector('label')?.childNodes[0]?.textContent?.trim()||range.getAttribute('aria-label')||range.id;
     number.setAttribute('aria-label',label+' value');range.setAttribute('aria-label',label);
     let reset=row.querySelector('[data-reset-art-one],[data-reset-motion],.motionResetOne,[data-slider-reset]');
@@ -48,7 +48,7 @@ export function installSliderControls(defaultArtworkValue){
     const pair=pairs.get(event.target);if(!pair||pair.range.disabled||pair.number.disabled||event.ctrlKey||!(event.deltaY||event.deltaX))return;
     event.preventDefault();event.stopImmediatePropagation();
     const {range,number}=pair,step=Number(range.step)||1,direction=(event.deltaY||event.deltaX)<0?1:-1;
-    const next=Number((Number(range.value)+direction*step*(event.shiftKey?10:1)).toFixed(6));expandFor(range,next);range.value=String(next);
+    const mapped=range.dataset.logRange!==undefined;const amount=mapped?Math.max(.0001,Number(range.value)*.02):step;const next=Number((Number(range.value)+direction*amount*(event.shiftKey?10:1)).toFixed(8));expandFor(range,next);range.value=String(next);
     range.dispatchEvent(new Event('input',{bubbles:true}));number.value=range.value;
     clearTimeout(wheelTimer);wheelTimer=setTimeout(()=>range.dispatchEvent(new Event('change',{bubbles:true})),180);
   },{capture:true,passive:false});

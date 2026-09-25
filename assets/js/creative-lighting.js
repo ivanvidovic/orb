@@ -1,5 +1,6 @@
-export const CREATIVE_DEFAULTS={runwayActivity:'standard',runwayFlash:100,runwayPaused:false,runwayTime:0,runwayPower:100,afterglowSpeed:100,afterglowFade:4,afterglowPaused:false,afterglowTime:4,afterglowPower:100,projectorPattern:'caustics',projectorScale:100,projectorSpeed:35,projectorPaused:false,projectorTime:0,projectorPower:100,projectorAngle:0,projectorWarp:40,projectorSymmetry:6,projectorColorMode:'solid',projectorGradient:'linear',projectorColorCount:2,projectorColor1:'#e4f1ff',projectorColor2:'#ff5088',projectorColor3:'#ffc35c',projectorColor4:'#5ef3d3',projectorColorAngle:0,projectorColorSpeed:30};
-export const PROJECTOR_PATTERNS=['caustics','stripes','interference','ripples','liquid','cellular','kaleidoscope','shards','geometry'];
+import {PAPER_FRAGMENTS} from './projector-paper.js?v=91-design';
+export const CREATIVE_DEFAULTS={runwayActivity:'standard',runwayFlash:100,runwayPaused:false,runwayTime:0,runwayPower:100,afterglowSpeed:100,afterglowFade:4,afterglowPaused:false,afterglowTime:4,afterglowPower:100,projectorPattern:'caustics',projectorScale:100,projectorSpeed:35,projectorPaused:false,projectorTime:0,projectorPower:100,projectorAngle:0,projectorWarp:40,projectorSymmetry:6,projectorColorMode:'solid',projectorGradient:'linear',projectorColorCount:2,projectorColor1:'#e4f1ff',projectorColor2:'#ff5088',projectorColor3:'#ffc35c',projectorColor4:'#5ef3d3',projectorColorAngle:0,projectorColorSpeed:30,projectorSoftness:60,projectorSwirl:65,projectorGrain:25,projectorDensity:45,projectorEdge:45,projectorCenterX:50,projectorCenterY:50,projectorShape:'corners',projectorWarpShape:'checks',projectorMotionPhase:0,projectorPalettePhase:0};
+export const PROJECTOR_PATTERNS=['caustics','stripes','interference','ripples','liquid','cellular','kaleidoscope','shards','geometry','neuro-noise','warp','god-rays','mesh-gradient','grain-gradient','radial-bloom'];
 export const PROJECTOR_FRAGMENT=`varying vec2 v;
 uniform float time,scale,pattern,angle,warp,symmetry;
 uniform float colorMode,colorCount,colorRadial,colorAngle,colorTime;
@@ -67,7 +68,7 @@ void main(){
  gl_FragColor=vec4(tint*ink,1.);
 }
 `;
-const PROJECTOR_FIELDS=Object.keys(CREATIVE_DEFAULTS).filter(k=>k.startsWith('projector')&&!['projectorTime','projectorPaused','projectorPower'].includes(k));
+const PROJECTOR_FIELDS=Object.keys(CREATIVE_DEFAULTS).filter(k=>k.startsWith('projector')&&!['projectorTime','projectorPaused','projectorPower','projectorMotionPhase','projectorPalettePhase'].includes(k));
 export const isCreative=id=>['runway','afterglow','projector'].includes(id);
 export function runwaySample(time,activity='standard'){
  const events=activity==='gentle'?[1.2,6.8,13.1]:activity==='active'?[.5,.68,.96,2.8,3.04,5.2,5.39,5.72,8.1,8.32,10.6,10.84,11.1,14.3,14.49,14.8,17.2,17.41,18.6]:[1.2,1.44,4.9,8.1,8.37,12.6,15.8,16.02];
@@ -94,26 +95,74 @@ export function createCreativeLighting(THREE,scene,uniforms,renderer,{mobile=fal
  const patternMaterial=new THREE.ShaderMaterial({uniforms:patternUniforms,depthTest:false,depthWrite:false,toneMapped:false,extensions:{derivatives:true},
  vertexShader:'varying vec2 v;void main(){v=uv;gl_Position=vec4(position.xy,0.0,1.0);}',
  fragmentShader:PROJECTOR_FRAGMENT});
- patternScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),patternMaterial));
+ const patternMesh=new THREE.Mesh(new THREE.PlaneGeometry(2,2),patternMaterial);patternScene.add(patternMesh);
+ // One active shader pass. Programs are created lazily and reused, never per frame.
+ const paperMaterials=new Map();
+ let seed=179;const noiseBytes=new Uint8Array(100*100*4);
+ for(let i=0;i<noiseBytes.length;i++){seed=(Math.imul(seed,1664525)+1013904223)>>>0;noiseBytes[i]=seed>>>24;}
+ const noiseTexture=new THREE.DataTexture(noiseBytes,100,100,THREE.RGBAFormat);
+ noiseTexture.wrapS=noiseTexture.wrapT=THREE.RepeatWrapping;noiseTexture.minFilter=noiseTexture.magFilter=THREE.NearestFilter;noiseTexture.needsUpdate=true;
+ const paletteColors=[0,1,2,3].map(()=>new THREE.Color()),mixed=new THREE.Color();
+ function paperMaterial(id){
+  if(paperMaterials.has(id))return paperMaterials.get(id);
+  const values={u_time:0,orbScale:1,orbAngle:0,orbCenterX:0,orbCenterY:0,u_colorsCount:4,
+   u_brightness:.05,u_contrast:.3,u_proportion:.5,u_softness:.6,u_shape:1,u_shapeScale:.3,
+   u_distortion:.4,u_swirl:.65,u_swirlIterations:6,u_density:.45,u_spotty:.3,u_midSize:.2,u_midIntensity:.3,u_intensity:.8,u_bloom:.2,
+   u_grainMixer:0,u_grainOverlay:0,u_noise:.25,u_edge:.45,u_scale:1,u_rotation:0,u_offsetX:0,u_offsetY:0,
+   u_worldWidth:0,u_worldHeight:0,u_fit:0,u_pixelRatio:1,u_resolution:new THREE.Vector2(1024,1024),u_noiseTexture:noiseTexture,
+   u_colors:[0,1,2,3].map(()=>new THREE.Vector4(1,1,1,1)),u_colorFront:new THREE.Vector4(1,1,1,1),u_colorMid:new THREE.Vector4(.3,.4,1,1),u_colorBack:new THREE.Vector4(0,0,0,1),u_colorBloom:new THREE.Vector4(0,0,0,1)};
+  const uniforms=Object.fromEntries(Object.entries(values).map(([k,value])=>[k,{value}]));
+  const mat=new THREE.ShaderMaterial({uniforms,vertexShader:patternMaterial.vertexShader,fragmentShader:PAPER_FRAGMENTS[id],depthTest:false,depthWrite:false,toneMapped:false,extensions:{derivatives:true}});
+  paperMaterials.set(id,mat);return mat;
+ }
+ function syncPaper(mat,t,scale,state,size){
+  const u=mat.uniforms,put=(k,value)=>u[k].value=value;
+  put('u_time',t);put('orbScale',scale);put('u_scale',scale);put('orbAngle',state.projectorAngle*Math.PI/180);
+  put('orbCenterX',(state.projectorCenterX-50)/100);put('orbCenterY',(state.projectorCenterY-50)/100);
+  put('u_softness',state.projectorSoftness/100);put('u_edge',state.projectorEdge/100);
+  put('u_distortion',state.projectorWarp/100);put('u_swirl',state.projectorSwirl/100);put('u_density',state.projectorDensity/100);
+  put('u_contrast',.7-state.projectorSoftness/100*.65);put('u_noise',state.projectorGrain/100);
+  put('u_intensity',state.projectorPattern==='grain-gradient'?state.projectorWarp/200:.8);
+  put('u_grainOverlay',state.projectorPattern==='mesh-gradient'?state.projectorGrain/200:0);
+  put('u_shape',({wave:1,dots:2,truchet:3,corners:4,ripple:5,blob:6,sphere:7})[state.projectorShape]||1);
+  if(state.projectorPattern==='warp')put('u_shape',({checks:0,stripes:1,edge:2})[state.projectorWarpShape]||0);
+  u.u_resolution.value.set(size,size);
+  const solid=state.projectorColorMode==='solid',count=solid?2:state.projectorColorCount;
+  put('u_colorsCount',count);
+  for(let i=0;i<4;i++)paletteColors[i].set(state['projectorColor'+(i+1)]);
+  const phase=state.projectorColorMode==='flow'?state.projectorPalettePhase:0;
+  for(let i=0;i<4;i++){
+   if(solid)mixed.copy(paletteColors[0]).multiplyScalar(i===0?.08:1);
+   else{const k=((i+phase)%count+count)%count,a=Math.floor(k),f=k-a;mixed.copy(paletteColors[a]).lerp(paletteColors[(a+1)%count],f*f*(3-2*f));}
+   u.u_colors.value[i].set(mixed.r,mixed.g,mixed.b,1);
+  }
+  u.u_colorFront.value.copy(u.u_colors.value[count-1]);u.u_colorMid.value.copy(u.u_colors.value[0]);
+ }
+
  const target=new THREE.WebGLRenderTarget(512,512,{depthBuffer:false,stencilBuffer:false,minFilter:THREE.LinearMipmapLinearFilter,magFilter:THREE.LinearFilter,generateMipmaps:true});projector.map=target.texture;
  let lastPattern='',lastFrame=-1;
  const viewport=new THREE.Vector4(),scissor=new THREE.Vector4();
  function renderPattern(size,t,pattern,scale,state){
   size=Math.min(size,renderer.capabilities.maxTextureSize);if(target.width!==size)target.setSize(size,size);
+  patternMesh.material=PAPER_FRAGMENTS[pattern]?paperMaterial(pattern):patternMaterial;
+  if(PAPER_FRAGMENTS[pattern])syncPaper(patternMesh.material,t,scale,state,size);
   patternUniforms.time.value=t;patternUniforms.scale.value=scale;patternUniforms.pattern.value=PROJECTOR_PATTERNS.indexOf(pattern);
   patternUniforms.angle.value=state.projectorAngle*Math.PI/180;patternUniforms.warp.value=state.projectorWarp/100;patternUniforms.symmetry.value=state.projectorSymmetry;
-  patternUniforms.colorMode.value=['solid','gradient','flow'].indexOf(state.projectorColorMode);patternUniforms.colorCount.value=state.projectorColorCount;patternUniforms.colorRadial.value=state.projectorGradient==='radial'?1:0;patternUniforms.colorAngle.value=state.projectorColorAngle*Math.PI/180;patternUniforms.colorTime.value=state.projectorTime*state.projectorColorSpeed/100;
+  patternUniforms.colorMode.value=['solid','gradient','flow'].indexOf(state.projectorColorMode);patternUniforms.colorCount.value=state.projectorColorCount;patternUniforms.colorRadial.value=state.projectorGradient==='radial'?1:0;patternUniforms.colorAngle.value=state.projectorColorAngle*Math.PI/180;patternUniforms.colorTime.value=state.projectorPalettePhase;
   for(let i=1;i<=4;i++)patternUniforms['color'+i].value.set(state['projectorColor'+i]);
   const oldTarget=renderer.getRenderTarget(),oldScissor=renderer.getScissorTest();renderer.getViewport(viewport);renderer.getScissor(scissor);
   try{renderer.setRenderTarget(target);renderer.setViewport(0,0,size,size);renderer.setScissorTest(false);renderer.render(patternScene,patternCamera);}
   finally{renderer.setRenderTarget(oldTarget);renderer.setViewport(viewport);renderer.setScissor(scissor);renderer.setScissorTest(oldScissor);}
  }
- return {rig,projector,charger,stage,flashes,target,patternMaterial,update(dt,state){
+ return {rig,projector,charger,stage,flashes,target,patternMaterial,paperMaterials,update(dt,state){
   const mode=state.light;rig.visible=isCreative(mode);for(const l of flashes)l.intensity=0;projector.visible=mode==='projector';charger.visible=mode==='afterglow'||mode==='runway';stage.visible=mode==='runway';
   uniforms.uAfterglow.value=mode==='afterglow'?1:0;
   if(!rig.visible)return;
   const paused=state[mode+'Paused'],delta=Math.max(0,Math.min(.05,dt));
-  if(!paused)state[mode+'Time']+=delta;
+  if(!paused){state[mode+'Time']+=delta;if(mode==='projector'){
+   state.projectorMotionPhase=(state.projectorMotionPhase||0)+delta*state.projectorSpeed/100;
+   state.projectorPalettePhase=(state.projectorPalettePhase||0)+delta*state.projectorColorSpeed/100;
+  }}
   const time=state[mode+'Time'],gain=state.lightPower/100;
   if(mode==='runway'){
    const pace=state.runwayActivity==='active'?1.65:state.runwayActivity==='gentle'?.65:1;
@@ -144,7 +193,7 @@ export function createCreativeLighting(THREE,scene,uniforms,renderer,{mobile=fal
    const frame=moving?Math.floor(time*30):0;
    const key=PROJECTOR_FIELDS.map(k=>state[k]).join('/');
    if(frame!==lastFrame||key!==lastPattern){
-    renderPattern(state.projectorScale<60?1024:512,time*state.projectorSpeed/100,state.projectorPattern,state.projectorScale/100,state);lastFrame=frame;lastPattern=key;
+    renderPattern(PAPER_FRAGMENTS[state.projectorPattern]?1024:state.projectorScale<60?1024:512,state.projectorMotionPhase,state.projectorPattern,state.projectorScale/100,state);lastFrame=frame;lastPattern=key;
    }
   }
  }};

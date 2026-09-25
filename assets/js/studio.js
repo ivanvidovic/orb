@@ -1,9 +1,10 @@
-import {treatmentKey} from './artwork-treatment.js?v=91-toolbar';
+import {installMappedRanges} from './mapped-ranges.js?v=91-design';
+import {treatmentKey} from './artwork-treatment.js?v=91-design';
 import {quadTransform,alphaBounds,flattenTransform,collectSurfaces} from './print-layout.js?v=86';
-import {createTreatmentQueue,createTreatmentProcessor} from './artwork-processing.js?v=91-toolbar';
-import {hasPrintTexture} from './print-texture.js?v=91-toolbar';
-import {focusedPanelBounds,layerCustomColor} from './artwork-detail.js?v=91-toolbar';
-import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=91-toolbar';
+import {createTreatmentQueue,createTreatmentProcessor} from './artwork-processing.js?v=91-design';
+import {hasPrintTexture} from './print-texture.js?v=91-design';
+import {focusedPanelBounds,layerCustomColor} from './artwork-detail.js?v=91-design';
+import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=91-design';
 import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE,fullSleeveCamera} from './sleeve-camera.js?v=91-camera';
 import {hasDirectory} from './folder-import.js?v=58';
 import {decodeArtworkImage} from './artwork-decode.js?v=45';
@@ -11,18 +12,19 @@ import {createCityTraffic} from './city-night.js?v=43';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=82';
 import {sharedSurfaceProfiles,fitSurfacePlacements} from './surface-layout.js?v=83';
 import {torsoFrame,torsoDistance,previousTorsoFrame,previewDistance,previousPreviewFrame} from './garment-framing.js?v=89';
-import {installWorkspace} from './workspace.js?v=91-toolbar';
-import {installExports} from './presentation-export.js?v=91-toolbar';
-import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=91-toolbar';
+import {installWorkspace} from './workspace.js?v=91-design';
+import {installExports} from './presentation-export.js?v=91-design';
+import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=91-design';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
 import {installColorPicker} from './color-picker.js?v=36';
-import {installSliderControls,RESET_ICON} from './controls.js?v=44';
+import {installSliderControls,RESET_ICON} from './controls.js?v=91-design';
 import {installColorActions} from './color-actions.js?v=34';
 let colorPicker=null,colorActions=null,workspace=null;
 let renderSuspended=false,designLocked=false,historyRestoring=false,customModelFile=null,customFlipped=false;
 const modelHistoryIds=new WeakMap();let nextModelHistoryId=1;
 function modelHistoryId(file){if(!file)return null;if(!modelHistoryIds.has(file))modelHistoryIds.set(file,nextModelHistoryId++);return modelHistoryIds.get(file);}
 
+installMappedRanges();
 const BRAND=window.BRAND;
 document.title=BRAND.title;
 document.getElementById('helpTitle').textContent=BRAND.title;
@@ -254,6 +256,13 @@ function applyLightingPreset(){
   document.getElementById('projectorWarpRow').hidden=['caustics','stripes','geometry'].includes(state.projectorPattern);
   document.getElementById('projectorSymmetryRow').hidden=state.projectorPattern!=='kaleidoscope';
   document.querySelector('#projectorPattern option[value="geometry"]').hidden=state.projectorPattern!=='geometry';
+  const pattern=state.projectorPattern;
+  const paper=['neuro-noise','warp','god-rays','mesh-gradient','grain-gradient','radial-bloom'].includes(pattern);
+  for(const [id,patterns] of Object.entries({projectorSoftness:['neuro-noise','warp','grain-gradient','radial-bloom'],projectorSwirl:['warp','mesh-gradient'],projectorGrain:['mesh-gradient','grain-gradient'],projectorDensity:['god-rays'],projectorEdge:['radial-bloom'],projectorShape:['grain-gradient'],projectorWarpShape:['warp'],projectorCenterX:['god-rays','radial-bloom'],projectorCenterY:['god-rays','radial-bloom']}))document.getElementById(id+'Row').hidden=!patterns.includes(pattern);
+  document.getElementById('projectorWarpRow').hidden=['caustics','stripes','geometry','neuro-noise','god-rays'].includes(pattern);
+  document.getElementById('projectorGradientRow').hidden=paper||!palette;
+  document.getElementById('projectorColorAngleRow').hidden=paper||!palette||state.projectorGradient==='radial';
+  for(const option of document.querySelectorAll('#projectorPattern option[data-legacy]'))option.hidden=option.value!==pattern;
   for(const swatch of document.querySelectorAll('[data-projector-swatch]')){const i=Number(swatch.dataset.projectorSwatch);swatch.hidden=i>(palette?state.projectorColorCount:1);swatch.querySelector('i').style.background=state['projectorColor'+i];}
   const lock=document.getElementById('lightLock');lock.disabled=false;lock.checked=!state.lightLocked;
   updateCityTraffic();updateCreativeLighting();
@@ -1954,7 +1963,7 @@ document.getElementById('lightLock').addEventListener('change',event=>{
   lightReference.copy(lightRig.quaternion).invert().multiply(camera.quaternion);
   updateLightLock();shadowDirty=true;
 });
-for(const id of Object.keys(CREATIVE_DEFAULTS)){const input=document.getElementById(id);if(!input)continue;input.addEventListener(['range','color'].includes(input.type)?'input':'change',()=>{state[id]=input.type==='checkbox'?input.checked:typeof CREATIVE_DEFAULTS[id]==='number'?Number(input.value):input.value;applyLightingPreset();workspace?.notify();});}
+for(const id of Object.keys(CREATIVE_DEFAULTS)){const input=document.getElementById(id);if(!input)continue;input.addEventListener(['range','color'].includes(input.type)?'input':'change',()=>{if(id==='projectorPattern'&&['neuro-noise','warp','god-rays','mesh-gradient','grain-gradient','radial-bloom'].includes(input.value)&&state.projectorColorMode==='solid')state.projectorColorMode='gradient';state[id]=input.type==='checkbox'?input.checked:typeof CREATIVE_DEFAULTS[id]==='number'?Number(input.value):input.value;applyLightingPreset();workspace?.notify();});}
 document.getElementById('nightTraffic').addEventListener('change',event=>{state.nightTraffic=event.target.value;applyLightingPreset();});
 document.getElementById('nightPaused').addEventListener('change',event=>{state.nightPaused=event.target.checked;});
 document.getElementById('selfShadows').addEventListener('change',e=>{

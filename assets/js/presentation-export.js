@@ -1,9 +1,9 @@
 import {installExportSummary} from './export-summary.js?v=91';
 import {createExportProgress} from './export-progress.js?v=87';
-import {installPrintLayoutUI} from './print-layout-ui.js?v=91-toolbar';
-import {addPrintLayouts} from './print-package.js?v=91-toolbar';
-import {addArtworkPackage} from './artwork-export.js?v=91-toolbar';
-import {canvasBlob,downloadBlob,cleanFilename} from './design-format.js?v=91-toolbar';
+import {installPrintLayoutUI} from './print-layout-ui.js?v=91-design';
+import {addPrintLayouts} from './print-package.js?v=91-design';
+import {addArtworkPackage} from './artwork-export.js?v=91-design';
+import {canvasBlob,downloadBlob,cleanFilename} from './design-format.js?v=91-design';
 const $=id=>document.getElementById(id);
 const VIEW_NAMES={front:'Front',angle:'Front three-quarter',side:'Left side',right:'Right side',backangle:'Back three-quarter',back:'Back',detail:'Detail'};
 const turn=()=>new Promise(resolve=>requestAnimationFrame(resolve));

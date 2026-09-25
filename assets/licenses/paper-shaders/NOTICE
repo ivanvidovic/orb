@@ -1,0 +1,6 @@
+Powered by Paper Shaders:
+https://shaders.paper.design
+
+ORB adaptations: shader compatibility, four-color uniforms, projection coordinates, stable grain, animated radial color flow.
+Neuro Noise original algorithm credited by Paper to https://x.com/zozuar/status/1625182758745128981/
+Fine-scale adaptations: octave filtering, continuous folded gradient domains, subpixel detail filtering.
