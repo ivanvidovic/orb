@@ -1,10 +1,11 @@
-import {installMappedRanges} from './mapped-ranges.js?v=91-design';
-import {treatmentKey} from './artwork-treatment.js?v=91-design';
+import {setupProjectorControls,syncProjectorButtons} from './projector-controls.js?v=91-projector11';
+import {installMappedRanges} from './mapped-ranges.js?v=91-projector11';
+import {treatmentKey} from './artwork-treatment.js?v=91-projector11';
 import {quadTransform,alphaBounds,flattenTransform,collectSurfaces} from './print-layout.js?v=86';
-import {createTreatmentQueue,createTreatmentProcessor} from './artwork-processing.js?v=91-design';
-import {hasPrintTexture} from './print-texture.js?v=91-design';
-import {focusedPanelBounds,layerCustomColor} from './artwork-detail.js?v=91-design';
-import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=91-design';
+import {createTreatmentQueue,createTreatmentProcessor} from './artwork-processing.js?v=91-projector11';
+import {hasPrintTexture} from './print-texture.js?v=91-projector11';
+import {focusedPanelBounds,layerCustomColor} from './artwork-detail.js?v=91-projector11';
+import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=91-projector11';
 import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE,fullSleeveCamera} from './sleeve-camera.js?v=91-camera';
 import {hasDirectory} from './folder-import.js?v=58';
 import {decodeArtworkImage} from './artwork-decode.js?v=45';
@@ -12,18 +13,19 @@ import {createCityTraffic} from './city-night.js?v=43';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=82';
 import {sharedSurfaceProfiles,fitSurfacePlacements} from './surface-layout.js?v=83';
 import {torsoFrame,torsoDistance,previousTorsoFrame,previewDistance,previousPreviewFrame} from './garment-framing.js?v=89';
-import {installWorkspace} from './workspace.js?v=91-design';
-import {installExports} from './presentation-export.js?v=91-design';
-import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=91-design';
+import {installWorkspace} from './workspace.js?v=91-projector11';
+import {installExports} from './presentation-export.js?v=91-projector11';
+import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=91-projector11';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
 import {installColorPicker} from './color-picker.js?v=36';
-import {installSliderControls,RESET_ICON} from './controls.js?v=91-design';
+import {installSliderControls,RESET_ICON} from './controls.js?v=91-projector11';
 import {installColorActions} from './color-actions.js?v=34';
 let colorPicker=null,colorActions=null,workspace=null;
 let renderSuspended=false,designLocked=false,historyRestoring=false,customModelFile=null,customFlipped=false;
 const modelHistoryIds=new WeakMap();let nextModelHistoryId=1;
 function modelHistoryId(file){if(!file)return null;if(!modelHistoryIds.has(file))modelHistoryIds.set(file,nextModelHistoryId++);return modelHistoryIds.get(file);}
 
+setupProjectorControls();
 installMappedRanges();
 const BRAND=window.BRAND;
 document.title=BRAND.title;
@@ -234,6 +236,7 @@ function syncLightingBackdrop(){
   applyBackground();
 }
 function applyLightingPreset(){
+  if(state.projectorPattern==='caustics')state.projectorPattern='neuro-noise';
   syncQuickLighting();
   syncLightingBackdrop();
   syncFabricColors();
@@ -264,6 +267,7 @@ function applyLightingPreset(){
   document.getElementById('projectorColorAngleRow').hidden=paper||!palette||state.projectorGradient==='radial';
   for(const option of document.querySelectorAll('#projectorPattern option[data-legacy]'))option.hidden=option.value!==pattern;
   for(const swatch of document.querySelectorAll('[data-projector-swatch]')){const i=Number(swatch.dataset.projectorSwatch);swatch.hidden=i>(palette?state.projectorColorCount:1);swatch.querySelector('i').style.background=state['projectorColor'+i];}
+  syncProjectorButtons();
   const lock=document.getElementById('lightLock');lock.disabled=false;lock.checked=!state.lightLocked;
   updateCityTraffic();updateCreativeLighting();
   shadowDirty=true;
@@ -435,11 +439,10 @@ const FRAG_EMISSION=`
 // Macro normals drive the response; weave normals still shade the material.
 float kAmbient=dot(irradiance+iblIrradiance,vec3(.2126,.7152,.0722));
 float kVisible=max(0.0,kIlluminance+kAmbient);
-// A broad, low-brightness shoulder suppresses ordinary folds. Scene light
-// provides a conservative floor, so a lit garment does not glow in every crease.
-// This is spatial visibility, independent of Afterglow's charge/decay clock.
-float kDarkness=1.0-smoothstep(0.0,.09,kVisible+.012*uGlowSceneLevel);
-float kDark=exp(-kVisible/.035)*kDarkness*kDarkness*kDarkness/(1.0+12.0*uGlowSceneLevel*uGlowSceneLevel);
+// Emission is independent of local fold illumination. Bright reflected light
+// naturally reduces its contrast. A modest scene-wide adaptation retains a
+// restrained daylight preview without drawing emissive shadow boundaries.
+float kDark=.16/(1.0+2.0*uGlowSceneLevel*uGlowSceneLevel);
 // Scattered room UV keeps the fluorescence alive in directional UV shadows.
 // Weak shape fill barely suppresses it; strong ordinary light reduces contrast.
 // UV strength is calibrated to half the previous output at a 100% slider.
@@ -3615,7 +3618,7 @@ function resetStudioColor(id,keepOpen=false){
     syncGarmentSwatches();applyLook();
   }else if(id==='gridColor'){
     state.gridColorCustom=false;state.gridColor=state.light==='uv'?UV_BACKDROP.gridColor:BRAND[state.theme].grid;document.getElementById(id).value=state.gridColor;drawPatternBackground();
-  }else if(/^projectorColor[1-4]$/.test(id))setStudioInput(id,CREATIVE_DEFAULTS[id]);
+  }else if(/^projectorColor(?:[1-9]|1[0-2])$/.test(id))setStudioInput(id,CREATIVE_DEFAULTS[id]);
   else if(id==='bgCustom')setStudioInput(id,state.light==='uv'?UV_BACKDROP.bg:THEMES[state.theme].bg);
   if(keepOpen)colorPicker?.refresh();
 }

@@ -1,4 +1,4 @@
-import {CREATIVE_DEFAULTS,PROJECTOR_PATTERNS} from './creative-lighting.js?v=91-design';
+import {CREATIVE_DEFAULTS,PROJECTOR_PATTERNS} from './creative-lighting.js?v=91-projector11';
 // Portable ORB files contain a versioned manifest and deduplicated image bytes.
 export const FORMAT_VERSION=3;
 export const LAYER_FIELDS=['id','assetId','sourceName','name','autoName','nameEdited','slot','defaultSlot','defaultMode','defaultScale','mode','inkCustom','tintCustom','solidCutoff','solidSoftness','solidMaskSource','solidSpread','solidEdgeSoftness','solidInvert','defaultSolidInvert','printPattern','printSize','printAngle','printStrength','printVersion','printMarkSize','printTone','printErosion','printPixelScale','printDensity','printSeed','printBranchMode','printRounding','fit','sleevePreset','visible','glow','uvReactive','emission','anchor','placementSpace','placement'];
@@ -50,10 +50,10 @@ export function validateProject(doc,{garments,slots}){
   for(const [k,def] of Object.entries(CREATIVE_DEFAULTS)){if(s[k]===undefined)continue;if(typeof def==='boolean'){if(typeof s[k]!=='boolean')fail('A lighting option is invalid.');}else if(typeof def==='number'){if(!finite(s[k],0,Number.MAX_VALUE))fail('A lighting value is invalid.');}}
   if(s.runwayActivity!==undefined&&!['gentle','standard','active'].includes(s.runwayActivity))fail('Runway activity is invalid.');
   if(s.projectorPattern!==undefined&&!PROJECTOR_PATTERNS.includes(s.projectorPattern))fail('Projector pattern is invalid.');
-  for(const k of ['projectorColor1','projectorColor2','projectorColor3','projectorColor4'])if(s[k]!==undefined&&!color(s[k]))fail('A projector color is invalid.');
+  for(const k of Array.from({length:12},(_,i)=>'projectorColor'+(i+1)))if(s[k]!==undefined&&!color(s[k]))fail('A projector color is invalid.');
   if(s.projectorColorMode!==undefined&&!['solid','gradient','flow'].includes(s.projectorColorMode))fail('Projector color mode is invalid.');
   if(s.projectorGradient!==undefined&&!['linear','radial'].includes(s.projectorGradient))fail('Projector blend is invalid.');
-  if(s.projectorColorCount!==undefined&&![2,3,4].includes(s.projectorColorCount))fail('Projector color count is invalid.');
+  if(s.projectorColorCount!==undefined&&(!Number.isInteger(s.projectorColorCount)||s.projectorColorCount<2||s.projectorColorCount>12))fail('Projector color count is invalid.');
   for(const [k,min,max] of [['projectorAngle',0,180],['projectorWarp',0,100],['projectorSymmetry',2,12],['projectorColorAngle',0,360],['projectorColorSpeed',0,2000]])if(s[k]!==undefined&&!finite(s[k],min,max))fail('A projector setting is invalid.');
   if(s.projectorWarpShape!==undefined&&!['checks','stripes','edge'].includes(s.projectorWarpShape))fail('Projector warp form is invalid.');
   if(s.projectorShape!==undefined&&!['wave','dots','truchet','corners','ripple','blob','sphere'].includes(s.projectorShape))fail('Projector form is invalid.');

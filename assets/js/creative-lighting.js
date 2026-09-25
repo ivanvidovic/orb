@@ -1,16 +1,17 @@
-import {PAPER_FRAGMENTS} from './projector-paper.js?v=91-design';
-export const CREATIVE_DEFAULTS={runwayActivity:'standard',runwayFlash:100,runwayPaused:false,runwayTime:0,runwayPower:100,afterglowSpeed:100,afterglowFade:4,afterglowPaused:false,afterglowTime:4,afterglowPower:100,projectorPattern:'caustics',projectorScale:100,projectorSpeed:35,projectorPaused:false,projectorTime:0,projectorPower:100,projectorAngle:0,projectorWarp:40,projectorSymmetry:6,projectorColorMode:'solid',projectorGradient:'linear',projectorColorCount:2,projectorColor1:'#e4f1ff',projectorColor2:'#ff5088',projectorColor3:'#ffc35c',projectorColor4:'#5ef3d3',projectorColorAngle:0,projectorColorSpeed:30,projectorSoftness:60,projectorSwirl:65,projectorGrain:25,projectorDensity:45,projectorEdge:45,projectorCenterX:50,projectorCenterY:50,projectorShape:'corners',projectorWarpShape:'checks',projectorMotionPhase:0,projectorPalettePhase:0};
+import {PAPER_FRAGMENTS} from './projector-paper.js?v=91-projector11';
+export const CREATIVE_DEFAULTS={runwayActivity:'standard',runwayFlash:100,runwayPaused:false,runwayTime:0,runwayPower:100,afterglowSpeed:100,afterglowFade:4,afterglowPaused:false,afterglowTime:4,afterglowPower:100,projectorPattern:'neuro-noise',projectorScale:100,projectorSpeed:35,projectorPaused:false,projectorTime:0,projectorPower:100,projectorAngle:0,projectorWarp:40,projectorSymmetry:6,projectorColorMode:'gradient',projectorGradient:'linear',projectorColorCount:2,projectorColor1:'#e4f1ff',projectorColor2:'#ff5088',projectorColor3:'#ffc35c',projectorColor4:'#5ef3d3',projectorColor5:'#967aff',projectorColor6:'#ff935c',projectorColor7:'#54d8f0',projectorColor8:'#f4b9d8',projectorColor9:'#acdf68',projectorColor10:'#557fff',projectorColor11:'#ff6572',projectorColor12:'#ffe9a3',projectorColorAngle:0,projectorColorSpeed:30,projectorSoftness:60,projectorSwirl:65,projectorGrain:25,projectorDensity:45,projectorEdge:45,projectorCenterX:50,projectorCenterY:50,projectorShape:'corners',projectorWarpShape:'checks',projectorMotionPhase:0,projectorPalettePhase:0};
 export const PROJECTOR_PATTERNS=['caustics','stripes','interference','ripples','liquid','cellular','kaleidoscope','shards','geometry','neuro-noise','warp','god-rays','mesh-gradient','grain-gradient','radial-bloom'];
 export const PROJECTOR_FRAGMENT=`varying vec2 v;
 uniform float time,scale,pattern,angle,warp,symmetry;
 uniform float colorMode,colorCount,colorRadial,colorAngle,colorTime;
 uniform vec3 color1,color2,color3,color4;
+uniform vec3 paletteColors[12];
 vec2 hash2(vec2 p){return fract(sin(vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3))))*43758.5453);}
 vec3 palette(float f){
  float k=clamp(f,0.,1.)*(colorCount-1.);
- if(k<1.)return mix(color1,color2,k);
- if(k<2.)return mix(color2,color3,k-1.);
- return mix(color3,color4,k-2.);
+ vec3 c=paletteColors[0];
+ for(int i=1;i<12;i++){if(i>=int(colorCount))break;c=mix(c,paletteColors[i],clamp(k-float(i-1),0.,1.));}
+ return c;
 }
 void main(){
  vec2 raw=(v-.5)/max(.0001,scale);
@@ -61,7 +62,7 @@ void main(){
  vec3 tint=color1;
  if(colorMode>.5){
   vec2 d=vec2(cos(colorAngle),sin(colorAngle));
-  float f=colorRadial>.5?length(v-.5)*1.414214:dot(v-.5,d)*.707107+.5;
+  float f=colorRadial>.5?length(v-.5)*1.414214:dot(v-.5,d)/max(.001,abs(d.x)+abs(d.y))+.5;
   if(colorMode>1.5)f=.5+.5*sin(f*6.283185-colorTime);
   tint=palette(f);
  }
@@ -91,7 +92,7 @@ export function createCreativeLighting(THREE,scene,uniforms,renderer,{mobile=fal
  for(const l of [projector,charger,stage]){l.castShadow=true;const size=Math.min(renderer.capabilities.maxTextureSize,mobile||l===charger?1024:2048);l.shadow.mapSize.set(size,size);l.shadow.camera.near=.1;l.shadow.bias=-.0001;l.shadow.normalBias=.0015;rig.add(l,l.target);}
  projector.position.set(-.3,.65,2);projector.target.position.set(0,.02,0);charger.target.position.set(0,.02,0);
  const patternScene=new THREE.Scene(),patternCamera=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
- const patternUniforms={time:{value:0},scale:{value:1},pattern:{value:0},angle:{value:0},warp:{value:.4},symmetry:{value:6},colorMode:{value:0},colorCount:{value:2},colorRadial:{value:0},colorAngle:{value:0},colorTime:{value:0},...Object.fromEntries([1,2,3,4].map(i=>['color'+i,{value:new THREE.Color(CREATIVE_DEFAULTS['projectorColor'+i])}]))};
+ const patternUniforms={paletteColors:{value:Array.from({length:12},()=>new THREE.Color())},time:{value:0},scale:{value:1},pattern:{value:0},angle:{value:0},warp:{value:.4},symmetry:{value:6},colorMode:{value:0},colorCount:{value:2},colorRadial:{value:0},colorAngle:{value:0},colorTime:{value:0},...Object.fromEntries([1,2,3,4].map(i=>['color'+i,{value:new THREE.Color(CREATIVE_DEFAULTS['projectorColor'+i])}]))};
  const patternMaterial=new THREE.ShaderMaterial({uniforms:patternUniforms,depthTest:false,depthWrite:false,toneMapped:false,extensions:{derivatives:true},
  vertexShader:'varying vec2 v;void main(){v=uv;gl_Position=vec4(position.xy,0.0,1.0);}',
  fragmentShader:PROJECTOR_FRAGMENT});
@@ -102,7 +103,7 @@ export function createCreativeLighting(THREE,scene,uniforms,renderer,{mobile=fal
  for(let i=0;i<noiseBytes.length;i++){seed=(Math.imul(seed,1664525)+1013904223)>>>0;noiseBytes[i]=seed>>>24;}
  const noiseTexture=new THREE.DataTexture(noiseBytes,100,100,THREE.RGBAFormat);
  noiseTexture.wrapS=noiseTexture.wrapT=THREE.RepeatWrapping;noiseTexture.minFilter=noiseTexture.magFilter=THREE.NearestFilter;noiseTexture.needsUpdate=true;
- const paletteColors=[0,1,2,3].map(()=>new THREE.Color()),mixed=new THREE.Color();
+ const paletteColors=Array.from({length:12},(_,i)=>i).map(()=>new THREE.Color()),mixed=new THREE.Color();
  function paperMaterial(id){
   if(paperMaterials.has(id))return paperMaterials.get(id);
   const values={u_time:0,orbScale:1,orbAngle:0,orbCenterX:0,orbCenterY:0,u_colorsCount:4,
@@ -110,7 +111,7 @@ export function createCreativeLighting(THREE,scene,uniforms,renderer,{mobile=fal
    u_distortion:.4,u_swirl:.65,u_swirlIterations:6,u_density:.45,u_spotty:.3,u_midSize:.2,u_midIntensity:.3,u_intensity:.8,u_bloom:.2,
    u_grainMixer:0,u_grainOverlay:0,u_noise:.25,u_edge:.45,u_scale:1,u_rotation:0,u_offsetX:0,u_offsetY:0,
    u_worldWidth:0,u_worldHeight:0,u_fit:0,u_pixelRatio:1,u_resolution:new THREE.Vector2(1024,1024),u_noiseTexture:noiseTexture,
-   u_colors:[0,1,2,3].map(()=>new THREE.Vector4(1,1,1,1)),u_colorFront:new THREE.Vector4(1,1,1,1),u_colorMid:new THREE.Vector4(.3,.4,1,1),u_colorBack:new THREE.Vector4(0,0,0,1),u_colorBloom:new THREE.Vector4(0,0,0,1)};
+   u_colors:Array.from({length:12},(_,i)=>i).map(()=>new THREE.Vector4(1,1,1,1)),u_colorFront:new THREE.Vector4(1,1,1,1),u_colorMid:new THREE.Vector4(.3,.4,1,1),u_colorBack:new THREE.Vector4(0,0,0,1),u_colorBloom:new THREE.Vector4(0,0,0,1)};
   const uniforms=Object.fromEntries(Object.entries(values).map(([k,value])=>[k,{value}]));
   const mat=new THREE.ShaderMaterial({uniforms,vertexShader:patternMaterial.vertexShader,fragmentShader:PAPER_FRAGMENTS[id],depthTest:false,depthWrite:false,toneMapped:false,extensions:{derivatives:true}});
   paperMaterials.set(id,mat);return mat;
@@ -129,9 +130,9 @@ export function createCreativeLighting(THREE,scene,uniforms,renderer,{mobile=fal
   u.u_resolution.value.set(size,size);
   const solid=state.projectorColorMode==='solid',count=solid?2:state.projectorColorCount;
   put('u_colorsCount',count);
-  for(let i=0;i<4;i++)paletteColors[i].set(state['projectorColor'+(i+1)]);
+  for(let i=0;i<12;i++)paletteColors[i].set(state['projectorColor'+(i+1)]);
   const phase=state.projectorColorMode==='flow'?state.projectorPalettePhase:0;
-  for(let i=0;i<4;i++){
+  for(let i=0;i<12;i++){
    if(solid)mixed.copy(paletteColors[0]).multiplyScalar(i===0?.08:1);
    else{const k=((i+phase)%count+count)%count,a=Math.floor(k),f=k-a;mixed.copy(paletteColors[a]).lerp(paletteColors[(a+1)%count],f*f*(3-2*f));}
    u.u_colors.value[i].set(mixed.r,mixed.g,mixed.b,1);
@@ -149,6 +150,7 @@ export function createCreativeLighting(THREE,scene,uniforms,renderer,{mobile=fal
   patternUniforms.time.value=t;patternUniforms.scale.value=scale;patternUniforms.pattern.value=PROJECTOR_PATTERNS.indexOf(pattern);
   patternUniforms.angle.value=state.projectorAngle*Math.PI/180;patternUniforms.warp.value=state.projectorWarp/100;patternUniforms.symmetry.value=state.projectorSymmetry;
   patternUniforms.colorMode.value=['solid','gradient','flow'].indexOf(state.projectorColorMode);patternUniforms.colorCount.value=state.projectorColorCount;patternUniforms.colorRadial.value=state.projectorGradient==='radial'?1:0;patternUniforms.colorAngle.value=state.projectorColorAngle*Math.PI/180;patternUniforms.colorTime.value=state.projectorPalettePhase;
+  for(let i=0;i<12;i++)patternUniforms.paletteColors.value[i].set(state['projectorColor'+(i+1)]);
   for(let i=1;i<=4;i++)patternUniforms['color'+i].value.set(state['projectorColor'+i]);
   const oldTarget=renderer.getRenderTarget(),oldScissor=renderer.getScissorTest();renderer.getViewport(viewport);renderer.getScissor(scissor);
   try{renderer.setRenderTarget(target);renderer.setViewport(0,0,size,size);renderer.setScissorTest(false);renderer.render(patternScene,patternCamera);}
