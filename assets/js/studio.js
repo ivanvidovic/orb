@@ -1,5 +1,3 @@
-import {prepareChargeGeometry} from './glow-layout.js?v=91-glow15';
-import {createGlowHistory} from './glow-history.js?v=91-glow16';
 import {setupProjectorControls,syncProjectorButtons} from './projector-controls.js?v=91-history13';
 import {installMappedRanges} from './mapped-ranges.js?v=91-history13';
 import {treatmentKey} from './artwork-treatment.js?v=91-history13';
@@ -335,7 +333,6 @@ const uni = {
 const VERT_HEAD=`
   uniform float uTime; uniform float uWind; uniform float uTwist; uniform float uFlowHalfWidth;
   uniform float uTwistFlowPower; uniform float uSleeveBoost; uniform float uSleeveArc; uniform vec3 uDir;
-  attribute vec2 aChargeUv; attribute vec4 aChargeClamp; varying vec2 vGlowUv; varying vec4 vGlowClamp;
   attribute float aFlow; attribute vec3 aMotionAnchor; attribute vec2 aArtworkUv; attribute vec4 aArtworkClamp; varying vec2 vArtworkUv; varying vec4 vArtworkClamp;
   vec3 gDisp;
 
@@ -409,10 +406,6 @@ const VERT_HEAD=`
 
 const FRAG_HEAD=`
 uniform float uArtRough,uHasArtwork;
-uniform sampler2D uGlowPrevious,uGlowCurrent;
-uniform float uGlowBlend,uGlowEnabled,uGlowPacked;
-varying vec2 vGlowUv; varying vec4 vGlowClamp;
-vec2 boundedGlowUv(){return clamp(vGlowUv,vGlowClamp.xy,vGlowClamp.zw);}
 uniform sampler2D uArtwork,uArtworkEffects,uSpillGlow,uSpillUV;
 uniform float uHasEffects,uBlackLight,uFabricReactive,uGlowSceneLevel,uAfterglow,uAfterPhase,uAfterFade,uAfterSpeed,uAfterPower;
 uniform mat3 uAfterRotation;
@@ -446,20 +439,24 @@ const FRAG_EMISSION=`
 // Macro normals drive the response; weave normals still shade the material.
 float kAmbient=dot(irradiance+iblIrradiance,vec3(.2126,.7152,.0722));
 float kVisible=max(0.0,kIlluminance+kAmbient);
-// Stored charge emits continuously. Surrounding illumination determines contrast.
-float kStoredGlow=0.0;
-if(uGlowEnabled>.5){
- vec4 history=texture2D(uGlowCurrent,boundedGlowUv());
- vec2 charge=history.rg;
- if(uGlowPacked>.5)charge=vec2(dot(history.rg,vec2(65280.,255.)),dot(history.ba,vec2(65280.,255.)))/65535.;
- // Low radiance is visible in darkness without washing out normally lit ink.
- kStoredGlow=dot(charge,vec2(.06,.04));
-}
+// A broad, low-brightness shoulder suppresses ordinary folds. Scene light
+// provides a conservative floor, so a lit garment does not glow in every crease.
+// This is spatial visibility, independent of Afterglow's charge/decay clock.
+float kDarkness=1.0-smoothstep(0.0,.09,kVisible+.012*uGlowSceneLevel);
+float kDark=exp(-kVisible/.035)*kDarkness*kDarkness*kDarkness/(1.0+12.0*uGlowSceneLevel*uGlowSceneLevel);
 // Scattered room UV keeps the fluorescence alive in directional UV shadows.
 // Weak shape fill barely suppresses it; strong ordinary light reduces contrast.
 // UV strength is calibrated to half the previous output at a 100% slider.
 float kUV=1.25*(1.0-exp(-1.8*(.14*uBlackLight+.86*kUVExposure)))/(1.0+4.0*kVisible*kVisible+2.0*uGlowSceneLevel*uGlowSceneLevel);
-float kGlow=kArtEffects.r*kStoredGlow+kArtEffects.g*kUV;
+// Stylized periodic charging around the garment, retained independently of camera angle.
+if(uAfterglow>.5){
+ vec3 chargePosition=uAfterRotation*vec3(vChargePosition.x,vChargePosition.y-.350,vChargePosition.z);
+ float surfacePhase=atan(chargePosition.x,chargePosition.z);
+ float elapsed=mod(uAfterPhase-surfacePhase+6.2831853,6.2831853)*12.0/(6.2831853*max(.05,uAfterSpeed));
+ float charge=exp(-elapsed/max(.25,uAfterFade))*uAfterPower;
+ kDark*=charge;
+}
+float kGlow=kArtEffects.r*kDark+kArtEffects.g*kUV;
 totalEmissiveRadiance+=kArtColor*kGlow;
 // Preserve v27's actual black-light reflections and shadowing. Fabric color
 // controls the UV-only pale-fabric lift and a small existing-reflection gain.
@@ -481,7 +478,7 @@ totalEmissiveRadiance+=.008*kFabricColor*kFabricLight*kUVExposure*uFabricReactiv
 if(gl_FrontFacing&&uHasEffects>.5&&vArtworkUv.x>=0.0&&vArtworkUv.y>=0.0){
   // A short-range surface bounce approximation. Cached colors retain the
   // separate glow/UV strengths; current lighting gates their visible spill.
-  vec3 bounce=4.0*(texture2D(uSpillGlow,boundedArtworkUv()).rgb*kStoredGlow+texture2D(uSpillUV,boundedArtworkUv()).rgb*kUV);
+  vec3 bounce=4.0*(texture2D(uSpillGlow,boundedArtworkUv()).rgb*kDark+texture2D(uSpillUV,boundedArtworkUv()).rgb*kUV);
   totalEmissiveRadiance+=bounce*.20*sqrt(clamp(kFabricColor,0.0,1.0)+vec3(.01))*(1.0-kArtworkMask);
 }
 `;
@@ -503,8 +500,6 @@ function patchFabricMaterial(mat){
     sh.uniforms.uFlowHalfWidth={value:mat.userData.orbFlowHalfWidth||.3};
     const artwork=getArtworkMap(mat.userData.orbMeshId||1);
     sh.uniforms.uArtwork=artwork.map;sh.uniforms.uHasArtwork=artwork.has;
-    sh.uniforms.uGlowPrevious=artwork.glow.previous;sh.uniforms.uGlowCurrent=artwork.glow.current;
-    sh.uniforms.uGlowPacked=artwork.glow.packed;sh.uniforms.uGlowBlend=artwork.glow.blend;sh.uniforms.uGlowEnabled=artwork.glow.enabled;
     sh.uniforms.uArtworkEffects=artwork.effects;sh.uniforms.uHasEffects=artwork.hasEffects;
     sh.uniforms.uSpillGlow=artwork.spillGlow;sh.uniforms.uSpillUV=artwork.spillUV;
     Object.assign(sh.uniforms,effectUniforms);
@@ -547,7 +542,7 @@ function patchFabricMaterial(mat){
     sh.vertexShader = VERT_HEAD + sh.vertexShader;
     sh.vertexShader = sh.vertexShader.replace('#include <beginnormal_vertex>',
       `#include <beginnormal_vertex>
-       vArtworkUv = aArtworkUv; vArtworkClamp = aArtworkClamp; vGlowUv=aChargeUv; vGlowClamp=aChargeClamp;
+       vArtworkUv = aArtworkUv; vArtworkClamp = aArtworkClamp;
        gDisp = kFabricDisp(aMotionAnchor, aFlow);
        if (aFlow > 0.001) {
          vec3 T1 = normalize(cross(objectNormal, vec3(0.0,1.0,0.0)) + vec3(1e-5));
@@ -572,20 +567,10 @@ function patchFabricMaterial(mat){
     sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>',
       '#include <map_fragment>\n' + FRAG_PRINT);
     sh.fragmentShader=sh.fragmentShader.replace('#include <aomap_fragment>','#include <aomap_fragment>\n'+FRAG_EMISSION);
-    if(mat.userData.orbChargePass){
-      // UV winding does not define the physical front of the garment.
-      // Expand this include BEFORE replacing gl_FrontFacing; replacing only
-      // the unexpanded shader left Three's normal inversion active.
-      sh.fragmentShader=sh.fragmentShader.replace('#include <normal_fragment_begin>',THREE.ShaderChunk.normal_fragment_begin.replaceAll('gl_FrontFacing','true'));
-      sh.vertexShader=sh.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\n gl_Position=vec4(aChargeUv*2.0-1.0,0.0,1.0);');
-      sh.fragmentShader=sh.fragmentShader.replace(FRAG_EMISSION,`float kVisible=max(0.0,kIlluminance+dot(irradiance+iblIrradiance,vec3(.2126,.7152,.0722)));`)
-       .replaceAll('gl_FrontFacing','true')
-       .replace('#include <dithering_fragment>','#include <dithering_fragment>\n gl_FragColor=vec4(1.0-exp(-kVisible*.6),0.0,0.0,1.0);');
-    }
     sh.fragmentShader = sh.fragmentShader.replace('#include <roughnessmap_fragment>',
       '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, clamp(uArtRough, 0.02, 1.0), clamp(kArtworkMask, 0.0, 1.0));');
   };
-  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v91-glow16'+(mat.userData.orbChargePass?'-light-pass':'');
+  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v78-detail';
   mat.needsUpdate=true;
   return mat;
 }
@@ -2207,10 +2192,6 @@ document.getElementById('resetGridStroke').addEventListener('click',()=>applyGri
 // Artwork is composited on the GPU into isolated native-UV panels. Moving a
 // graphic changes its quad matrix, never its image pixels or source texture.
 const artworkMaps=new Map(),artworkSources=new Map(),artworkBoundsCache=new WeakMap();
-const glowHistory=createGlowHistory(THREE,renderer,scene,camera,{
- mapFor:mesh=>getArtworkMap(mesh.userData.orbMeshId||1),
- materialFor:mat=>{const m=mat.clone();m.userData.orbChargePass=true;m.side=THREE.DoubleSide;m.transparent=false;m.opacity=1;m.depthTest=false;m.depthWrite=false;m.blending=THREE.NoBlending;m.toneMapped=false;m.normalMap=null;m.bumpMap=null;m.displacementMap=null;return patchFabricMaterial(m);}
-});
 const artworkDirtyPanels=new Set();
 let artworkDirty=true,artworkDirtyAll=true;
 const artworkClearColor=new THREE.Color();
@@ -2252,13 +2233,12 @@ function requestArtworkRender(layer=null){
 function getArtworkMap(meshId){
   if(!artworkMaps.has(meshId))artworkMaps.set(meshId,{
     map:{value:null},has:{value:0},effects:{value:null},hasEffects:{value:0},effectTarget:null,target:null,layoutKey:'',geometry:null,
-    glow:glowHistory.blank(),hasGlow:false,spillGlow:{value:null},spillUV:{value:null},spillTargets:null,
+    spillGlow:{value:null},spillUV:{value:null},spillTargets:null,
     tiles:new Map(),scenes:new Map(),quads:new Map(),camera:new THREE.OrthographicCamera(0,1,1,0,-1,1)
   });
   return artworkMaps.get(meshId);
 }
 function resetArtworkMaps(){
-  glowHistory.reset();
   for(const map of artworkMaps.values()){
     map.target?.dispose();map.target=null;map.map.value=null;map.has.value=0;
     map.effectTarget?.dispose();map.effectTarget=null;map.effects.value=null;map.hasEffects.value=0;disposeArtworkSpill(map);
@@ -2387,7 +2367,6 @@ function artworkLayerBounds(layer){
   return {minU:u-du,maxU:u+du,minV:v-dv,maxV:v+dv};
 }
 function layoutArtworkMap(map,geometry,panelIds,layers){
-  prepareChargeGeometry(THREE,geometry,renderer.capabilities.maxTextureSize);
   const bounds=new Map(artworkPanelBounds(geometry));
   for(const id of panelIds)bounds.set(id,focusedPanelBounds(bounds.get(id),layers.filter(l=>layerProfile(l).island===id).map(artworkLayerBounds)));
   const key=JSON.stringify([...bounds].filter(([id])=>panelIds.includes(id)));
@@ -2466,7 +2445,6 @@ function updateArtworkQuad(map,layer,index,total){
   uniforms.uEffects.value.set(layer.glow?(layer.emission??100)/400:0,layer.uvReactive?(layer.emission??100)/400:0);
 }
 function prepareEffectMap(map,layers){
-  map.hasGlow=layers.some(l=>l.visible&&l.glow);
   const enabled=layers.some(l=>l.visible&&(l.glow||l.uvReactive));
   map.hasEffects.value=enabled?1:0;
   if(!enabled){map.effectTarget?.dispose();map.effectTarget=null;map.effects.value=null;disposeArtworkSpill(map);return false;}
@@ -3546,7 +3524,6 @@ function draw(){
   renderer.setScissor(vx,vy,vr.width,vr.height);
   renderer.setScissorTest(true);
   updateShadowMap();
-  glowHistory.update(current,state);
   renderer.render(scene,camera);
   renderer.setScissorTest(false);
 }
@@ -3555,7 +3532,6 @@ function tick(){
   const dt=Math.min(0.05,clock.getDelta());
   if(renderSuspended)return;
   uni.uTime.value+=dt;
-  glowHistory.advance(dt);
   updateCityTraffic(dt);updateCreativeLighting(dt);
   if(intro<1){
     intro=Math.min(1,intro+dt/1.15);
