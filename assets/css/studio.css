@@ -52,9 +52,9 @@
   }
   .helpBtn:hover{background:var(--wash);color:var(--ink)}
   /* Quick guide: one reading order, fixed header, and a scrollable body. */
-  #helpDialog{width:min(590px,calc(100vw - 32px));max-height:calc(100dvh - 32px);padding:0;border:1px solid var(--rule-mid);border-radius:12px;background:var(--paper);color:var(--ink);overflow:hidden;box-shadow:0 20px 70px #0003}
-  #helpDialog[open]{display:flex;flex-direction:column}
-  #helpDialog::backdrop{background:rgba(0,0,0,.48);backdrop-filter:blur(4px)}
+  :is(#helpDialog,#artistDialog){width:min(590px,calc(100vw - 32px));max-height:calc(100dvh - 32px);padding:0;border:1px solid var(--rule-mid);border-radius:12px;background:var(--paper);color:var(--ink);overflow:hidden;box-shadow:0 20px 70px #0003}
+  :is(#helpDialog,#artistDialog)[open]{display:flex;flex-direction:column}
+  :is(#helpDialog,#artistDialog)::backdrop{background:rgba(0,0,0,.48);backdrop-filter:blur(4px)}
   .helpHead{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:22px 24px 20px;border-bottom:1px solid var(--rule);flex:0 0 auto}
   .helpEyebrow{display:block;margin-bottom:8px;font-size:9px;line-height:1;letter-spacing:.14em;text-transform:uppercase;color:var(--graphite);font-weight:500}
   .helpHead h2{margin:0;font-size:22px;line-height:1.2;font-weight:500;letter-spacing:-.025em}
@@ -76,7 +76,7 @@
   .helpFooter{display:flex;align-items:center;justify-content:space-between;gap:12px;flex:0 0 auto;padding:12px 24px;border-top:1px solid var(--rule);font-size:10px;line-height:1.4;color:var(--graphite)}
   .helpFooter kbd{font:inherit;border:1px solid var(--rule);border-radius:3px;padding:1px 4px;margin-right:4px}
   @media(max-width:600px){
-    #helpDialog{width:calc(100vw - 24px);max-height:calc(100dvh - 24px);border-radius:10px}
+    :is(#helpDialog,#artistDialog){width:calc(100vw - 24px);max-height:calc(100dvh - 24px);border-radius:10px}
     .helpHead{padding:18px;gap:12px}.helpHead h2{font-size:20px}.helpClose{width:34px;height:34px}
     .helpBody{padding:18px}.guideSteps{gap:18px}.guideSteps>li{grid-template-columns:24px minmax(0,1fr);gap:10px}
     .guideNumber{width:24px;height:24px}.guideSteps h3{margin-top:1px}.guideSteps p,.guideAdvanced p{font-size:12px;line-height:1.6}
@@ -1045,3 +1045,18 @@ body.present .stage-reset,body.present .stage-help{display:none}
 #panelContent{display:flow-root;min-width:0;height:auto;overflow:visible}
 #panelContent>.sectionFold{flex:none}
 #panel .sectionFold[open]>.sectionBody{animation:none}
+
+/* Artist bio: share the Info panel styling and existing responsive logo height. */
+#btnArtist{border:0;border-radius:0;font:inherit;cursor:pointer;position:relative}
+#btnArtist:hover{opacity:.75}
+#btnArtist:focus-visible,#artistDialog a:focus-visible,#artistClose:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
+#mobileMark{display:none;fill:none;color:inherit;flex:0 0 auto}
+#artistBio{margin:0;font-size:12px;line-height:1.65;color:var(--graphite)}
+.artistLinks{display:flex;flex-wrap:wrap;align-items:center;column-gap:24px;row-gap:4px;margin-top:18px}
+.artistLinks a{display:inline-flex;align-items:center;gap:5px;min-height:44px;color:var(--ink);font-size:12px;text-decoration:underline;text-underline-offset:3px}
+.artistLinks a:hover{text-decoration-thickness:2px}
+@media(max-width:1050px){
+  #btnArtist #mark{display:none}
+  #mobileMark{display:block;height:26px;width:26px}
+  #btnArtist::before{content:"";position:absolute;inset:-9px}
+}
