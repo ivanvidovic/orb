@@ -41,9 +41,9 @@ if(BRAND.wordmark.startsWith('data:image/svg+xml')){
   const svgText=BRAND.wordmark.slice(0,comma).includes(';base64')
     ?atob(BRAND.wordmark.slice(comma+1)):decodeURIComponent(BRAND.wordmark.slice(comma+1));
   const source=new DOMParser().parseFromString(svgText,'image/svg+xml').documentElement;
-  mark.setAttribute('viewBox',source.getAttribute('viewBox'));
+  mark.setAttribute('viewBox','19.8461609 20 2030 960');
   mark.append(...Array.from(source.children));
-  mark.querySelectorAll('[stroke]').forEach(path=>path.setAttribute('stroke','currentColor'));
+  mark.querySelectorAll('[stroke]').forEach(path=>{path.setAttribute('stroke','currentColor');path.setAttribute('stroke-width','40');});
 }else{
   // Client reskins can still supply a raster or external SVG URL.
   const image=document.createElementNS('http://www.w3.org/2000/svg','image');
