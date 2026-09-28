@@ -1,12 +1,12 @@
 /* One grid owns toolbar sizing at every width; controls never wrap individually. */
 #mainToolbar{
-  display:grid;grid-template-columns:auto minmax(0,1fr) 232px 146px;
+  display:grid;grid-template-columns:auto minmax(0,1fr) 268px 146px;
   grid-template-rows:auto;gap:12px;align-items:center;
   height:auto;min-height:72px;padding:10px 14px;flex:0 0 auto;
 }
 #mainToolbar>.brand-mark{grid-area:1/1;margin:0;justify-self:start}
 #mainToolbar>.topTools{
-  grid-area:1/2;display:grid;grid-template-columns:minmax(0,6fr) minmax(0,2.4fr) minmax(0,3.3fr);
+  grid-area:1/2;display:grid;grid-template-columns:minmax(0,6fr) minmax(0,8fr) minmax(0,3.3fr);
   gap:10px;align-items:stretch;min-width:0;width:100%;margin:0;padding:0;order:0;
 }
 #mainToolbar .quickGroup,#mainToolbar .toolbarPanel{
@@ -41,11 +41,11 @@
 #mainToolbar button:focus-visible{outline:2px solid var(--ink);outline-offset:2px;z-index:1}
 
 /* App actions occupy row one; preview modules fill row two edge to edge. */
-@media(max-width:1199px){
+@media(max-width:1599px){
   #mainToolbar{grid-template-columns:auto minmax(0,1fr) 146px;grid-template-rows:auto auto;gap:10px 14px}
   #mainToolbar>.toolbarOutput{grid-area:1/2}
   #mainToolbar>.toolbarUtility{grid-area:1/3}
-  #mainToolbar>.topTools{grid-area:2/1/3/-1;grid-template-columns:minmax(0,6fr) minmax(0,2.4fr) minmax(0,3.3fr);gap:10px}
+  #mainToolbar>.topTools{grid-area:2/1/3/-1;grid-template-columns:minmax(0,6fr) minmax(0,8fr) minmax(0,3.3fr);gap:10px}
 }
 
 /* Touch layout: app menus, a full camera strip, then lighting and wind. */
@@ -75,4 +75,36 @@
   #mainToolbar .toolbarUtilityControls{grid-template-columns:44px minmax(0,1fr);gap:8px}
   #mainToolbar .helpBtn{height:44px;width:44px}
   #mainToolbar .themeToggle{height:44px}
+}
+
+/* Eight direct lighting choices remain a complete module. */
+#mainToolbar #toolbarLighting{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));height:34px}
+#mainToolbar #toolbarLighting button{width:100%;min-width:0;padding:0 2px;font-size:9px}
+#mainToolbar .topActions{grid-template-columns:minmax(0,1.3fr) repeat(2,minmax(0,1fr))}
+@media(min-width:601px) and (max-width:1099px){
+ #mainToolbar>.topTools{grid-template-columns:minmax(0,6fr) minmax(0,5.4fr) minmax(0,3.3fr)}
+ #mainToolbar .quickGroup{grid-template-rows:12px 68px}
+ #mainToolbar .quickSeg{height:68px;align-items:stretch}
+ #mainToolbar .quickSeg button{height:66px}
+ #mainToolbar #toolbarLighting{height:68px;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(2,33px)}
+ #mainToolbar #toolbarLighting button{height:33px}
+ #mainToolbar #toolbarLighting button:nth-child(-n+4){border-bottom:1px solid var(--rule)}
+ #mainToolbar #toolbarLighting button:nth-child(4){border-right:0}
+}
+@media(min-width:601px) and (max-width:799px){
+ #mainToolbar>.topTools{grid-template-columns:minmax(0,6fr) minmax(0,5.4fr) minmax(0,3.3fr)}
+ #mainToolbar #segView{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(2,33px)}
+ #mainToolbar #segView button{width:100%;height:33px}
+ #mainToolbar #segView button:nth-child(-n+3){border-bottom:1px solid var(--rule)}
+ #mainToolbar #segView button:nth-child(3){border-right:0}
+
+}
+@media(max-width:600px){
+ #mainToolbar>.topTools{grid-template-columns:minmax(0,1fr)}
+ #mainToolbar .quickGroup:first-child,#mainToolbar .quickLighting,#mainToolbar .quickGroup:last-child{grid-column:1}
+ #mainToolbar .quickLighting{grid-template-rows:12px 88px}
+ #mainToolbar #toolbarLighting{height:88px;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(2,43px)}
+ #mainToolbar #toolbarLighting button{height:43px;font-size:10px}
+ #mainToolbar #toolbarLighting button:nth-child(-n+4){border-bottom:1px solid var(--rule)}
+ #mainToolbar #toolbarLighting button:nth-child(4){border-right:0}
 }

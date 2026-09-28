@@ -1,7 +1,7 @@
 import {installArtworkPaste} from './clipboard-artwork.js?v=91-paste';
 import {loadHostedLibrary,fetchHostedArtwork} from './hosted-library.js?v=77';
 import {collectDrop} from './folder-import.js?v=58';
-import {FORMAT_VERSION,LAYER_FIELDS,SETTING_FIELDS,pick,cleanFilename,canvasBlob,downloadBlob,validateProject} from './design-format.js?v=91-history13';
+import {FORMAT_VERSION,LAYER_FIELDS,SETTING_FIELDS,pick,cleanFilename,canvasBlob,downloadBlob,validateProject} from './design-format.js?v=91-present23';
 const $=id=>document.getElementById(id);
 const imageFile=f=>f.type.startsWith('image/')||/\.(png|jpe?g|webp|gif|avif|svg)$/i.test(f.name);
 const pause=()=>new Promise(resolve=>setTimeout(resolve,0));
@@ -102,12 +102,13 @@ export function installWorkspace(api){
       if(asset.hosted){libraryMessage('Loading '+asset.entry.name+'…');asset=await materializeHosted(asset);}
       if(!asset.entry.source)asset.entry={...await api.decode(new File([asset.blob],asset.name,{type:asset.blob.type})),name:asset.entry.name,assetId:asset.id};
       $('assetDialog').close();
-      if(ctx.action==='choose')api.chooseEntries([asset.entry]);
+      if(ctx.action==='presentation')api.presentationAsset(asset.entry);
+      else if(ctx.action==='choose')api.chooseEntries([asset.entry]);
       else api.addEntries(ctx.slot,[asset.entry],ctx.action,ctx.target);
       if(libraryName)libraryMessage(libraryName+' · '+hostedAssets.size+' graphics');
     }catch(error){libraryMessage(error.message||'This graphic could not be opened. Click it to retry.');}finally{busy=false;}
   }
-  function openAssets(ctx={action:'choose'}){if(busy||api.busy())return;context=ctx;renderShelf();$('assetTitle').textContent=ctx.action==='replace'?'Replace artwork':ctx.action==='add'?'Add artwork here':'Add artwork';$('assetDialog').showModal();}
+  function openAssets(ctx={action:'choose'}){if(busy||api.busy())return;context=ctx;$('assetBrowse').hidden=ctx.action==='presentation';renderShelf();$('assetTitle').textContent=ctx.action==='presentation'?'Presentation background':ctx.action==='replace'?'Replace artwork':ctx.action==='add'?'Add artwork here':'Add artwork';$('assetDialog').showModal();}
   async function importImages(files,{place=false}={}){
     if(busy||api.busy())return;busy=true;$('shelfDropLabel').textContent='Adding artwork…';$('shelfBrowse').disabled=$('folderBrowse').disabled=true;const failed=[],entries=[];
     try{for(const file of files){if(!imageFile(file)){failed.push(file.name);continue;}try{if(shelfIds.size>=400)throw new Error('Library full');const entry=await register(await api.decode(file));if(place)entries.push(entry);if(!api.snapshot().layers.some(l=>l.assetId===entry.assetId))assets.get(entry.assetId).entry={...entry,source:null};}catch{failed.push(file.name);}await pause();}}
@@ -142,7 +143,7 @@ export function installWorkspace(api){
     if(finishEditing)api.finish();const snapshot=api.snapshot();
     // Register sources kept by an undo snapshot or imported before the tray existed.
     for(const layer of snapshot.layers)if(!assets.has(layer.assetId)){const a=await register(layer,{show:false});layer.assetId=a.assetId;}
-    const ids=new Set(snapshot.layers.map(l=>l.assetId));if(includeLibrary)for(const id of shelfIds)ids.add(id);
+    const ids=new Set(snapshot.layers.map(l=>l.assetId));if(snapshot.settings.presentation?.graphic)ids.add(snapshot.settings.presentation.graphic);if(includeLibrary)for(const id of shelfIds)ids.add(id);
     // Autosave never downloads unused hosted graphics. Explicit Include library does.
     if(includeLibrary&&finishEditing)for(const asset of hostedAssets.values()){const a=await materializeHosted(asset);ids.add(a.id);}
     const records=Array.from(ids).map(id=>assets.get(id));
@@ -175,7 +176,7 @@ export function installWorkspace(api){
     validateProject(data.doc,api.schema);
     const staged=new Map();
     for(const a of data.doc.assets){const record=data.records.find(r=>r.id===a.id);if(!record?.blob)throw new Error('An artwork file is missing.');
-      const entry=await api.decode(new File([record.blob],a.name,{type:a.type}));entry.assetId=a.id;if(!data.doc.layers.some(l=>l.assetId===a.id))entry.source=null;staged.set(a.id,{...record,name:entry.sourceName||a.name,blob:entry.originalFile||record.blob,entry});
+      const entry=await api.decode(new File([record.blob],a.name,{type:a.type}));entry.assetId=a.id;if(!data.doc.layers.some(l=>l.assetId===a.id)&&data.doc.settings.presentation?.graphic!==a.id)entry.source=null;staged.set(a.id,{...record,name:entry.sourceName||a.name,blob:entry.originalFile||record.blob,entry});
     }
     const layers=data.doc.layers.map(l=>({...staged.get(l.assetId).entry,...pick(l,LAYER_FIELDS),solidInvert:l.solidInvert}));
     return {staged,layers};
@@ -185,7 +186,7 @@ export function installWorkspace(api){
     const snapshot={...data.doc,layers};
     // Decode and validate everything before replacing the active design.
     await api.restore(snapshot,data.model);
-    for(const [id,a] of staged)assets.set(id,a);
+    for(const [id,a] of staged)assets.set(id,a);api.presentationRestored?.();
     const incoming=(data.doc.shelf||Array.from(staged.keys())).filter(id=>staged.has(id));
     shelfIds=mergeLibrary?new Set([...shelfIds,...incoming]):new Set(incoming);
     $('designName').value=data.doc.name;api.clearHistory();renderShelf();
@@ -224,7 +225,7 @@ export function installWorkspace(api){
   document.addEventListener('click',e=>{if(e.target.closest('#panel,header,#colorPopover'))queueMicrotask(notify);});
   window.addEventListener('beforeunload',e=>{if(ready&&revision!==savedRevision){e.preventDefault();e.returnValue='';}});
   document.addEventListener('visibilitychange',()=>{if(document.hidden)autosave();});
-  return {register,openAssets,notify,loadLibrary,makeArchive,dropFolder,artworkData:()=>packageData(false),dropProject:file=>confirmAction({file}),get busy(){return busy;},
+  return {getAsset:async id=>{const a=assets.get(id);if(!a)throw new Error('Background artwork is missing.');if(!a.entry.source)a.entry={...await api.decode(new File([a.blob],a.name,{type:a.blob.type})),assetId:id};return a.entry;},register,openAssets,notify,loadLibrary,makeArchive,dropFolder,artworkData:()=>packageData(false),dropProject:file=>confirmAction({file}),get busy(){return busy;},
     async ready(){
       restoring=true;
       let data=null,restored=false,failure=null;

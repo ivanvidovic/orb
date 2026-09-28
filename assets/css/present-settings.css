@@ -1,0 +1,18 @@
+.present-settings h3{font-size:11px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;margin:12px 0 2px}
+.present-settings p{font-size:11px;line-height:1.5;margin:0}
+.present-field{display:grid;grid-template-columns:minmax(0,1fr) 112px;gap:10px;align-items:center;font-size:11px;min-width:0}
+.present-field input,.present-field select{box-sizing:border-box;width:100%;min-width:0;height:34px;border:1px solid var(--rule);background:var(--paper);color:var(--ink);font:inherit;padding:4px 6px}
+.present-check,.present-light-row label{display:flex;gap:8px;align-items:center;font-size:11px}
+.present-check input,.present-light-row input{accent-color:var(--ink)}
+.present-light-row{display:grid;grid-template-columns:minmax(0,1fr) 32px 32px;gap:5px;align-items:center;border-bottom:1px solid var(--rule);padding:4px 0}
+.present-light-row button,.present-graphic-actions button{min-height:32px;background:transparent;border:1px solid var(--rule);color:var(--ink);font:inherit;cursor:pointer}
+.present-light-row button:disabled{opacity:.3;cursor:default}
+.present-graphic-actions{display:flex;gap:6px}.present-graphic-actions button:first-child{flex:1}
+#presentGraphicName{overflow-wrap:anywhere}
+#presentationBackground,#presentationBlend{position:fixed;inset:0;width:100%;height:100%;pointer-events:none}
+#presentationBackground{z-index:1}#presentationBlend{z-index:6}
+#mainToolbar .presentSplit{display:grid;grid-template-columns:minmax(0,1fr) 28px;min-width:0}
+#mainToolbar #presentSettingsButton{border-left:0;padding:0;display:grid;place-items:center}
+#presentSettingsButton svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linejoin:round}
+#mainToolbar .presentSplit+.topAction{border-left:0}
+@media(max-width:600px){#mainToolbar .presentSplit{grid-template-columns:minmax(0,1fr) 36px}.present-light-row button{min-height:40px}}

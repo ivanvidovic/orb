@@ -1,3 +1,6 @@
+import {defaultPresentation} from './present-options.js?v=91-present23';
+import {installPresentation} from './present-settings.js?v=91-present23';
+let presentation=null,presentRenderLight=null;
 import {setupProjectorControls,syncProjectorButtons} from './projector-controls.js?v=91-history13';
 import {installMappedRanges} from './mapped-ranges.js?v=91-history13';
 import {treatmentKey} from './artwork-treatment.js?v=91-history13';
@@ -13,9 +16,9 @@ import {createCityTraffic} from './city-night.js?v=43';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=82';
 import {sharedSurfaceProfiles,fitSurfacePlacements} from './surface-layout.js?v=83';
 import {torsoFrame,torsoDistance,previousTorsoFrame,previewDistance,previousPreviewFrame} from './garment-framing.js?v=89';
-import {installWorkspace} from './workspace.js?v=91-svg21';
+import {installWorkspace} from './workspace.js?v=91-present23';
 import {installExports} from './presentation-export.js?v=91-history13';
-import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=91-history13';
+import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=91-present23';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
 import {installColorPicker} from './color-picker.js?v=36';
 import {installSliderControls,rangeDisplayValue,RESET_ICON} from './controls.js?v=91-history13';
@@ -235,16 +238,24 @@ function syncLightingBackdrop(){
   document.getElementById('gridColor').value=state.gridColor;
   applyBackground();
 }
-function applyLightingPreset(){
-  if(state.projectorPattern==='caustics')state.projectorPattern='neuro-noise';
-  syncQuickLighting();
-  syncLightingBackdrop();
+function renderLightingPreset(){
   syncFabricColors();
   const p=LIGHT_PRESETS[state.light]||LIGHT_PRESETS.studio,power=state.lightPower/100*(state.light==='uv'?8:1);
   renderer.toneMappingExposure=p.exposure;scene.environment=environments[state.light]||environments.studio;
   lightEnvironmentPower.value=power*(isCreative(state.light)?.025:state.light==='softbox'?.55:state.light==='studio'?.55:state.light==='day'?.65:state.light==='night'?.1125:.45);
   effectUniforms.uBlackLight.value=state.light==='uv'?power:0;
   effectUniforms.uGlowSceneLevel.value=power*(.16*p.key+.12*p.fill+.08*p.rim+.75*p.hemi)+.20*lightEnvironmentPower.value;
+  updateCityTraffic();updateCreativeLighting();
+  shadowDirty=true;
+  hemi.color.set(p.hemiSky);hemi.groundColor.set(p.hemiGround);hemi.intensity=p.hemi*power;
+  key.color.set(p.keyColor);key.intensity=p.key*power;key.position.set(...p.keyPos);
+  fil.color.set(p.fillColor);fil.intensity=p.fill*power;fil.position.set(...p.fillPos);
+  rim.color.set(p.rimColor);rim.intensity=p.rim*power;rim.position.set(...p.rimPos);
+}
+function applyLightingPreset(){
+  if(state.projectorPattern==='caustics')state.projectorPattern='neuro-noise';
+  syncQuickLighting();
+  syncLightingBackdrop();
   document.getElementById('nightControls').hidden=state.light!=='night';
   document.getElementById('nightTraffic').value=state.nightTraffic;
   document.getElementById('nightPaused').checked=state.nightPaused;
@@ -269,13 +280,8 @@ function applyLightingPreset(){
   for(const swatch of document.querySelectorAll('[data-projector-swatch]')){const i=Number(swatch.dataset.projectorSwatch);swatch.hidden=i>(palette?state.projectorColorCount:1);swatch.querySelector('i').style.background=state['projectorColor'+i];}
   syncProjectorButtons();
   const lock=document.getElementById('lightLock');lock.disabled=false;lock.checked=!state.lightLocked;
-  updateCityTraffic();updateCreativeLighting();
-  shadowDirty=true;
-  hemi.color.set(p.hemiSky);hemi.groundColor.set(p.hemiGround);hemi.intensity=p.hemi*power;
-  key.color.set(p.keyColor);key.intensity=p.key*power;key.position.set(...p.keyPos);
-  fil.color.set(p.fillColor);fil.intensity=p.fill*power;fil.position.set(...p.fillPos);
-  rim.color.set(p.rimColor);rim.intensity=p.rim*power;rim.position.set(...p.rimPos);
-  document.getElementById('lightDescription').textContent=p.label+' · '+p.description;
+  renderLightingPreset();
+  document.getElementById('lightDescription').textContent=LIGHT_PRESETS[state.light].label+' · '+LIGHT_PRESETS[state.light].description;
 }
 function updateLightLock(){
   if(!lightReferenceReady){lightReference.copy(camera.quaternion);lightReferenceReady=true;}
@@ -1095,7 +1101,7 @@ const THEMES={
   dark:{bg:BRAND.dark.paper},
 };
 const systemColorScheme=matchMedia('(prefers-color-scheme: dark)');
-const state={ ...CREATIVE_DEFAULTS,runwayPaused:REDUCED,afterglowPaused:REDUCED,projectorPaused:REDUCED,themeMode:'system', theme:'light', blank:0, garmentCustom:'#D8D8D8', artGlossiness:50, matchFabricToTheme:false, bg:THEMES.light.bg, dotGrid:true, gridType:'square', gridColor:BRAND.light.grid, gridColorCustom:false, gridStroke:0.5, gridScale:35, gridCharSize:45, light:'studio', lightPower:100, blackLightPower:100, regularLightPower:100, nightLightPower:100, nightTraffic:'subtle', nightPaused:REDUCED, lightLocked:true, nightGreen:NIGHT_DEFAULTS.green, nightMagenta:NIGHT_DEFAULTS.magenta, selfShadows:true, wind:1, view:'angle',
+const state={ presentation:defaultPresentation(), ...CREATIVE_DEFAULTS,runwayPaused:REDUCED,afterglowPaused:REDUCED,projectorPaused:REDUCED,themeMode:'system', theme:'light', blank:0, garmentCustom:'#D8D8D8', artGlossiness:50, matchFabricToTheme:false, bg:THEMES.light.bg, dotGrid:true, gridType:'square', gridColor:BRAND.light.grid, gridColorCustom:false, gridStroke:0.5, gridScale:35, gridCharSize:45, light:'studio', lightPower:100, blackLightPower:100, regularLightPower:100, nightLightPower:100, nightTraffic:'subtle', nightPaused:REDUCED, lightLocked:true, nightGreen:NIGHT_DEFAULTS.green, nightMagenta:NIGHT_DEFAULTS.magenta, selfShadows:true, wind:1, view:'angle',
   inertia:{enabled:true,strength:15,ramp:100,settle:0.5,elasticity:60,overshoot:70,release:70,sensitivity:50,bias:25,sleeve:100,arc:100},
   focus:new THREE.Vector3(0,.02,0),focusTarget:new THREE.Vector3(0,.02,0),az:0.62, el:1.30, r:1.55, taz:0.62, tel:1.30, tr:1.55, present:false };
 const WIND_LEVELS=[0,0.011,0.024];
@@ -1916,47 +1922,13 @@ segment('segLight',v=>{
   state.light=v;state.lightPower=v==='uv'?state.blackLightPower:v==='night'?state.nightLightPower:isCreative(v)?state[v+'Power']:state.regularLightPower;
   syncLightPowerControl();applyLightingPreset();
 });
-// Quick lighting uses the existing Environment switch path, including history.
-function quickLightName(id){return {studio:'Studio',softbox:'Soft',day:'Day',night:'Night',uv:'UV',runway:'Runway',afterglow:'Afterglow',projector:'Projector'}[id]||'Studio';}
 function syncQuickLighting(){
-  const toggle=document.getElementById('lightingPresetToggle');
-  const name=quickLightName(state.light);
-  if(toggle){toggle.textContent=name+' ▾';toggle.setAttribute('aria-label','Lighting preset: '+name);}
   document.querySelectorAll('[data-quick-light]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.quickLight===state.light)));
 }
-const lightingToggle=document.getElementById('lightingPresetToggle');
-const lightingMenu=document.createElement('div');
-lightingMenu.id='lightingPresetMenu';lightingMenu.className='detail-camera-menu lighting-preset-menu';
-lightingMenu.hidden=true;lightingMenu.setAttribute('role','group');lightingMenu.setAttribute('aria-label','Lighting presets');
-document.body.append(lightingMenu);
-function closeLightingMenu(restore=false){lightingMenu.hidden=true;lightingToggle.setAttribute('aria-expanded','false');if(restore)lightingToggle.focus({preventScroll:true});}
-function positionLightingMenu(){
-  if(lightingMenu.hidden)return;
-  const r=lightingToggle.getBoundingClientRect();
-  lightingMenu.style.left=Math.max(8,Math.min(r.left,innerWidth-lightingMenu.offsetWidth-8))+'px';
-  lightingMenu.style.top=Math.max(8,Math.min(r.bottom+6,innerHeight-lightingMenu.offsetHeight-8))+'px';
-}
-for(const source of document.querySelectorAll('#segLight button[data-v]')){
-  const b=document.createElement('button');b.type='button';b.dataset.quickLight=source.dataset.v;
-  b.textContent=quickLightName(source.dataset.v);
-  b.onclick=()=>{if(!document.querySelector('header').inert&&!source.disabled)source.click();closeLightingMenu(true);};
-  lightingMenu.append(b);
-}
-lightingToggle.onclick=()=>{
-  if(!lightingMenu.hidden){closeLightingMenu();return;}
-  if(document.querySelector('header').inert)return;
-  syncQuickLighting();lightingMenu.hidden=false;lightingToggle.setAttribute('aria-expanded','true');positionLightingMenu();
-  lightingMenu.querySelector('[aria-pressed="true"]')?.focus({preventScroll:true});
+for(const b of document.querySelectorAll('[data-quick-light]'))b.onclick=()=>{
+  const source=document.querySelector(`#segLight button[data-v="${b.dataset.quickLight}"]`);
+  if(!document.querySelector('header').inert&&!source.disabled)source.click();
 };
-lightingMenu.addEventListener('keydown',e=>{
-  const buttons=[...lightingMenu.querySelectorAll('button')],i=buttons.indexOf(document.activeElement);
-  const delta={ArrowRight:1,ArrowLeft:-1,ArrowDown:4,ArrowUp:-4}[e.key];
-  if(delta!==undefined){e.preventDefault();buttons[(i+delta+buttons.length)%buttons.length].focus({preventScroll:true});}
-});
-document.addEventListener('pointerdown',e=>{if(!lightingMenu.hidden&&!lightingMenu.contains(e.target)&&!lightingToggle.contains(e.target))closeLightingMenu();});
-document.addEventListener('focusin',e=>{if(!lightingMenu.hidden&&!lightingMenu.contains(e.target)&&e.target!==lightingToggle)closeLightingMenu();});
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!lightingMenu.hidden){e.preventDefault();closeLightingMenu(true);}});
-window.addEventListener('resize',positionLightingMenu);window.addEventListener('scroll',positionLightingMenu,true);
 syncQuickLighting();
 document.getElementById('lightPower').addEventListener('input',event=>{
   state.lightPower=Number(event.target.value);state[state.light==='uv'?'blackLightPower':state.light==='night'?'nightLightPower':isCreative(state.light)?state.light+'Power':'regularLightPower']=state.lightPower;document.getElementById('lightPowerValue').value=state.lightPower;applyLightingPreset();
@@ -1976,13 +1948,18 @@ document.getElementById('selfShadows').addEventListener('change',e=>{
 });
 segment('segView',v=>setView(v));
 const detailToggle=document.getElementById('detailCameraToggle'),detailMenu=document.getElementById('detailCameraMenu');
-for(const [label,slots] of [['Front',['centerchest','lefthem','righthem']],['Back',['backneck','leftblade','rightblade','lowerback']],['Sleeves',['leftwrist','rightwrist']]]){
+for(const [label,views] of [
+  ['Front',['placement:centerchest','placement:lefthem','placement:righthem']],
+  ['Back',['placement:backneck','placement:leftblade','placement:rightblade','placement:lowerback']],
+  ['Sleeves',['sleeve:left','sleeve:right','placement:leftwrist','placement:rightwrist']],
+  ['Inside',['neck']]
+]){
   const group=document.createElement('div');group.className='detail-camera-group';
   const heading=document.createElement('span');heading.textContent=label;group.append(heading);
-  for(const slot of slots){const button=document.createElement('button');button.type='button';button.dataset.detailView='placement:'+slot;button.textContent=ART_META[slot].label;button.setAttribute('aria-pressed','false');group.append(button);}
-  if(label==='Sleeves')for(const side of ['right','left']){
-    const button=document.createElement('button');button.type='button';button.dataset.detailView='sleeve:'+side;
-    button.textContent=side==='left'?'Left full sleeve':'Right full sleeve';button.setAttribute('aria-pressed','false');group.prepend(button);
+  for(const view of views){
+    const button=document.createElement('button');button.type='button';button.dataset.detailView=view;
+    button.textContent=view==='neck'?'Inside neck tag':view.startsWith('sleeve:')?(view==='sleeve:left'?'Left full sleeve':'Right full sleeve'):ART_META[view.slice(10)].label;
+    button.setAttribute('aria-pressed','false');group.append(button);
   }
   detailMenu.append(group);
 }
@@ -1996,7 +1973,7 @@ function syncCameraUi(){
     b.setAttribute('aria-pressed',String(b.dataset.detailView===state.view));
     if(b.dataset.detailView.startsWith('placement:')){const slot=b.dataset.detailView.slice(10);b.hidden=!!ART_META[slot]?.hoodie&&!UV_PROFILES[slot];b.disabled=isCustom||!UV_PROFILES[slot];}
     if(b.dataset.detailView.startsWith('sleeve:')){b.hidden=!detailCamera(b.dataset.detailView);b.disabled=b.hidden;}
-    if(b.dataset.detailView==='neck'){b.disabled=isCustom||!UV_PROFILES.necktag;b.title=b.disabled?'Neck tag view is available on the built-in garments':'';}
+    if(b.dataset.detailView==='neck'){b.hidden=b.disabled=isCustom||!UV_PROFILES.necktag;b.title=b.disabled?'Neck tag view is available on the built-in garments':'';}
   });
   document.querySelectorAll('.detail-camera-group').forEach(g=>g.hidden=!Array.from(g.querySelectorAll('button')).some(b=>!b.hidden));
 }
@@ -3246,7 +3223,8 @@ const mobilePresentQuery=window.matchMedia('(max-width:820px)');
 const isMobilePresent=()=>mobilePresentQuery.matches;
 function enterPresent(){
   if(state.present || !current) return;
-  if(state.focusTarget.y>.1)setView('angle');
+  presentRenderLight=null;
+  presentation.begin();
 
   // Clone is already cached. Make it visible and mark Present active in the
   // same frame so the animation loop cannot immediately hide it again.
@@ -3267,11 +3245,11 @@ function exitPresent(){
 
   // Preserve the apparent orientation of the primary shirt when its temporary
   // presentation rotation is removed, avoiding a visual snap on exit.
-  state.az-=presentSpin;
-  state.taz-=presentSpin;
   presentSpin=0;
 
   state.present=false;
+  presentation.end();
+  presentRenderLight=null;
   document.body.classList.remove('present');
   stage.dataset.present='0';
 }
@@ -3519,8 +3497,8 @@ function draw(){
   renderer.setViewport(vx,vy,vr.width,vr.height);
   renderer.setScissor(vx,vy,vr.width,vr.height);
   renderer.setScissorTest(true);
-  updateShadowMap();
-  renderer.render(scene,camera);
+  const renderScene=()=>{updateShadowMap();renderer.render(scene,camera);};
+  if(state.present)presentation.render(renderScene);else renderScene();
   renderer.setScissorTest(false);
 }
 function tick(){
@@ -3528,7 +3506,7 @@ function tick(){
   const dt=Math.min(0.05,clock.getDelta());
   if(renderSuspended)return;
   uni.uTime.value+=dt;
-  updateCityTraffic(dt);updateCreativeLighting(dt);
+  if(state.present)presentation.advance(dt);else{updateCityTraffic(dt);updateCreativeLighting(dt);}
   if(intro<1){
     intro=Math.min(1,intro+dt/1.15);
     state.r=lerp(2.45,state.tr,1-Math.pow(1-intro,3));
@@ -3537,7 +3515,7 @@ function tick(){
   const presentFollow=1-Math.exp(-dt*6.2);
   presentMix+=(presentTarget-presentMix)*presentFollow;
 
-  if(state.present && !REDUCED) presentSpin+=dt*0.19;
+  if(state.present && !REDUCED && state.presentation.rotate) presentSpin+=dt*0.19*state.presentation.speed/100;
 
   if(!state.present && presentMix<0.002 && presentCloneActive){
     presentMix=0;
@@ -3615,6 +3593,8 @@ function resetStudioColor(id,keepOpen=false){
   if(!keepOpen)colorPicker?.close();
   if(id==='inkCustom'||id==='tintCustom'){
     if(artLoading||!entry)return;recordArtUndo();entry[id]=null;requestArtworkRender(entry);syncInkUi();
+  }else if(id==='presentBg'||id==='presentGraphicColor'){
+    setStudioInput(id,id==='presentBg'?'#181818':'#ffffff','change');
   }else if(id==='garmentCustom'){
     useManualFabricColor();state.blank=0;state.garmentCustom='#D8D8D8';
     document.getElementById(id).value=state.garmentCustom;document.querySelector('#swatches .custom i').style.background=state.garmentCustom;
@@ -3667,9 +3647,9 @@ function samplePreviewColor(x,y){
 // Shared state boundary for undo, portable files, and browser recovery.
 function designSnapshot(){
   return {name:document.getElementById('designName').value,garmentId:activeGarmentId,customFlipped,modelFile:customModelFile,modelToken:modelHistoryId(customModelFile),active:activeArtId,
-    settings:structuredClone(pick(state,SETTING_FIELDS)),regularBackdrop:regularBackdrop?{...regularBackdrop}:null,
-    lighting:{reference:lightReference.toArray(),quaternion:lightRig.quaternion.toArray()},
-    camera:{az:state.taz,el:state.tel,r:state.tr,focus:state.focusTarget.toArray(),view:state.view,framing:'proportions-v4'},
+    settings:structuredClone(presentation?.saved?.settings||pick(state,SETTING_FIELDS)),regularBackdrop:regularBackdrop?{...regularBackdrop}:null,
+    lighting:presentation?.saved?.lighting||{reference:lightReference.toArray(),quaternion:lightRig.quaternion.toArray()},
+    camera:presentation?.saved?.camera||{az:state.taz,el:state.tel,r:state.tr,focus:state.focusTarget.toArray(),view:state.view,framing:'proportions-v4'},
     layers:artLayers.map(e=>({...e,placement:{...e.placement},anchor:e.anchor?structuredClone(e.anchor):null}))};
 }
 function historyKey(snapshot){return JSON.stringify({name:snapshot.name,garmentId:snapshot.garmentId,customFlipped:snapshot.customFlipped,modelToken:snapshot.modelToken,settings:snapshot.settings,regularBackdrop:snapshot.regularBackdrop,layers:snapshot.layers.map(e=>pick(e,LAYER_FIELDS))});}
@@ -3696,7 +3676,7 @@ function restoreDesignState(snapshot,restoreCamera=true){
   activeArtId=artLayers.some(e=>e.id===snapshot.active)?snapshot.active:null;
   if(artEntry())activeArtSlot=artEntry().slot;
   nextArtId=Math.max(nextArtId,...artLayers.map(e=>(Number(e.id.replace(/^art-/,''))||0)+1));
-  Object.assign(state,{...CREATIVE_DEFAULTS,runwayPaused:REDUCED,afterglowPaused:REDUCED,projectorPaused:REDUCED,nightLightPower:100,nightTraffic:'subtle',nightPaused:REDUCED},structuredClone(pick(snapshot.settings,SETTING_FIELDS)));
+  Object.assign(state,{presentation:defaultPresentation(),...CREATIVE_DEFAULTS,runwayPaused:REDUCED,afterglowPaused:REDUCED,projectorPaused:REDUCED,nightLightPower:100,nightTraffic:'subtle',nightPaused:REDUCED},structuredClone(pick(snapshot.settings,SETTING_FIELDS)));
   if(state.light==='night')state.lightPower=state.nightLightPower;
   document.getElementById('designName').value=snapshot.name||'Untitled design';
   regularBackdrop=snapshot.regularBackdrop?{...snapshot.regularBackdrop}:state.light==='uv'?{bg:THEMES.light.bg,gridColor:BRAND.light.grid,gridColorCustom:false}:null;
@@ -3719,6 +3699,7 @@ function restoreDesignState(snapshot,restoreCamera=true){
   for(const id of ['matchFabricToTheme','dotGrid','selfShadows'])document.getElementById(id).checked=state[id];
   document.getElementById('lightLock').checked=state.light==='night'||!state.lightLocked;
   document.getElementById('gridType').value=state.gridType;
+  presentation?.sync();
   for(const [id,value] of [['segLight',state.light],['segWind',state.wind],['segView',state.view]])for(const b of document.querySelectorAll('#'+id+' button[data-v]'))b.setAttribute('aria-pressed',String(String(value)===b.dataset.v));
   for(const k of Object.keys(MOTION_APPLIERS))MOTION_APPLIERS[k](state.inertia[k]);
   document.getElementById('inertiaEnabled').checked=state.inertia.enabled;
@@ -3734,7 +3715,7 @@ async function restoreSnapshotGarment(snapshot,model){
   }else if(!await loadCatalog(snapshot.garmentId))throw new Error('The garment could not load. Your design was not replaced.');
 }
 function setWorkspaceLock(value,message='Working…'){
-  if(value)closeLightingMenu();
+  if(value&&state.present)exitPresent();
   designLocked=value;document.querySelector('header').inert=value;document.querySelector('main').inert=value;
   document.getElementById('workspaceBusy').hidden=!value;document.querySelector('#workspaceBusy span').textContent=message;
 }
@@ -3774,18 +3755,32 @@ workspace=installWorkspace({
     const snapshot=designSnapshot();snapshot.layers=[];snapshot.active=null;snapshot.name='Untitled design';snapshot.settings=structuredClone(defaultDesignSettings);snapshot.regularBackdrop=null;
     recordArtUndo();restoreDesignState(snapshot,false);setView('angle');
   },
+  presentationAsset:entry=>presentation.setGraphic(entry),
+  presentationRestored:()=>presentation.sync(),
   chooseEntries:openEntryPicker,
   addEntries:(slot,entries,action,target)=>{addArtworkEntries(slot,entries,action,target);viewArtwork(slot);},
   browse:ctx=>{pendingUploadAction=ctx.action;pendingSlot=ctx.slot||activeArtSlot;pendingLayerId=ctx.target||null;fileInput.value='';fileInput.click();}
+});
+presentation=installPresentation({
+  state,canvas,setView,beforeChange:recordArtUndo,changed:()=>workspace.notify(),
+  chooseGraphic:()=>workspace.openAssets({action:'presentation'}),getGraphic:id=>workspace.getAsset(id),
+  capture:()=>({lighting:{reference:lightReference.toArray(),quaternion:lightRig.quaternion.toArray()},settings:structuredClone(pick(state,SETTING_FIELDS)),camera:{az:state.taz,el:state.tel,r:state.tr,focus:state.focusTarget.toArray(),view:state.view,framing:'proportions-v4'},inspection:inspectionFocus?{point:inspectionFocus.point.clone(),distance:inspectionFocus.distance}:null}),
+  restore:prior=>{
+    Object.assign(state,prior.settings);const c=prior.camera;
+    state.az=state.taz=c.az;state.el=state.tel=c.el;state.r=state.tr=c.r;state.focus.fromArray(c.focus);state.focusTarget.copy(state.focus);state.view=c.view;inspectionFocus=prior.inspection;
+    garment.rotation.y=0;lightReference.fromArray(prior.lighting.reference);lightRig.quaternion.fromArray(prior.lighting.quaternion);applyLightingPreset();syncCameraUi();
+  },
+  light:id=>{state.light=id;state.lightPower=state[id==='uv'?'blackLightPower':id==='night'?'nightLightPower':isCreative(id)?id+'Power':'regularLightPower'];if(presentRenderLight!==id){renderLightingPreset();presentRenderLight=id;}},
+  advanceLight:(id,dt)=>{state.light=id;state.lightPower=state[id==='uv'?'blackLightPower':id==='night'?'nightLightPower':isCreative(id)?id+'Power':'regularLightPower'];updateCityTraffic(dt);updateCreativeLighting(dt);}
 });
 installDesignHistory();
 document.getElementById('resetView').onclick=()=>setView('angle');
 const cameraLabels={front:'Front',angle:'Front ¾',side:'Left',backangle:'Back ¾',back:'Back',detail:'Detail'};
 for(const button of document.querySelectorAll('#segView button[data-v]'))button.textContent=cameraLabels[button.dataset.v];
 for(const button of document.querySelectorAll('#segWind button'))button.textContent=['Still','Gentle','Breezy'][Number(button.dataset.v)];
-const lightShortLabels={studio:'Studio',softbox:'Soft',day:'Day',night:'Night',uv:'UV',runway:'Runway',afterglow:'Afterglow',projector:'Projector'};
+const lightShortLabels={studio:'Studio',softbox:'Softbox',day:'Day',night:'Night',uv:'UV',runway:'Runway',afterglow:'Afterglow',projector:'Projector'};
 const lightShortcutViews=['studio','softbox','day','night','uv','runway','afterglow','projector'];
-const cameraShortcutViews=['front','angle','side','backangle','back','detail','neck'];
+const cameraShortcutViews=['front','angle','side','backangle','back'];
 for(const button of document.querySelectorAll('#segLight button')){
   const id=button.dataset.v,n=lightShortcutViews.indexOf(id)+1;
   button.textContent=lightShortLabels[id];button.setAttribute('aria-label',`${LIGHT_PRESETS[id].label}, numpad ${n}`);
@@ -3795,23 +3790,25 @@ for(const [i,id] of cameraShortcutViews.entries()){
   const selector=id==='neck'?'[data-detail-view="neck"]':`#segView button[data-v="${id}"]`;
   for(const button of document.querySelectorAll(selector))button.setAttribute('aria-keyshortcuts',String(i+1));
 }
-setTip('#detailCameraToggle','Detail cameras · top-row 6: Artwork close-up; 7: Inside neck tag; 8: Cycle other details.');
-function cycleDetailCamera(){
+setTip('#detailCameraToggle','Detail cameras · 6: next available detail; Shift+6: previous detail.');
+detailToggle.setAttribute('aria-keyshortcuts','6 Shift+6');
+function cycleDetailCamera(direction=1){
   syncCameraUi();
   const views=Array.from(detailMenu.querySelectorAll('[data-detail-view]'))
-    .filter(button=>(button.dataset.detailView.startsWith('placement:')||button.dataset.detailView.startsWith('sleeve:'))&&!button.hidden&&!button.disabled)
+    .filter(button=>!button.hidden&&!button.disabled)
     .map(button=>button.dataset.detailView);
   if(!views.length)return;
-  const next=(views.indexOf(state.view)+1)%views.length;
+  const index=views.indexOf(state.view),next=index<0?(direction>0?0:views.length-1):(index+direction+views.length)%views.length;
   closeDetailMenu();setView(views[next]);
 }
 function handlePresetShortcut(event){
-  if(event.defaultPrevented||event.repeat||event.isComposing||event.ctrlKey||event.metaKey||event.altKey||event.shiftKey)return;
+  if(event.defaultPrevented||event.repeat||event.isComposing||event.ctrlKey||event.metaKey||event.altKey)return;
   if(event.target?.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"]'))return;
   if(designLocked||artLoading||modelLoading||workspace?.busy||document.querySelector('dialog[open]')||!document.getElementById('colorPopover').hidden)return;
-  const light=/^Numpad([1-8])$/.exec(event.code),view=/^Digit([1-8])$/.exec(event.code);
+  if(state.present||event.shiftKey&&event.code!=='Digit6')return;
+  const light=/^Numpad([1-8])$/.exec(event.code),view=/^Digit([1-6])$/.exec(event.code);
   if(light){event.preventDefault();document.querySelector(`#segLight button[data-v="${lightShortcutViews[Number(light[1])-1]}"]`).click();}
-  else if(view){event.preventDefault();if(view[1]==='8')cycleDetailCamera();else{closeDetailMenu();setView(cameraShortcutViews[Number(view[1])-1]);}}
+  else if(view){event.preventDefault();if(view[1]==='6')cycleDetailCamera(event.shiftKey?-1:1);else{closeDetailMenu();setView(cameraShortcutViews[Number(view[1])-1]);}}
 }
 document.addEventListener('keydown',handlePresetShortcut);
 installExports({THREE,renderer,scene,camera,garment,presentGarment,shirtShadow,presentShadow,uni,state,current:()=>current,
