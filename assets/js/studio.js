@@ -824,7 +824,6 @@ function modelBusy(value){
   modelLoading=value;
   garmentSelect.disabled=value;
   syncGarmentButtons();
-  for(const id of ['btnModel','btnShipped','btnFlip'])document.getElementById(id).disabled=value;
   stage.setAttribute('aria-busy',String(value));
 }
 function syncGarmentButtons(){
@@ -1030,10 +1029,6 @@ async function loadCatalog(id){
 
     garmentSelect.querySelector('option[value="custom"]')?.remove();
     garmentSelect.value=id;
-    document.getElementById('modelName').textContent=item.label;
-    document.getElementById('rowFit').hidden=true;
-    document.getElementById('modelName').dataset.garmentId=id;
-    document.getElementById('modelName').dataset.triangles=res.tris;
     garment.rotation.y=0;
     requestArtworkRender();syncArtworkUi();applyLook();if(initialLoad)setView('angle');else if(state.view==='neck'||state.view?.startsWith('placement:')||state.view?.startsWith('sleeve:'))setView(state.view);
     else if(inspectionFocus?.view?.startsWith('sleeve:'))setView(inspectionFocus.view);
@@ -1077,10 +1072,6 @@ async function loadModel(file){
     garmentSelect.value='custom';
     requestArtworkRender();syncArtworkUi();applyLook();artStatus('');
     garment.rotation.y=0;
-    document.getElementById('modelName').textContent='Custom garment';
-    document.getElementById('modelName').dataset.garmentId='custom';
-    document.getElementById('fitNote').textContent=`H 74cm · W ${Math.round(res.size.x*100)}cm`;
-    document.getElementById('rowFit').hidden=false;
     modelStatus.textContent='';if(initialLoad)setView('front');else if(state.view==='neck'||state.view?.startsWith('placement:')||state.view?.startsWith('sleeve:'))setView('detail');return true;
   }catch(error){
     console.error(error);
@@ -1716,7 +1707,6 @@ const staticTips=[
   ['.colorSingle','Choose the preview background color.'],
 
   ['#dotGrid','Show or hide the pattern-paper grid behind the shirt.'],
-  ['#btnFlip','Rotate the imported 3D model 180° if it loads facing the wrong direction.'],
 
   ['#inertiaEnabled','Enable or disable rotation-driven fabric inertia. The Wind control remains separate.'],
   ['#resetInertia','Restore all Fabric Motion controls to their default values.']
@@ -3101,7 +3091,7 @@ function texFromArtwork(cv,original=false){
 }
 // model
 // Public model uploads are disabled; saved custom projects still restore.
-document.getElementById('btnFlip').onclick=()=>{
+function flipCustomGarment(){
   if(!isCustom)return;
   recordArtUndo();customFlipped=!customFlipped;
   const turn=new THREE.Matrix4().makeRotationY(Math.PI);
@@ -3112,7 +3102,6 @@ document.getElementById('btnFlip').onclick=()=>{
   }
   requestArtworkRender();rebuildPresentClone(false);
 };
-document.getElementById('btnShipped').onclick=()=>loadCatalog(selectedCatalogId);
 document.getElementById('artPosition').onclick=()=>{if(isCustom)beginAnchorPick(activeArtId);else openMovePicker();};
 document.getElementById('positionCancel').onclick=()=>{cancelAnchorPick();artStatus('');};
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&anchorPickId){cancelAnchorPick();artStatus('');}});
@@ -3712,7 +3701,7 @@ async function restoreSnapshotGarment(snapshot,model){
   if(snapshot.garmentId==='custom'){
     if(!model)throw new Error('The custom garment is missing.');
     if(!isCustom||customModelFile!==model){if(!await loadModel(model))throw new Error('The custom garment could not load.');}
-    if(!!snapshot.customFlipped!==customFlipped)document.getElementById('btnFlip').click();
+    if(!!snapshot.customFlipped!==customFlipped)flipCustomGarment();
   }else if(!await loadCatalog(snapshot.garmentId))throw new Error('The garment could not load. Your design was not replaced.');
 }
 function setWorkspaceLock(value,message='Working…'){
