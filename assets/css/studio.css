@@ -1052,7 +1052,7 @@ body.present .stage-reset,body.present .stage-help{display:none}
 #btnArtist:focus-visible,#artistDialog a:focus-visible,#artistClose:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
 #mobileMark{display:none;fill:none;color:inherit;flex:0 0 auto}
 #artistBio{margin:0;font-size:12px;line-height:1.65;color:var(--graphite)}
-.artistLinks{display:flex;flex-wrap:wrap;align-items:center;column-gap:24px;row-gap:4px;margin-top:18px}
+.artistLinks{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;column-gap:24px;row-gap:4px;margin-top:18px}
 .artistLinks a{display:inline-flex;align-items:center;gap:5px;min-height:44px;color:var(--ink);font-size:12px;text-decoration:underline;text-underline-offset:3px}
 .artistLinks a:hover{text-decoration-thickness:2px}
 @media(max-width:1050px){
@@ -1060,3 +1060,7 @@ body.present .stage-reset,body.present .stage-help{display:none}
   #mobileMark{display:block;height:26px;width:26px}
   #btnArtist::before{content:"";position:absolute;inset:-9px}
 }
+
+/* Headerless artist bio; close control occupies only its own corner. */
+#artistClose{float:right;margin:-8px -10px 4px 12px}
+#artistDialog .artistLinks{clear:both}
