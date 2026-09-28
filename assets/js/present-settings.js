@@ -6,6 +6,8 @@ export function installPresentation(api){
  let saved=null,elapsed=0,source=null,tinted=null,loadToken=0,phase=null,pendingDt=0,backgroundDirty=true,backgroundKey='',useGPU=false;
  const background=document.createElement('canvas');
  background.id='presentationBackground';background.hidden=true;document.body.append(background);
+ const backdrops=[document.createElement('canvas'),document.createElement('canvas')];
+ let backdropKey='';
  const compositor=createPresentCompositor(api.THREE,api.renderer);
  const settings=()=>api.state.presentation;
  function paintGraphic(){
@@ -65,12 +67,18 @@ export function installPresentation(api){
  };
  function resize(c){const scale=Math.min(devicePixelRatio||1,1.5),w=Math.round(innerWidth*scale),h=Math.round(innerHeight*scale);if(c.width!==w||c.height!==h){c.width=w;c.height=h;}return c.getContext('2d');}
  function drawBackground(){
-  const p=settings(),key=[innerWidth,innerHeight,devicePixelRatio,p.background,p.bg,p.opacity,p.size,p.x,p.y].join('/');
+  const p=settings(),from=Number(api.isDarkLighting(phase.from)),to=Number(api.isDarkLighting(phase.to));
+  const mix=useGPU?phase.mix:Number(phase.mix>=.5),dark=from+(to-from)*mix;
+  const key=[innerWidth,innerHeight,devicePixelRatio,p.background,p.bg,p.opacity,p.size,p.x,p.y,p.background?'custom':dark].join('/');
   if(!backgroundDirty&&key===backgroundKey)return;
   backgroundKey=key;backgroundDirty=false;
   const ctx=resize(background),w=background.width,h=background.height;
   ctx.clearRect(0,0,w,h);
-  if(p.background){ctx.fillStyle=p.bg;ctx.fillRect(0,0,w,h);}else ctx.drawImage($('bgPattern'),0,0,w,h);
+  if(p.background){ctx.fillStyle=p.bg;ctx.fillRect(0,0,w,h);}else {
+   const sizeKey=[w,h].join('/');
+   if(backdropKey!==sizeKey){for(const [i,c] of backdrops.entries()){c.width=w;c.height=h;api.drawBackdrop(c,!!i);}backdropKey=sizeKey;}
+   ctx.drawImage(backdrops[0],0,0);if(dark>0){ctx.globalAlpha=dark;ctx.drawImage(backdrops[1],0,0);ctx.globalAlpha=1;}
+  }
   if(tinted){const width=w*p.size/100,height=width*tinted.height/tinted.width;ctx.globalAlpha=p.opacity/100;ctx.drawImage(tinted,w*p.x/100-width/2,h*p.y/100-height/2,width,height);ctx.globalAlpha=1;}
  }
  sync();
@@ -78,7 +86,7 @@ export function installPresentation(api){
   sync(){sync();loadGraphic();},
   setGraphic(entry){api.beforeChange();settings().graphic=entry.assetId;settings().graphicName=entry.name||entry.sourceName;source=entry.source;++loadToken;sync();api.changed();},
   get saved(){return saved;},
-  begin(){saved=api.capture();elapsed=0;phase=presentationPhase(settings(),0,saved.settings.light);background.hidden=false;backgroundDirty=true;loadGraphic();useGPU=settings().cycle&&settings().fade>0&&settings().selected.length>1?compositor.begin():false;
+  begin(){backdropKey='';saved=api.capture();elapsed=0;phase=presentationPhase(settings(),0,saved.settings.light);background.hidden=false;backgroundDirty=true;loadGraphic();useGPU=settings().cycle&&settings().fade>0&&settings().selected.length>1?compositor.begin():false;
     $('presentPerformanceNote').hidden=useGPU||!settings().cycle||settings().fade===0||settings().selected.length<2;if(settings().camera!=='current')api.setView(settings().camera);},
   end(){const prior=saved;saved=null;phase=null;background.hidden=true;compositor.dispose();useGPU=false;pendingDt=0;if(prior)api.restore(prior);},
   advance(dt){if(!saved)return;elapsed+=dt;phase=presentationPhase(settings(),elapsed,saved.settings.light);pendingDt=dt;},

@@ -1,5 +1,5 @@
 import {defaultPresentation} from './present-options.js?v=91-style26';
-import {installPresentation} from './present-settings.js?v=91-style26';
+import {installPresentation} from './present-settings.js?v=91-shadow27';
 let presentation=null,presentRenderLight=null;
 import {setupProjectorControls,syncProjectorButtons} from './projector-controls.js?v=91-history13';
 import {installMappedRanges} from './mapped-ranges.js?v=91-history13';
@@ -171,8 +171,8 @@ const lightEnvironmentRotation={value:new THREE.Matrix3()},lightEnvironmentPower
 const lightRotationMatrix=new THREE.Matrix4();
 const effectUniforms={uBlackLight:{value:0},uGlowSceneLevel:{value:0},uAfterRotation:{value:new THREE.Matrix3()},uAfterglow:{value:0},uAfterPhase:{value:0},uAfterFade:{value:4},uAfterSpeed:{value:1},uAfterPower:{value:1}};
 const creativeLighting=createCreativeLighting(THREE,scene,effectUniforms,renderer,{mobile:MOBILE});
-function updateCreativeLighting(dt=0){creativeLighting.update(dt,state);if(state.selfShadows&&isCreative(state.light)&&performance.now()-lastShadowTime>1000/30)shadowDirty=true;}
-let lightReferenceReady=false,shadowDirty=true,lastShadowTime=-Infinity,lastShadowSignature='';
+function updateCreativeLighting(dt=0){creativeLighting.update(dt,state);if(state.selfShadows&&isCreative(state.light)&&dt>0&&!state[state.light+'Paused'])shadowDirty=true;}
+let lightReferenceReady=false,shadowDirty=true,lastShadowSignature='';
 key.castShadow=true;
 key.shadow.mapSize.set(MOBILE?1024:2048,MOBILE?1024:2048);
 Object.assign(key.shadow.camera,{left:-.72,right:.72,top:.68,bottom:-.68,near:.1,far:6});
@@ -182,13 +182,11 @@ function updateShadowMap(){
   const c=camera.quaternion,g=garment,p=presentGarment;
   const sig=[state.selfShadows,state.light,state.lightLocked,c.x,c.y,c.z,c.w,g.position.x,g.position.z,g.rotation.y,p.visible,p.position.x,p.position.z,p.rotation.y,activeGarmentId].join('/');
   const moving=Math.abs(uni.uWind.value)>.00001||Math.abs(uni.uTwist.value)>.00001;
-  const now=performance.now();
-  // Reuse the depth map when still; moving cloth refreshes at up to 30 Hz.
-  const presetChanged=lastShadowSignature.split('/')[1]!==state.light;
-  if(state.selfShadows&&(shadowDirty||presetChanged||(sig!==lastShadowSignature||moving)&&now-lastShadowTime>1000/30)){
+  // Every moving scene pass needs a matching depth map, including both fade passes.
+  if(state.selfShadows&&(shadowDirty||sig!==lastShadowSignature||moving)){
     const extent=presentGarment.visible?1.15:.72;
     if(key.shadow.camera.right!==extent){key.shadow.camera.left=-extent;key.shadow.camera.right=extent;key.shadow.camera.updateProjectionMatrix();}
-    renderer.shadowMap.needsUpdate=true;lastShadowTime=now;shadowDirty=false;lastShadowSignature=sig;
+    renderer.shadowMap.needsUpdate=true;shadowDirty=false;lastShadowSignature=sig;
   }
 }
 
@@ -222,10 +220,11 @@ const LIGHT_PRESETS={
     fill:.07,fillColor:'#c1c3d2',fillPos:[1.55,.45,1],
     rim:.18,rimColor:'#6633ef',rimPos:[.45,1.1,-1.8]}
 };
+const isDarkLighting=id=>['night','uv','runway','afterglow','projector'].includes(id);
 const UV_BACKDROP={bg:'#000000',gridColor:'#101010'};
 let regularBackdrop=null;
 function syncLightingBackdrop(){
-  if(['uv','runway','afterglow','projector'].includes(state.light)){
+  if(isDarkLighting(state.light)){
     if(regularBackdrop)return;
     regularBackdrop={bg:state.bg,gridColor:state.gridColor,gridColorCustom:state.gridColorCustom};
     Object.assign(state,UV_BACKDROP,{gridColorCustom:false});
@@ -1127,7 +1126,7 @@ function applyTheme(resetStage=true){
   document.documentElement.style.colorScheme=state.theme;
   const palette=BRAND[state.theme];
   for(const [property,value] of Object.entries({paper:palette.paper,wash:palette.wash||palette.paper,ink:palette.ink,accent:palette.accent}))document.body.style.setProperty('--'+property,value);
-  if(state.light!=='uv'&&!state.gridColorCustom){state.gridColor=palette.grid;document.getElementById('gridColor').value=state.gridColor;}
+  if(!isDarkLighting(state.light)&&!state.gridColorCustom){state.gridColor=palette.grid;document.getElementById('gridColor').value=state.gridColor;}
   document.querySelectorAll('[data-theme-mode]').forEach(button=>{
     button.setAttribute('aria-pressed',String(button.dataset.themeMode===state.themeMode));
   });
@@ -1148,9 +1147,9 @@ function patternLetterLabel(index){
   const letters=['A','B','C','D'];
   return letters[mod(index,4)];
 }
-function drawPatternMark(x,y,kind,val,size,patternCtxOverride=null){
+function drawPatternMark(x,y,kind,val,size,patternCtxOverride=null,gridColor=state.gridColor){
   const patternCtx=patternCtxOverride||document.getElementById('bgPattern').getContext('2d');
-  const accent=state.gridColor;
+  const accent=gridColor;
   patternCtx.save();
   patternCtx.translate(x,y);
   patternCtx.strokeStyle=accent;
@@ -1183,7 +1182,7 @@ function drawPatternMark(x,y,kind,val,size,patternCtxOverride=null){
   }
   patternCtx.restore();
 }
-function drawPatternBackground(target=null){
+function drawPatternBackground(target=null,backdrop=state){
   const patternCanvas=target||document.getElementById('bgPattern'),patternCtx=patternCanvas.getContext('2d');
   const w=target?target.width:window.innerWidth||1,h=target?target.height:window.innerHeight||1;
   const dpr=target?1:Math.min(2, window.devicePixelRatio||1);
@@ -1193,7 +1192,7 @@ function drawPatternBackground(target=null){
   }
   patternCtx.setTransform(dpr,0,0,dpr,0,0);
   patternCtx.clearRect(0,0,w,h);
-  patternCtx.fillStyle=state.bg;
+  patternCtx.fillStyle=backdrop.bg;
   patternCtx.fillRect(0,0,w,h);
   if(!state.dotGrid) return;
 
@@ -1203,7 +1202,7 @@ function drawPatternBackground(target=null){
   const markSize=Math.max(3, charSize*0.95);
   const cx=w*0.5, cy=h*0.5;
   if(state.gridType==='square'){
-    patternCtx.strokeStyle=state.gridColor;patternCtx.lineWidth=state.gridStroke;
+    patternCtx.strokeStyle=backdrop.gridColor;patternCtx.lineWidth=state.gridStroke;
     const offset=(Math.round(state.gridStroke*dpr)%2)*0.5;
     const snap=v=>(Math.round(v*dpr)+offset)/dpr;
     patternCtx.beginPath();
@@ -1238,7 +1237,7 @@ function drawPatternBackground(target=null){
         kind='plus';
       }
 
-      drawPatternMark(x,y,kind,value, kind==='text' ? charSize : markSize,patternCtx);
+      drawPatternMark(x,y,kind,value, kind==='text' ? charSize : markSize,patternCtx,backdrop.gridColor);
     }
   }
 }
@@ -3602,9 +3601,9 @@ function resetStudioColor(id,keepOpen=false){
     document.getElementById(id).value=state.garmentCustom;document.querySelector('#swatches .custom i').style.background=state.garmentCustom;
     syncGarmentSwatches();applyLook();
   }else if(id==='gridColor'){
-    state.gridColorCustom=false;state.gridColor=state.light==='uv'?UV_BACKDROP.gridColor:BRAND[state.theme].grid;document.getElementById(id).value=state.gridColor;drawPatternBackground();
+    state.gridColorCustom=false;state.gridColor=isDarkLighting(state.light)?UV_BACKDROP.gridColor:BRAND[state.theme].grid;document.getElementById(id).value=state.gridColor;drawPatternBackground();
   }else if(/^projectorColor(?:[1-9]|1[0-2])$/.test(id))setStudioInput(id,CREATIVE_DEFAULTS[id]);
-  else if(id==='bgCustom')setStudioInput(id,state.light==='uv'?UV_BACKDROP.bg:THEMES[state.theme].bg);
+  else if(id==='bgCustom')setStudioInput(id,isDarkLighting(state.light)?UV_BACKDROP.bg:THEMES[state.theme].bg);
   if(keepOpen)colorPicker?.refresh();
 }
 function installGroupResets(){
@@ -3764,6 +3763,7 @@ workspace=installWorkspace({
   browse:ctx=>{pendingUploadAction=ctx.action;pendingSlot=ctx.slot||activeArtSlot;pendingLayerId=ctx.target||null;fileInput.value='';fileInput.click();}
 });
 presentation=installPresentation({
+  isDarkLighting,drawBackdrop:(target,dark)=>drawPatternBackground(target,dark?UV_BACKDROP:(regularBackdrop||state)),
   state,canvas,THREE,renderer,setView,beforeChange:recordArtUndo,changed:()=>workspace.notify(),
   chooseGraphic:()=>workspace.openAssets({action:'presentation'}),getGraphic:id=>workspace.getAsset(id),
   capture:()=>({lighting:{reference:lightReference.toArray(),quaternion:lightRig.quaternion.toArray()},settings:structuredClone(pick(state,SETTING_FIELDS)),camera:{az:state.taz,el:state.tel,r:state.tr,focus:state.focusTarget.toArray(),view:state.view,framing:'proportions-v4'},inspection:inspectionFocus?{point:inspectionFocus.point.clone(),distance:inspectionFocus.distance}:null}),
@@ -3790,7 +3790,7 @@ const cameraShortcutViews=['front','angle','side','backangle','back'];
 for(const button of document.querySelectorAll('#segLight button')){
   const id=button.dataset.v,n=lightShortcutViews.indexOf(id)+1;
   button.textContent=lightShortLabels[id];button.setAttribute('aria-label',`${LIGHT_PRESETS[id].label}, numpad ${n}`);
-  setTip(`#segLight button[data-v="${id}"]`,`${LIGHT_PRESETS[id].label} · Numpad ${n}. ${LIGHT_PRESETS[id].description}`);
+  setTip(`#segLight button[data-v="${id}"]`,`${LIGHT_PRESETS[id].label} · Numpad ${n}. ${LIGHT_PRESETS[id].description}${id==='projector'?' Press Numpad 8 again to cycle available patterns.':''}`);
 }
 for(const [i,id] of cameraShortcutViews.entries()){
   const selector=id==='neck'?'[data-detail-view="neck"]':`#segView button[data-v="${id}"]`;
@@ -3813,7 +3813,14 @@ function handlePresetShortcut(event){
   if(designLocked||artLoading||modelLoading||workspace?.busy||document.querySelector('dialog[open]')||!document.getElementById('colorPopover').hidden)return;
   if(state.present||event.shiftKey&&event.code!=='Digit6')return;
   const light=/^Numpad([1-8])$/.exec(event.code),view=/^Digit([1-6])$/.exec(event.code);
-  if(light){event.preventDefault();document.querySelector(`#segLight button[data-v="${lightShortcutViews[Number(light[1])-1]}"]`).click();}
+  if(light){event.preventDefault();
+    if(light[1]==='8'&&state.light==='projector'){
+      const select=document.getElementById('projectorPattern');
+      const options=Array.from(select.options).filter(option=>!option.hidden&&!option.disabled);
+      if(options.length){const index=options.findIndex(option=>option.value===select.value);select.value=options[(index+1)%options.length].value;select.dispatchEvent(new Event('change',{bubbles:true}));}
+      return;
+    }
+    document.querySelector(`#segLight button[data-v="${lightShortcutViews[Number(light[1])-1]}"]`).click();}
   else if(view){event.preventDefault();if(view[1]==='6')cycleDetailCamera(event.shiftKey?-1:1);else{closeDetailMenu();setView(cameraShortcutViews[Number(view[1])-1]);}}
 }
 document.addEventListener('keydown',handlePresetShortcut);
