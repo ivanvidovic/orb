@@ -1921,7 +1921,7 @@ function quickLightName(id){return {studio:'Studio',softbox:'Soft',day:'Day',nig
 function syncQuickLighting(){
   const toggle=document.getElementById('lightingPresetToggle');
   const name=quickLightName(state.light);
-  if(toggle){toggle.textContent='Light: '+name+' ▾';toggle.setAttribute('aria-label','Lighting preset: '+name);}
+  if(toggle){toggle.textContent=name+' ▾';toggle.setAttribute('aria-label','Lighting preset: '+name);}
   document.querySelectorAll('[data-quick-light]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.quickLight===state.light)));
 }
 const lightingToggle=document.getElementById('lightingPresetToggle');
