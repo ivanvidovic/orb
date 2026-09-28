@@ -1064,3 +1064,31 @@ body.present .stage-reset,body.present .stage-help{display:none}
 #helpDialog .helpJump{display:inline;padding:0;border:0;background:none;color:var(--ink);font:inherit;text-align:left;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
 #helpDialog .helpJump:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 #helpFaq .guideRows>div{grid-template-columns:1fr;gap:4px}
+
+/* Compact phone drawer: preserve control and thumbnail sizes, trim surrounding space. */
+@media(max-width:600px){
+ #panel{max-height:min(26dvh,220px);padding:6px 12px calc(6px + env(safe-area-inset-bottom))}
+ #panel .design-bar{margin-bottom:6px;padding:0 0 6px;row-gap:4px}
+ #panelContent>.garmentChooser{gap:4px;margin-bottom:6px;padding-bottom:6px}
+ #panel .sectionFold>summary{padding:7px 0}
+ #panel .sectionBody{gap:6px;padding-bottom:8px}
+ #panel .artworkPrimary,#panel .appearanceControls,#panel .subsec{gap:6px}
+ #panel .subsec+.subsec,#panel .appearanceControls>.subsec:first-child{padding-top:6px}
+ #panel .envItem{gap:6px;padding:6px 0}
+ #panel .envItem:first-child{padding-top:0}
+ #panel .envItem:last-child{padding-bottom:0}
+ #panel .grid-style-row{margin:4px 0}
+ #panel .ctrl{column-gap:6px}
+ #panel #shelfDrop{padding:7px 6px;margin-top:6px}
+ #panel .shelf-grid{margin-top:6px;row-gap:5px}
+ #panel .shelf-use{gap:3px;padding-top:4px;padding-bottom:4px}
+ #panel .shelf-note{margin-top:4px}
+ #panel #shelfSearch{margin-top:6px;padding:5px 7px}
+ #panel #projectorControls .adjustFold>summary{padding:6px 0}
+ #panel #projectorControls .adjustBody{gap:6px;padding-bottom:6px}
+}
+@media(min-width:390px) and (max-width:600px){
+ #panelContent>.garmentChooser{grid-template-columns:58px minmax(0,1fr);align-items:center;column-gap:6px}
+ #panel #garmentButtons{gap:3px}
+ #panel #garmentButtons button{min-width:0;padding-left:3px;padding-right:3px}
+}
