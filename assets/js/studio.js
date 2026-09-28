@@ -1,5 +1,5 @@
 import {defaultPresentation} from './present-options.js?v=91-present23';
-import {installPresentation} from './present-settings.js?v=91-present23';
+import {installPresentation} from './present-settings.js?v=91-perf24';
 let presentation=null,presentRenderLight=null;
 import {setupProjectorControls,syncProjectorButtons} from './projector-controls.js?v=91-history13';
 import {installMappedRanges} from './mapped-ranges.js?v=91-history13';
@@ -16,7 +16,7 @@ import {createCityTraffic} from './city-night.js?v=43';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=82';
 import {sharedSurfaceProfiles,fitSurfacePlacements} from './surface-layout.js?v=83';
 import {torsoFrame,torsoDistance,previousTorsoFrame,previewDistance,previousPreviewFrame} from './garment-framing.js?v=89';
-import {installWorkspace} from './workspace.js?v=91-present23';
+import {installWorkspace} from './workspace.js?v=91-perf24';
 import {installExports} from './presentation-export.js?v=91-history13';
 import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=91-present23';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
@@ -184,7 +184,8 @@ function updateShadowMap(){
   const moving=Math.abs(uni.uWind.value)>.00001||Math.abs(uni.uTwist.value)>.00001;
   const now=performance.now();
   // Reuse the depth map when still; moving cloth refreshes at up to 30 Hz.
-  if(state.selfShadows&&(shadowDirty||sig!==lastShadowSignature||moving&&now-lastShadowTime>1000/30)){
+  const presetChanged=lastShadowSignature.split('/')[1]!==state.light;
+  if(state.selfShadows&&(shadowDirty||presetChanged||(sig!==lastShadowSignature||moving)&&now-lastShadowTime>1000/30)){
     const extent=presentGarment.visible?1.15:.72;
     if(key.shadow.camera.right!==extent){key.shadow.camera.left=-extent;key.shadow.camera.right=extent;key.shadow.camera.updateProjectionMatrix();}
     renderer.shadowMap.needsUpdate=true;lastShadowTime=now;shadowDirty=false;lastShadowSignature=sig;
@@ -238,14 +239,14 @@ function syncLightingBackdrop(){
   document.getElementById('gridColor').value=state.gridColor;
   applyBackground();
 }
-function renderLightingPreset(){
+function renderLightingPreset(updateEffects=true){
   syncFabricColors();
   const p=LIGHT_PRESETS[state.light]||LIGHT_PRESETS.studio,power=state.lightPower/100*(state.light==='uv'?8:1);
   renderer.toneMappingExposure=p.exposure;scene.environment=environments[state.light]||environments.studio;
   lightEnvironmentPower.value=power*(isCreative(state.light)?.025:state.light==='softbox'?.55:state.light==='studio'?.55:state.light==='day'?.65:state.light==='night'?.1125:.45);
   effectUniforms.uBlackLight.value=state.light==='uv'?power:0;
   effectUniforms.uGlowSceneLevel.value=power*(.16*p.key+.12*p.fill+.08*p.rim+.75*p.hemi)+.20*lightEnvironmentPower.value;
-  updateCityTraffic();updateCreativeLighting();
+  if(updateEffects){updateCityTraffic();updateCreativeLighting();}
   shadowDirty=true;
   hemi.color.set(p.hemiSky);hemi.groundColor.set(p.hemiGround);hemi.intensity=p.hemi*power;
   key.color.set(p.keyColor);key.intensity=p.key*power;key.position.set(...p.keyPos);
@@ -1435,6 +1436,7 @@ canvas.addEventListener('pointermove',e=>{
 });
 function endOrbitDrag(){
   if(dragging){
+    if(!state.present)workspace?.notify();
     // The shirt has been "loaded" in the lag direction while held.
     // On release, inject momentum toward neutral so it catches up, crosses
     // through, then oscillates with the Overshoot / Settle controls.
@@ -3498,7 +3500,7 @@ function draw(){
   renderer.setScissor(vx,vy,vr.width,vr.height);
   renderer.setScissorTest(true);
   const renderScene=()=>{updateShadowMap();renderer.render(scene,camera);};
-  if(state.present)presentation.render(renderScene);else renderScene();
+  if(state.present)presentation.render(renderScene,vr);else renderScene();
   renderer.setScissorTest(false);
 }
 function tick(){
@@ -3735,7 +3737,7 @@ function installDesignHistory(){
   for(const type of ['input','change','click'])document.addEventListener(type,before,true);
   document.addEventListener('focusin',e=>{if(e.target.id==='designName')recordArtUndo();},true);
   document.addEventListener('focusout',()=>editing=null);
-  document.addEventListener('pointerup',()=>workspace?.notify());
+  document.addEventListener('pointerup',event=>{if(!state.present&&event.target.closest?.('#panel input,header input,#colorPopover'))workspace?.notify();});
   document.addEventListener('keydown',e=>{
     if(!(e.ctrlKey||e.metaKey)||e.altKey||e.target.closest('input,textarea,select,[contenteditable="true"]'))return;
     if(e.key.toLowerCase()==='z'||e.key.toLowerCase()==='y'){e.preventDefault();undoArtwork(e.shiftKey||e.key.toLowerCase()==='y');}
@@ -3743,7 +3745,7 @@ function installDesignHistory(){
 }
 const defaultDesignSettings=structuredClone(pick(state,SETTING_FIELDS));
 workspace=installWorkspace({
-  schema:{garments:GARMENT_CATALOG.map(g=>g.id),slots:ART_KEYS},busy:()=>artLoading||modelLoading||designLocked,
+  schema:{garments:GARMENT_CATALOG.map(g=>g.id),slots:ART_KEYS},deferAutosave:()=>state.present,busy:()=>artLoading||modelLoading||designLocked,
   snapshot:designSnapshot,modelFile:()=>customModelFile,decode:decodeArtworkFile,
   finish:()=>{finishArtworkRename(true);colorPicker?.close();},lock:setWorkspaceLock,
   clearHistory:()=>{artHistory.length=0;artFuture.length=0;syncArtworkUi();},
@@ -3762,7 +3764,7 @@ workspace=installWorkspace({
   browse:ctx=>{pendingUploadAction=ctx.action;pendingSlot=ctx.slot||activeArtSlot;pendingLayerId=ctx.target||null;fileInput.value='';fileInput.click();}
 });
 presentation=installPresentation({
-  state,canvas,setView,beforeChange:recordArtUndo,changed:()=>workspace.notify(),
+  state,canvas,THREE,renderer,setView,beforeChange:recordArtUndo,changed:()=>workspace.notify(),
   chooseGraphic:()=>workspace.openAssets({action:'presentation'}),getGraphic:id=>workspace.getAsset(id),
   capture:()=>({lighting:{reference:lightReference.toArray(),quaternion:lightRig.quaternion.toArray()},settings:structuredClone(pick(state,SETTING_FIELDS)),camera:{az:state.taz,el:state.tel,r:state.tr,focus:state.focusTarget.toArray(),view:state.view,framing:'proportions-v4'},inspection:inspectionFocus?{point:inspectionFocus.point.clone(),distance:inspectionFocus.distance}:null}),
   restore:prior=>{
@@ -3770,8 +3772,12 @@ presentation=installPresentation({
     state.az=state.taz=c.az;state.el=state.tel=c.el;state.r=state.tr=c.r;state.focus.fromArray(c.focus);state.focusTarget.copy(state.focus);state.view=c.view;inspectionFocus=prior.inspection;
     garment.rotation.y=0;lightReference.fromArray(prior.lighting.reference);lightRig.quaternion.fromArray(prior.lighting.quaternion);applyLightingPreset();syncCameraUi();
   },
-  light:id=>{state.light=id;state.lightPower=state[id==='uv'?'blackLightPower':id==='night'?'nightLightPower':isCreative(id)?id+'Power':'regularLightPower'];if(presentRenderLight!==id){renderLightingPreset();presentRenderLight=id;}},
-  advanceLight:(id,dt)=>{state.light=id;state.lightPower=state[id==='uv'?'blackLightPower':id==='night'?'nightLightPower':isCreative(id)?id+'Power':'regularLightPower'];updateCityTraffic(dt);updateCreativeLighting(dt);}
+  light:(id,dt)=>{
+    state.light=id;state.lightPower=state[id==='uv'?'blackLightPower':id==='night'?'nightLightPower':isCreative(id)?id+'Power':'regularLightPower'];
+    if(presentRenderLight!==id){renderLightingPreset(false);presentRenderLight=id;}
+    updateCityTraffic(dt);updateCreativeLighting(dt);
+  }
+
 });
 installDesignHistory();
 document.getElementById('resetView').onclick=()=>setView('angle');

@@ -162,7 +162,8 @@ export function installWorkspace(api){
     return zip.generateAsync({type:'blob',compression:'STORE'});
   }
   async function autosave(){
-    if(!ready||restoring)return;
+    if(!ready||restoring||revision===savedRevision)return;
+    if(!document.hidden&&api.deferAutosave?.()){clearTimeout(saveTimer);saveTimer=setTimeout(autosave,900);return;}
     if(busy||api.busy()){clearTimeout(saveTimer);saveTimer=setTimeout(autosave,900);return;}
     const savingRevision=revision;
     saveChain=saveChain.catch(()=>{}).then(async()=>{
@@ -222,7 +223,7 @@ export function installWorkspace(api){
   for(const button of document.querySelectorAll('[data-close-dialog]'))button.onclick=()=>{if(!busy)button.closest('dialog').close();};
   for(const dialog of document.querySelectorAll('.workspace-dialog'))dialog.addEventListener('cancel',e=>{if(busy)e.preventDefault();});
   document.addEventListener('change',e=>{if(e.target.closest('#panel,header,#colorPopover'))notify();});
-  document.addEventListener('click',e=>{if(e.target.closest('#panel,header,#colorPopover'))queueMicrotask(notify);});
+  document.addEventListener('click',e=>{if(e.target.closest('summary,#btnPresent,#presentSettingsButton,.toolbarMenuToggle,#btnHelp,#btnArtist,#presentChooseGraphic,#btnSave,#btnExportAll,#designSave,#designOpen'))return;if(e.target.closest('#panel,header,#colorPopover'))queueMicrotask(notify);});
   window.addEventListener('beforeunload',e=>{if(ready&&revision!==savedRevision){e.preventDefault();e.returnValue='';}});
   document.addEventListener('visibilitychange',()=>{if(document.hidden)autosave();});
   return {getAsset:async id=>{const a=assets.get(id);if(!a)throw new Error('Background artwork is missing.');if(!a.entry.source)a.entry={...await api.decode(new File([a.blob],a.name,{type:a.blob.type})),assetId:id};return a.entry;},register,openAssets,notify,loadLibrary,makeArchive,dropFolder,artworkData:()=>packageData(false),dropProject:file=>confirmAction({file}),get busy(){return busy;},
