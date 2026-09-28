@@ -1,5 +1,5 @@
-import {defaultPresentation} from './present-options.js?v=91-present23';
-import {installPresentation} from './present-settings.js?v=91-perf24';
+import {defaultPresentation} from './present-options.js?v=91-style26';
+import {installPresentation} from './present-settings.js?v=91-style26';
 let presentation=null,presentRenderLight=null;
 import {setupProjectorControls,syncProjectorButtons} from './projector-controls.js?v=91-history13';
 import {installMappedRanges} from './mapped-ranges.js?v=91-history13';

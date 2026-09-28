@@ -1,5 +1,6 @@
+import {RESET_ICON} from './controls.js?v=91-history13';
 import {createPresentCompositor} from './present-compositor.js?v=91-perf24';
-import {defaultPresentation,PRESENT_LIGHTS,PRESENT_NAMES,presentationPhase} from './present-options.js?v=91-present23';
+import {defaultPresentation,resetPresentationSection,PRESENT_LIGHTS,PRESENT_NAMES,presentationPhase} from './present-options.js?v=91-style26';
 export function installPresentation(api){
  const $=id=>document.getElementById(id),section=$('presentationSettings');
  let saved=null,elapsed=0,source=null,tinted=null,loadToken=0,phase=null,pendingDt=0,backgroundDirty=true,backgroundKey='',useGPU=false;
@@ -45,7 +46,16 @@ export function installPresentation(api){
   if(typeof value==='number'){if(!Number.isFinite(value)){sync();return;}value=Math.max(Number(input.min),Math.min(Number(input.max),value));input.value=value;}
   api.beforeChange();settings()[key]=value;paintGraphic();api.changed();
  });
- $('presentReset').onclick=()=>{api.beforeChange();api.state.presentation=defaultPresentation();++loadToken;source=tinted=null;sync();api.changed();};
+ for(const button of section.querySelectorAll('[data-present-reset]')){
+  button.innerHTML=RESET_ICON;
+  button.onclick=()=>{
+   api.beforeChange();const group=button.dataset.presentReset;
+   api.state.presentation=resetPresentationSection(settings(),group);
+   if(group==='background'){++loadToken;source=tinted=null;}
+   if(group==='lighting')$('presentPerformanceNote').hidden=true;
+   sync();api.changed();
+  };
+ }
  $('presentChooseGraphic').onclick=()=>api.chooseGraphic();
  $('presentRemoveGraphic').onclick=()=>{api.beforeChange();settings().graphic=null;settings().graphicName='';++loadToken;source=tinted=null;sync();api.changed();};
  $('presentSettingsButton').onclick=()=>{

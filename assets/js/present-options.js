@@ -1,6 +1,6 @@
 export const PRESENT_LIGHTS=['studio','softbox','day','night','uv','runway','afterglow','projector'];
 export const PRESENT_NAMES=['Studio','Softbox','Day','Night','UV','Runway','Afterglow','Projector'];
-export function defaultPresentation(){return {cycle:false,order:[...PRESENT_LIGHTS],selected:['studio','uv','projector'],hold:10,fade:3,background:false,bg:'#181818',graphic:null,graphicName:'',graphicMode:'original',graphicColor:'#ffffff',opacity:20,size:65,x:50,y:50,camera:'current',rotate:true,speed:100};}
+export function defaultPresentation(){return {cycle:false,order:[...PRESENT_LIGHTS],selected:[],hold:10,fade:3,background:false,bg:'#181818',graphic:null,graphicName:'',graphicMode:'original',graphicColor:'#ffffff',opacity:20,size:65,x:50,y:50,camera:'current',rotate:true,speed:100};}
 export function validPresentation(p){
  const color=v=>typeof v==='string'&&/^#[a-f\d]{6}$/i.test(v);
  const number=(key,min,max)=>typeof p[key]==='number'&&Number.isFinite(p[key])&&p[key]>=min&&p[key]<=max;
@@ -18,4 +18,10 @@ export function presentationPhase(settings,elapsed,fallback){
  const span=settings.hold+settings.fade,index=Math.floor(elapsed/span)%list.length,phase=elapsed%span;
  const t=settings.fade?Math.max(0,(phase-settings.hold)/settings.fade):0;
  return {from:list[index],to:list[(index+1)%list.length],mix:t*t*(3-2*t)};
+}
+
+export function resetPresentationSection(settings,section){
+ const fields={lighting:['cycle','order','selected','hold','fade'],background:['background','bg','graphic','graphicName','graphicMode','graphicColor','opacity','size','x','y'],motion:['camera','rotate','speed']}[section];
+ if(!fields)throw new Error('Unknown presentation section');
+ const defaults=defaultPresentation();return {...settings,...Object.fromEntries(fields.map(key=>[key,defaults[key]]))};
 }
