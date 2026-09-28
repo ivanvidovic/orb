@@ -41,7 +41,7 @@
   .lbl-ink{color:var(--graphite)}
 
   header{display:flex;align-items:center;gap:18px;height:61.5px;padding:0 var(--pad);border-bottom:1px solid var(--rule);flex:0 0 auto}
-  #mark{height:34px;width:auto;display:block;flex:0 0 auto}
+  #mark{height:var(--orb-logo-height,34px);width:auto;display:block;flex:0 0 auto}
   .hspacer{flex:1 1 auto}
   .hmeta{display:flex;align-items:center;gap:10px}
   .dash{width:22px;height:1px;background:var(--rule-mid);flex:0 0 auto}
@@ -412,7 +412,7 @@ body{color-scheme:light}body[data-theme="dark"]{color-scheme:dark}#artWorkspace 
 /* Mobile: actions share the logo row; presets remain comfortably separated below. */
 @media(max-width:1050px){
   header{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:6px 8px;height:auto;min-height:0;padding:6px 12px}
-  .brand-mark{grid-area:1/1;margin:0}#mark{height:26px;margin:0!important;width:auto}
+  .brand-mark{grid-area:1/1;margin:0}#mark{height:var(--orb-logo-height,34px);margin:0!important;width:auto}
   .hspacer{display:none}.helpBtn{grid-area:1/3;margin:0;width:30px;height:30px}
   .themeToggle{grid-area:1/4;margin:0;width:84px;height:30px}
   .topActions{grid-area:1/2;display:flex;justify-self:end;margin:0;align-self:center}
@@ -1052,7 +1052,7 @@ body.present .stage-reset,body.present .stage-help{display:none}
 .artistLinks a:hover{text-decoration-thickness:2px}
 @media(max-width:1050px){
   #btnArtist #mark{display:none}
-  #mobileMark{display:block;height:26px;width:26px}
+  #mobileMark{display:block;height:var(--orb-logo-height,34px);width:var(--orb-logo-height,34px)}
   #btnArtist::before{content:"";position:absolute;inset:-9px}
 }
 

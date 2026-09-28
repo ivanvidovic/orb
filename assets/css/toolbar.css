@@ -1,5 +1,6 @@
 /* One grid owns toolbar sizing at every width; controls never wrap individually. */
 #mainToolbar{
+  --orb-logo-height:34px;
   display:grid;grid-template-columns:auto minmax(0,1fr) 268px 146px;
   grid-template-rows:auto;gap:12px;align-items:center;
   height:auto;min-height:72px;padding:10px 14px;flex:0 0 auto;
@@ -91,8 +92,8 @@
 
 /* Mobile: visible modules, compact controls, and intentional full-width rows. */
 @media(max-width:600px){
- #mainToolbar{grid-template-columns:26px minmax(0,1fr);grid-template-rows:auto auto auto;padding:6px 10px 8px;gap:8px 12px;min-height:0}
- #mainToolbar>.brand-mark{grid-area:1/1;min-height:26px;align-self:end}
+ #mainToolbar{grid-template-columns:var(--orb-logo-height) minmax(0,1fr);grid-template-rows:auto auto auto;padding:6px 10px 8px;gap:8px 12px;min-height:0}
+ #mainToolbar>.brand-mark{grid-area:1/1;min-height:var(--orb-logo-height);align-self:center}
  #mainToolbar>.toolbarUtility{grid-area:1/2;width:146px;justify-self:end}
  #mainToolbar>.toolbarOutput{grid-area:2/1/3/-1}
  #mainToolbar>.topTools{grid-area:3/1/4/-1;grid-template-columns:minmax(0,1fr);gap:8px}
