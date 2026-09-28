@@ -8,6 +8,8 @@ const pause=()=>new Promise(resolve=>setTimeout(resolve,0));
 export function installWorkspace(api){
   const hostedAssets=new Map();let libraryName='';
   const assets=new Map();let shelfIds=new Set(),ready=false,restoring=false,busy=false,saveTimer,dbPromise,saveChain=Promise.resolve(),revision=0,savedRevision=0,context={action:'choose'},pendingOpen=null;
+  let preserveRecovery=false;
+  const report=(stage,error)=>{console.warn('[ORB] '+stage,error);status(stage+': '+(error?.message||error?.name||'Unavailable')+'. Use Save to keep your work.');};
   const scope=location.pathname.replace(/\/index\.html$/,'/');
   const dbName='orb-studio-36:'+scope;
   const status=(text)=>{
@@ -19,15 +21,42 @@ export function installWorkspace(api){
   };
   const notify=()=>{revision++;if(ready&&!restoring){status('Saving on this device…');clearTimeout(saveTimer);saveTimer=setTimeout(autosave,900);}};
   function database(){
-    if(!dbPromise)dbPromise=new Promise((resolve,reject)=>{const req=indexedDB.open(dbName,1);req.onupgradeneeded=()=>req.result.createObjectStore('workspace');req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});
+    if(!dbPromise){
+      dbPromise=new Promise((resolve,reject)=>{
+        const req=indexedDB.open(dbName,1);
+        req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains('workspace'))req.result.createObjectStore('workspace');};
+        req.onsuccess=()=>{
+          const db=req.result;
+          db.onversionchange=()=>{db.close();dbPromise=null;};
+          db.onclose=()=>{dbPromise=null;};
+          resolve(db);
+        };
+        req.onerror=()=>reject(req.error);
+        req.onblocked=()=>status('Recovery storage is waiting. Close other ORB tabs, then retry.');
+      }).catch(error=>{dbPromise=null;throw error;});
+    }
     return dbPromise;
   }
   async function dbGet(){const db=await database();return new Promise((resolve,reject)=>{const req=db.transaction('workspace').objectStore('workspace').get('current');req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
-  async function dbPut(data){const db=await database();return new Promise((resolve,reject)=>{const tx=db.transaction('workspace','readwrite');tx.objectStore('workspace').put(data,'current');tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);});}
+  async function dbPut(data){
+    const db=await database();
+    return new Promise((resolve,reject)=>{
+      const tx=db.transaction('workspace','readwrite'),store=tx.objectStore('workspace');
+      // Preserve an unreadable/unrestored snapshot before replacing current.
+      if(preserveRecovery){
+        const old=store.get('current');
+        old.onsuccess=()=>{if(old.result){const backup=store.get('recovery-backup');backup.onsuccess=()=>{if(!backup.result)store.put(old.result,'recovery-backup');};}};
+      }
+      store.put(data,'current');
+      tx.oncomplete=()=>{preserveRecovery=false;resolve();};
+      tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);
+    });
+  }
   async function register(entry,{show=true}={}){
     if(entry.assetId&&assets.has(entry.assetId)){const asset=assets.get(entry.assetId);if(!asset.entry.source&&entry.source)asset.entry={...asset.entry,source:entry.source};if(show)shelfIds.add(entry.assetId);renderShelf();return {...asset.entry,...entry};}
     let blob=entry.originalFile||await canvasBlob(entry.source);
     if(!blob.type){const ext=entry.sourceName.split('.').pop().toLowerCase(),type=({svg:'image/svg+xml',jpg:'image/jpeg',jpeg:'image/jpeg',webp:'image/webp',gif:'image/gif',avif:'image/avif'})[ext]||'image/png';blob=new Blob([blob],{type});}
+    if(!globalThis.crypto?.subtle)throw new Error('Open ORB over HTTPS to enable artwork saving');
     const bytes=await blob.arrayBuffer();
     const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).map(n=>n.toString(16).padStart(2,'0')).join('');
     const id='asset-'+hash;
@@ -138,7 +167,7 @@ export function installWorkspace(api){
       const data=await packageData(true,false);data.revision=savingRevision;
       await dbPut(data);savedRevision=savingRevision;
       if(revision===savingRevision)status('Saved on this device');
-    }).catch(()=>{status('Browser save unavailable. Use Save design to keep your work.');});
+    }).catch(error=>{report('Automatic save failed',error);});
     await saveChain;
   }
   async function decodePackage(data){
@@ -196,11 +225,24 @@ export function installWorkspace(api){
   document.addEventListener('visibilitychange',()=>{if(document.hidden)autosave();});
   return {register,openAssets,notify,loadLibrary,makeArchive,dropFolder,artworkData:()=>packageData(false),dropProject:file=>confirmAction({file}),get busy(){return busy;},
     async ready(){
-      restoring=true;try{
-        const data=await dbGet();if(data){await applyPackage(data,{mergeLibrary:false});status('Restored your last design');}
-        else{for(const entry of api.snapshot().layers)await register(entry);status('Your work stays on this device.');}
-      }catch(e){status('Automatic recovery unavailable. You can still Save / Open design files.');}
-      finally{restoring=false;ready=true;revision=0;savedRevision=0;renderShelf();}
+      restoring=true;
+      let data=null,restored=false,failure=null;
+      try{
+        try{data=await dbGet();}
+        catch(error){preserveRecovery=true;failure=['Recovery storage unavailable',error];}
+        if(data){
+          try{await applyPackage(data,{mergeLibrary:false});restored=true;}
+          catch(error){preserveRecovery=true;failure=['Previous design could not be restored',error];}
+        }
+        if(!restored){
+          for(const entry of api.snapshot().layers){
+            try{await register(entry);}
+            catch(error){failure=failure||['Artwork setup failed',error];console.warn('[ORB] Artwork setup failed',error);}
+          }
+        }
+        if(failure)report(...failure);
+        else status(restored?'Restored your last design':'Your work stays on this device.');
+      }finally{restoring=false;ready=true;revision=0;savedRevision=0;renderShelf();}
     }
   };
 }
