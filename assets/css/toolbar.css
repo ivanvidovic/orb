@@ -92,15 +92,15 @@
 
 /* Mobile: visible modules, compact controls, and intentional full-width rows. */
 @media(max-width:600px){
- #mainToolbar{grid-template-columns:var(--orb-logo-height) minmax(0,1fr);grid-template-rows:auto auto auto;padding:6px 10px 8px;gap:8px 12px;min-height:0}
+ #mainToolbar{grid-template-columns:var(--orb-logo-height) minmax(0,1fr);grid-template-rows:auto auto auto;padding:6px 10px 8px;gap:4px 12px;min-height:0}
  #mainToolbar>.brand-mark{grid-area:1/1;min-height:var(--orb-logo-height);align-self:center}
  #mainToolbar>.toolbarUtility{grid-area:1/2;width:146px;justify-self:end}
  #mainToolbar>.toolbarOutput{grid-area:2/1/3/-1}
- #mainToolbar>.topTools{grid-area:3/1/4/-1;grid-template-columns:minmax(0,1fr);gap:8px}
- #mainToolbar .quickGroup,#mainToolbar .toolbarPanel{display:grid;grid-template-rows:12px 26px;gap:4px}
+ #mainToolbar>.topTools{grid-area:3/1/4/-1;grid-template-columns:minmax(0,1fr);gap:4px}
+ #mainToolbar .quickGroup,#mainToolbar .toolbarPanel{display:grid;grid-template-columns:46px minmax(0,1fr);grid-template-rows:26px;gap:6px;align-items:center}
  #mainToolbar .quickSeg,#mainToolbar #toolbarLighting{height:26px}
  #mainToolbar .quickSeg button{height:24px;font-size:10px;padding:0 2px}
- #mainToolbar .quickLighting{grid-template-rows:12px 50px}
+ #mainToolbar .quickLighting{grid-template-rows:50px}
  #mainToolbar #toolbarLighting{height:50px;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(2,24px)}
  #mainToolbar #toolbarLighting button{height:24px;font-size:10px}
  #mainToolbar #toolbarLighting button:nth-child(-n+4){border-bottom:1px solid var(--rule)}
@@ -108,5 +108,11 @@
  #mainToolbar .topAction,#mainToolbar .helpBtn,#mainToolbar .themeToggle{height:26px;font-size:10px}
  #mainToolbar .toolbarUtilityControls{grid-template-columns:26px minmax(0,1fr);gap:6px}
  #mainToolbar .helpBtn{width:26px}
- #mainToolbar .presentSplit{grid-template-columns:minmax(0,1fr) 26px}
+ #mainToolbar .topActions .presentSplit{grid-template-columns:minmax(0,1fr) 26px}
+ #mainToolbar .quickLabel,#mainToolbar .toolbarLabel{font-size:8px;letter-spacing:.04em;line-height:12px}
+ #mainToolbar #toolbarUtilityPanel{grid-template-columns:minmax(0,1fr);grid-template-rows:26px}
+ #mainToolbar #toolbarUtilityPanel>.toolbarLabel{display:none}
+}
+@media(max-width:360px){
+ #mainToolbar #segView button,#mainToolbar .topAction{font-size:9px}
 }
