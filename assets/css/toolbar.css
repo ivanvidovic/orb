@@ -108,3 +108,23 @@
  #mainToolbar #toolbarLighting button:nth-child(-n+4){border-bottom:1px solid var(--rule)}
  #mainToolbar #toolbarLighting button:nth-child(4){border-right:0}
 }
+
+/* Compact pointer layout; each button stays at or below the wordmark height. */
+@media(min-width:601px){
+ #mainToolbar{min-height:0;padding-top:8px;padding-bottom:8px}
+ #mainToolbar .quickGroup,#mainToolbar .toolbarPanel{grid-template-rows:12px 26px;gap:4px}
+ #mainToolbar .quickSeg,#mainToolbar #toolbarLighting{height:26px;align-self:center}
+ #mainToolbar .quickSeg button{height:24px}
+ #mainToolbar .topAction,#mainToolbar .helpBtn,#mainToolbar .themeToggle{height:26px}
+ #mainToolbar .helpBtn{width:26px}
+ #mainToolbar .toolbarUtilityControls{grid-template-columns:26px minmax(0,1fr)}
+}
+@media(min-width:601px) and (max-width:1099px){
+ #mainToolbar .quickGroup{grid-template-rows:12px 50px}
+ #mainToolbar #toolbarLighting{height:50px;grid-template-rows:repeat(2,24px)}
+ #mainToolbar #toolbarLighting button{height:24px}
+}
+@media(min-width:601px) and (max-width:799px){
+ #mainToolbar #segView{height:50px;grid-template-rows:repeat(2,24px)}
+ #mainToolbar #segView button{height:24px}
+}
