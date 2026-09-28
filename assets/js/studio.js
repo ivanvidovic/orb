@@ -8,12 +8,12 @@ import {focusedPanelBounds,layerCustomColor} from './artwork-detail.js?v=91-hist
 import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=91-history13';
 import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE,fullSleeveCamera} from './sleeve-camera.js?v=91-camera';
 import {hasDirectory} from './folder-import.js?v=58';
-import {decodeArtworkImage} from './artwork-decode.js?v=45';
+import {decodeArtworkImage,normalizeArtworkFile} from './artwork-decode.js?v=91-svg21';
 import {createCityTraffic} from './city-night.js?v=43';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=82';
 import {sharedSurfaceProfiles,fitSurfacePlacements} from './surface-layout.js?v=83';
 import {torsoFrame,torsoDistance,previousTorsoFrame,previewDistance,previousPreviewFrame} from './garment-framing.js?v=89';
-import {installWorkspace} from './workspace.js?v=91-recovery20';
+import {installWorkspace} from './workspace.js?v=91-svg21';
 import {installExports} from './presentation-export.js?v=91-history13';
 import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=91-history13';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
@@ -1709,7 +1709,6 @@ const staticTips=[
   ['.colorSingle','Choose the preview background color.'],
 
   ['#dotGrid','Show or hide the pattern-paper grid behind the shirt.'],
-  ['#btnModel','Replace the current shirt geometry with a .glb or .gltf model.'],
   ['#btnFlip','Rotate the imported 3D model 180° if it loads facing the wrong direction.'],
 
   ['#inertiaEnabled','Enable or disable rotation-driven fabric inertia. The Wind control remains separate.'],
@@ -1808,6 +1807,7 @@ document.addEventListener('focusout',e=>{
   if(tooltipSource(e.target)) hideTooltip();
 });
 document.addEventListener('pointerdown',()=>hideTooltip(),true);
+document.getElementById('designStatus').addEventListener('click',event=>{event.stopPropagation();showTooltip(event.currentTarget,true);});
 document.querySelectorAll('.control-help').forEach(button=>button.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();showTooltip(button,true);}));
 document.addEventListener('keydown',event=>{if(event.key==='Escape')hideTooltip();});
 addEventListener('scroll',hideTooltip,{passive:true});
@@ -2850,6 +2850,7 @@ function openArtUpload(id,action='add'){
   workspace.openAssets({action,slot:entry.slot,target:id});
 }
 async function decodeArtworkFile(file){
+  file=await normalizeArtworkFile(file);
   const img=await decodeArtworkImage(file,{longEdge:Math.max(1,Math.min(4096,renderer.capabilities.maxTextureSize-8))});
   return {...makeArtworkEntry(img,file.name),originalFile:file};
 }
@@ -3121,12 +3122,7 @@ function texFromArtwork(cv,original=false){
   t.needsUpdate=true;return t;
 }
 // model
-document.getElementById('btnModel').onclick=()=>{
-  const f=document.getElementById('fileModel'); f.value=''; f.click();
-};
-document.getElementById('fileModel').onchange=e=>{
-  if(e.target.files[0]) loadModel(e.target.files[0]);
-};
+// Public model uploads are disabled; saved custom projects still restore.
 document.getElementById('btnFlip').onclick=()=>{
   if(!isCustom)return;
   recordArtUndo();customFlipped=!customFlipped;
@@ -3236,7 +3232,7 @@ document.addEventListener('drop',e=>{
   const files=Array.from(e.dataTransfer.files),project=files.find(f=>/\.(orb|zip)$/i.test(f.name)),model=files.find(f=>/\.glb$/i.test(f.name));
   if(project){workspace.dropProject(project);return;}
   if(hasDirectory(e.dataTransfer)){workspace.dropFolder(e.dataTransfer);return;}
-  if(model){loadModel(model);return;}
+  if(model){artStatus('Custom garment modeling and ORB integration are available as a paid service. Click the ORB logo to get in touch.');return;}
   const slot=e.target.closest?.('[data-art-card]')?.dataset.slot||activeArtSlot;
   openPlacementPicker(files,slot);
 });
@@ -3592,6 +3588,12 @@ const loadSvg=(url,longEdge)=>new Promise((resolve,reject)=>{
 function initializeBrandArtwork(logo,back){
   return [[logo,'Emblem','chest'],[back,'Wordmark','back']].map(([image,name,slot])=>{
     const entry=makeArtworkEntry(image,BRAND.name+' '+name+'.svg');
+    const original=name==='Emblem'?BRAND.emblem:BRAND.wordmark;
+    if(original.startsWith('data:image/svg+xml')){
+      const comma=original.indexOf(','),payload=original.slice(comma+1);
+      const xml=original.slice(0,comma).includes(';base64')?atob(payload):decodeURIComponent(payload);
+      entry.originalFile=new File([xml],entry.sourceName,{type:'image/svg+xml'});
+    }
     entry.solidInvert=true; // The bundled ORB graphics are black on transparent.
     entry.mode='ink'; // Only the startup graphics override the Original default.
     // A null custom color follows the garment until the user picks a color.

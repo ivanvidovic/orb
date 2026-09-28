@@ -17,7 +17,17 @@ export function sizedSvg(text,longEdge=4096,maxEdge=4096,maxPixels=48000000){
   svg.setAttribute('style',(svg.getAttribute('style')||'')+`;width:${width}px!important;height:${height}px!important;max-width:none!important;max-height:none!important`);
   return new XMLSerializer().serializeToString(svg);
 }
+// Older recovery records can contain PNG bytes under an SVG filename.
+export async function normalizeArtworkFile(blob){
+  const head=new Uint8Array(await blob.slice(0,12).arrayBuffer());
+  const png=[137,80,78,71,13,10,26,10].every((n,i)=>head[i]===n);
+  if(png && (blob.type!=='image/png'||/\.svg$/i.test(blob.name||''))){
+    return new File([blob],(blob.name||'artwork.png').replace(/\.svg$/i,'.png'),{type:'image/png'});
+  }
+  return blob;
+}
 export async function decodeArtworkImage(blob,{longEdge=4096,maxEdge=4096}={}){
+  blob=await normalizeArtworkFile(blob);
   const svg=blob.type.split(';')[0]==='image/svg+xml'||/\.svg$/i.test(blob.name||'')||/^\s*(?:<\?xml\b[^>]*>\s*)?(?:<!--[\s\S]*?-->\s*)*(?:<!DOCTYPE\s[^>]*>\s*)?<svg[\s>]/i.test(await blob.slice(0,1024).text());
   const source=svg?new Blob([sizedSvg(await blob.text(),longEdge,maxEdge)],{type:'image/svg+xml'}):blob;
   const url=URL.createObjectURL(source);

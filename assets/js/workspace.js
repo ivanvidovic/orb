@@ -16,7 +16,7 @@ export function installWorkspace(api){
     const el=$('designStatus');
     const state=['Saved on this device','Design opened','Design file downloaded','Restored your last design'].includes(text)?'saved':
       ['Saving on this device…','Opening design…'].includes(text)?'saving':text==='Your work stays on this device.'?'info':'error';
-    el.textContent=text;el.title=text;el.setAttribute('aria-label',text);el.dataset.state=state;
+    el.textContent=text;el.removeAttribute('title');el.dataset.tip=text;el.setAttribute('aria-label',text);el.dataset.state=state;
     el.dataset.icon=({saved:'✓',saving:'…',info:'○',error:'!'})[state];
   };
   const notify=()=>{revision++;if(ready&&!restoring){status('Saving on this device…');clearTimeout(saveTimer);saveTimer=setTimeout(autosave,900);}};
@@ -57,6 +57,7 @@ export function installWorkspace(api){
     let blob=entry.originalFile||await canvasBlob(entry.source);
     if(!blob.type){const ext=entry.sourceName.split('.').pop().toLowerCase(),type=({svg:'image/svg+xml',jpg:'image/jpeg',jpeg:'image/jpeg',webp:'image/webp',gif:'image/gif',avif:'image/avif'})[ext]||'image/png';blob=new Blob([blob],{type});}
     if(!globalThis.crypto?.subtle)throw new Error('Open ORB over HTTPS to enable artwork saving');
+    if(blob.type==='image/png'&&/\.svg$/i.test(entry.sourceName||''))entry={...entry,sourceName:entry.sourceName.replace(/\.svg$/i,'.png')};
     const bytes=await blob.arrayBuffer();
     const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).map(n=>n.toString(16).padStart(2,'0')).join('');
     const id='asset-'+hash;
@@ -174,7 +175,7 @@ export function installWorkspace(api){
     validateProject(data.doc,api.schema);
     const staged=new Map();
     for(const a of data.doc.assets){const record=data.records.find(r=>r.id===a.id);if(!record?.blob)throw new Error('An artwork file is missing.');
-      const entry=await api.decode(new File([record.blob],a.name,{type:a.type}));entry.assetId=a.id;if(!data.doc.layers.some(l=>l.assetId===a.id))entry.source=null;staged.set(a.id,{...record,name:a.name,entry});
+      const entry=await api.decode(new File([record.blob],a.name,{type:a.type}));entry.assetId=a.id;if(!data.doc.layers.some(l=>l.assetId===a.id))entry.source=null;staged.set(a.id,{...record,name:entry.sourceName||a.name,blob:entry.originalFile||record.blob,entry});
     }
     const layers=data.doc.layers.map(l=>({...staged.get(l.assetId).entry,...pick(l,LAYER_FIELDS),solidInvert:l.solidInvert}));
     return {staged,layers};
