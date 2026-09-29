@@ -228,24 +228,26 @@ export function installWorkspace(api){
   document.addEventListener('visibilitychange',()=>{if(document.hidden)autosave();});
   return {getAsset:async id=>{const a=assets.get(id);if(!a)throw new Error('Background artwork is missing.');if(!a.entry.source)a.entry={...await api.decode(new File([a.blob],a.name,{type:a.blob.type})),assetId:id};return a.entry;},register,openAssets,notify,loadLibrary,makeArchive,dropFolder,artworkData:()=>packageData(false),dropProject:file=>confirmAction({file}),get busy(){return busy;},
     async ready(){
-      restoring=true;
-      let data=null,restored=false,failure=null;
+      restoring=true;ready=false;clearTimeout(saveTimer);
       try{
+        let data;
         try{data=await dbGet();}
-        catch(error){preserveRecovery=true;failure=['Recovery storage unavailable',error];}
-        if(data){
-          try{await applyPackage(data,{mergeLibrary:false});restored=true;}
-          catch(error){preserveRecovery=true;failure=['Previous design could not be restored',error];}
+        catch(error){throw new Error('Saved-session storage could not be checked. Your saved data has not been replaced. Reload to retry.',{cause:error});}
+        const hasSavedSession=data!==undefined&&data!==null;
+        if(hasSavedSession){
+          try{await applyPackage(data,{mergeLibrary:false});}
+          catch(error){throw new Error('Your saved design could not be restored. It has been kept unchanged. Reload to retry.',{cause:error});}
+        }else{
+          const response=await fetch(new URL('../samples/orb-mockup-01.orb',import.meta.url));
+          if(!response.ok)throw new Error('The sample design could not load. Check your connection and reload to retry.');
+          data=await readArchive(await response.blob());
+          await applyPackage(data,{mergeLibrary:false});
+          await dbPut(data);
         }
-        if(!restored){
-          for(const entry of api.snapshot().layers){
-            try{await register(entry);}
-            catch(error){failure=failure||['Artwork setup failed',error];console.warn('[ORB] Artwork setup failed',error);}
-          }
-        }
-        if(failure)report(...failure);
-        else status(restored?'Restored your last design':'Your work stays on this device.');
-      }finally{restoring=false;ready=true;revision=0;savedRevision=0;renderShelf();}
+        revision=0;savedRevision=0;ready=true;
+        status(hasSavedSession?'Restored your last design':'Saved on this device');
+      }catch(error){report('Startup paused',error);throw error;}
+      finally{restoring=false;renderShelf();}
     }
   };
 }

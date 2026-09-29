@@ -16,7 +16,7 @@ import {createCityTraffic} from './city-night.js?v=43';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=82';
 import {sharedSurfaceProfiles,fitSurfacePlacements} from './surface-layout.js?v=83';
 import {torsoFrame,torsoDistance,previousTorsoFrame,previewDistance,previousPreviewFrame} from './garment-framing.js?v=89';
-import {installWorkspace} from './workspace.js?v=91-perf24';
+import {installWorkspace} from './workspace.js?v=91-sample36';
 import {installExports} from './presentation-export.js?v=91-history13';
 import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=91-present23';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
@@ -3843,13 +3843,13 @@ await Promise.all([loadSvg(BRAND.wordmark,4096),loadSvg(BRAND.emblem,2048)]).the
   // Upload textures, compose artwork, and draw the first garment before the handoff.
   resize();await settleArtworkTreatment();draw();
   await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-  for(let i=0;i<artLayers.length;i++){const registered=await workspace.register(artLayers[i]);artLayers[i].assetId=registered.assetId;}
   await workspace.ready();
+  await settleArtworkTreatment();draw();
   void workspace.loadLibrary();
   document.body.classList.add('ready');
   await window.ORBStartup?.complete();
   preloadCatalog();
 }).catch(err=>{
   console.error(err);bootMsg.textContent='Preview could not initialize. Reload to try again.';
-  window.ORBStartup?.fail('The preview could not load. Check your connection and try again.');
+  window.ORBStartup?.fail(err.message||'The preview could not load. Check your connection and try again.');
 });
