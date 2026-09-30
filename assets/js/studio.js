@@ -1,6 +1,5 @@
-import {viewportSize,installViewport} from './viewport.js?v=91-viewport40';
 import {defaultPresentation} from './present-options.js?v=91-style26';
-import {installPresentation} from './present-settings.js?v=91-viewport40';
+import {installPresentation} from './present-settings.js?v=91-shadow27';
 let presentation=null,presentRenderLight=null;
 import {setupProjectorControls,syncProjectorButtons} from './projector-controls.js?v=91-history13';
 import {installMappedRanges} from './mapped-ranges.js?v=91-history13';
@@ -17,7 +16,7 @@ import {createCityTraffic} from './city-night.js?v=43';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=82';
 import {sharedSurfaceProfiles,fitSurfacePlacements} from './surface-layout.js?v=83';
 import {torsoFrame,torsoDistance,previousTorsoFrame,previewDistance,previousPreviewFrame} from './garment-framing.js?v=89';
-import {installWorkspace} from './workspace.js?v=91-memory37';
+import {installWorkspace} from './workspace.js?v=91-perf24';
 import {installExports} from './presentation-export.js?v=91-history13';
 import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=91-present23';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
@@ -109,8 +108,6 @@ const ART_DEFAULTS=Object.fromEntries(ART_KEYS.map(k=>[k,{x:0,y:0,scale:ART_META
 /* =============================== renderer =============================== */
 
 const MOBILE = Math.min(innerWidth,innerHeight)<760 || navigator.maxTouchPoints>0;
-// Cache policy follows device type, not window size or desktop touch support.
-const MOBILE_MEMORY = navigator.userAgentData?.mobile===true || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 const canvas=document.getElementById('gl'), stage=document.getElementById('stage');
 const patternCanvas=document.getElementById('bgPattern');
 const patternCtx=patternCanvas.getContext('2d');
@@ -759,14 +756,10 @@ function adopt(root){
   root.updateMatrixWorld(true);
 
   const out=new THREE.Group();
-  // Transfer exclusively owned geometry; clone shared accessors before transforming.
-  const geometryUses=new Map(),attributeUses=new Map();
-  root.traverse(o=>{if(!o.isMesh)return;geometryUses.set(o.geometry,(geometryUses.get(o.geometry)||0)+1);for(const key of ['position','normal','tangent']){const a=o.geometry.attributes[key];if(a)attributeUses.set(a,(attributeUses.get(a)||0)+1);}});
   let tris=0;
   root.traverse(o=>{
     if(!o.isMesh || !o.geometry) return;
-    const shared=geometryUses.get(o.geometry)>1||['position','normal','tangent'].some(key=>attributeUses.get(o.geometry.attributes[key])>1);
-    const g=shared?o.geometry.clone():o.geometry;
+    const g=o.geometry.clone();
     for(const a of ['skinIndex','skinWeight'])
       if (g.attributes[a]) g.deleteAttribute(a);
     g.morphAttributes={};
@@ -845,19 +838,19 @@ document.getElementById('garmentButtons').addEventListener('click',event=>{
 });
 
 // Fetch once, share in-flight requests, and retain prepared models for revisits.
-// Mobile loads on demand and retains only the active prepared garment.
+// Touch devices keep two decoded garments; remaining files stay ready in memory.
 const catalogBytes=new Map(),catalogReady=new Map(),catalogPreparing=new Map();
-const readyLimit=MOBILE_MEMORY?1:4;
+const readyLimit=MOBILE?2:4;
 async function getCatalogBytes(item){
   if(catalogBytes.has(item.id))return catalogBytes.get(item.id);
   const task=(async()=>{
     const stem=item.file.replace(/\.glb$/,'');
-    const urls=['../garments/'+(MOBILE_MEMORY?'mobile/':'')+item.file,'../calibration/'+stem+'.json','../calibration/'+stem+'.bin'];
+    const urls=['../garments/'+item.file,'../calibration/'+stem+'.json','../calibration/'+stem+'.bin'];
     return Promise.all(urls.map(async (path,index)=>{
-      const url=new URL(path,import.meta.url);url.searchParams.set('v',index===0&&MOBILE_MEMORY?'41':index===0&&item.id==='womens-tee'?'35':'18');
+      const url=new URL(path,import.meta.url);url.searchParams.set('v',index===0&&item.id==='womens-tee'?'35':'18');
       const response=await fetch(url);
       if(!response.ok)throw new Error('Garment asset could not load.');
-      if(index===0&&!MOBILE_MEMORY&&window.ORBStartup?.active){
+      if(index===0&&window.ORBStartup?.active){
         const reader=response.body?.getReader(),total=Number(response.headers.get('Content-Length'));
         if(reader){
           const chunks=[];let loaded=0;
@@ -919,13 +912,13 @@ async function prepareCatalog(item){
           }
         }
       });
-      disposeImported(imported,res.group);imported=null;
+      disposeImported(imported);imported=null;
       res.group.userData.catalogCached=true;catalogReady.set(item.id,res);return res;
     }catch(error){
-      if(imported){if(res)disposeImported(imported,res.group);else disposeModel(imported);}
+      if(imported){if(res)disposeImported(imported);else disposeModel(imported);}
       if(res)disposeModel(res.group);
       throw error;
-    }finally{catalogPreparing.delete(item.id);if(MOBILE_MEMORY)catalogBytes.delete(item.id);}
+    }finally{catalogPreparing.delete(item.id);}
   })();
   catalogPreparing.set(item.id,task);return task;
 }
@@ -934,31 +927,25 @@ const idleSlot=()=>new Promise(resolve=>{
 });
 let backgroundCatalogStarted=false;
 async function preloadCatalog(){
-  if(MOBILE_MEMORY||backgroundCatalogStarted)return; backgroundCatalogStarted=true;
+  if(backgroundCatalogStarted)return; backgroundCatalogStarted=true;
   for(const item of GARMENT_CATALOG){
     await idleSlot();
     try{
       await getCatalogBytes(item);
       // Avoid retaining four large decoded texture sets on iPad and phones.
-      if(!MOBILE_MEMORY){await idleSlot();await prepareCatalog(item);}
+      if(!MOBILE){await idleSlot();await prepareCatalog(item);}
     }catch(error){/* Foreground selection exposes a retry; background failure is nonblocking. */}
   }
 }
 
-function disposeImported(root,adopted){
-  const retained=new Set();adopted?.traverse(o=>{if(o.isMesh)retained.add(o.geometry);});
-  root.traverse(o=>{if(o.isMesh){if(!retained.has(o.geometry))o.geometry.dispose();for(const m of Array.isArray(o.material)?o.material:[o.material])m.dispose();}});
+function disposeImported(root){
+  // adopt() cloned geometry and material objects; its textures remain shared.
+  root.traverse(o=>{if(o.isMesh){o.geometry.dispose();for(const m of Array.isArray(o.material)?o.material:[o.material])m.dispose();}});
 }
 function disposeModel(root){
-  const textures=new Set(),images=new Set(),retainedImages=new Set(),retainedTextures=new Set();
-  const collect=(group,set,keep=false)=>group?.traverse(o=>{if(o.isMesh)for(const m of Array.isArray(o.material)?o.material:[o.material])for(const v of Object.values(m))if(v?.isTexture){if(keep)retainedTextures.add(v);const image=v.source?.data||v.image;for(const img of Array.isArray(image)?image:[image])if(img)set.add(img);}});
-  // Never close a bitmap still used by the active garment or another cached model.
-  if(current&&current!==root)collect(current,retainedImages,true);
-  for(const res of catalogReady.values())if(res.group!==root)collect(res.group,retainedImages,true);
-  collect(root,images);
+  const textures=new Set();
   root.traverse(o=>{if(!o.isMesh)return;o.customDepthMaterial?.dispose();o.geometry.dispose();for(const m of Array.isArray(o.material)?o.material:[o.material]){for(const v of Object.values(m))if(v?.isTexture)textures.add(v);m.dispose();}});
-  for(const t of textures)if(!retainedTextures.has(t))t.dispose();
-  for(const img of images)if(!retainedImages.has(img)&&typeof img.close==='function')img.close();
+  for(const t of textures)t.dispose();
 }
 
 async function applyCalibration(group,item,cached){
@@ -1015,22 +1002,11 @@ function calibratePlacements(group,kind){
   if(missing.length)throw new Error('Could not calibrate garment placements: '+missing.join(', '));
   return profiles;
 }
-function releaseMobileGarments(){
-  // Save first in loadCatalog. Drop all old GPU and CPU references before parsing.
-  resetArtworkMaps();
-  presentCloneMaterials.forEach(m=>m.dispose?.());presentCloneMaterials=[];
-  presentGarment.clear();presentGarment.visible=false;presentCloneActive=false;
-  const roots=new Set([...catalogReady.values()].map(res=>res.group));
-  if(current){roots.add(current);garment.remove(current);}
-  current=null;catalogReady.clear();catalogBytes.clear();
-  for(const root of roots){root.userData.catalogCached=false;disposeModel(root);}
-  renderer.renderLists.dispose();shadowDirty=true;
-}
 async function loadCatalog(id){
   if(modelLoading)return false;
-  if(id===activeGarmentId&&current)return true;
+  if(id===activeGarmentId)return true;
   const item=GARMENT_CATALOG.find(g=>g.id===id);if(!item)return false;
-  const initialLoad=!current&&!activeGarmentId;
+  const initialLoad=!current;
   const previousDistance=torsoDistance(activeGarmentId),previousCenter=garmentCenter.clone();
   cancelAnchorPick();
   modelBusy(true);modelRetry.hidden=true;retryModel=()=>loadCatalog(id);
@@ -1038,14 +1014,6 @@ async function loadCatalog(id){
   bootMsg.textContent='Loading '+item.label+'…';
   document.getElementById('boot').classList.toggle('gone',!!current);
   try{
-    if(MOBILE_MEMORY&&current){
-      await workspace?.flushPending();
-      recordArtUndo();
-      releaseMobileGarments();
-      document.getElementById('boot').classList.remove('gone');
-      // Let disposal reach the renderer before allocating the replacement.
-      await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-    }
     const res=await prepareCatalog(item);
     if(current)recordArtUndo();
     UV_PROFILES=res.profiles;modelKind='catalog';
@@ -1095,7 +1063,7 @@ async function loadModel(file){
   let imported=null,res=null,committed=false;
   try{
     const gltf=await gltfLoader.loadAsync(url);imported=gltf.scene;
-    res=adopt(imported);disposeImported(imported,res.group);imported=null;
+    res=adopt(imported);disposeImported(imported);imported=null;
     if(current)recordArtUndo();
     cancelAnchorPick();UV_PROFILES={};modelKind='custom';
     setGarment(res.group,true);committed=true;activeGarmentId='custom';customModelFile=file;customFlipped=false;trimCatalogCache();
@@ -1107,7 +1075,7 @@ async function loadModel(file){
     modelStatus.textContent='';if(initialLoad)setView('front');else if(state.view==='neck'||state.view?.startsWith('placement:')||state.view?.startsWith('sleeve:'))setView('detail');return true;
   }catch(error){
     console.error(error);
-    if(imported){if(res)disposeImported(imported,res.group);else disposeModel(imported);}
+    if(imported){if(res)disposeImported(imported);else disposeModel(imported);}
     if(res&&!committed)disposeModel(res.group);
     modelStatus.textContent='That file could not open. Choose a GLB with embedded textures and UVs.';
     bootMsg.textContent=modelStatus.textContent;return false;
@@ -1207,7 +1175,7 @@ function drawPatternMark(x,y,kind,val,size,patternCtxOverride=null,gridColor=sta
 }
 function drawPatternBackground(target=null,backdrop=state){
   const patternCanvas=target||document.getElementById('bgPattern'),patternCtx=patternCanvas.getContext('2d');
-  const w=target?target.width:viewportSize().width,h=target?target.height:viewportSize().height;
+  const w=target?target.width:window.innerWidth||1,h=target?target.height:window.innerHeight||1;
   const dpr=target?1:Math.min(2, window.devicePixelRatio||1);
   if(patternCanvas.width!==Math.round(w*dpr) || patternCanvas.height!==Math.round(h*dpr)){
     patternCanvas.width=Math.round(w*dpr);
@@ -3299,11 +3267,11 @@ presentExitShield.addEventListener('wheel',e=>{
 
 function resize(){
   if(renderSuspended)return;
-  const {width:w,height:h}=viewportSize();
+  const w=window.innerWidth||1,h=window.innerHeight||1;
   renderer.setSize(w,h,false);
   drawPatternBackground();
 }
-installViewport(resize);
+addEventListener('resize',resize);
 
 const clock=new THREE.Clock();
 let intro=REDUCED?1:0;
@@ -3401,8 +3369,8 @@ function updateFabricInertia(dt){
 const presentScreenRight=new THREE.Vector3();
 
 function activeRenderRect(eased){
-  const {width:W,height:H}=viewportSize();
-  if(state.present&&isMobilePresent())return {left:0,top:0,width:W,height:H,W,H};
+  const W=window.innerWidth||1;
+  const H=window.innerHeight||1;
   const r=stage.getBoundingClientRect();
 
   // #stage remains the normal-mode render region. Present smoothly grows that
@@ -3661,7 +3629,7 @@ function samplePreviewColor(x,y){
   const px=Math.max(0,Math.min(canvas.width-1,Math.floor((x-rect.left)*canvas.width/rect.width)));
   const py=Math.max(0,Math.min(canvas.height-1,Math.floor((y-rect.top)*canvas.height/rect.height)));
   gl.readPixels(px,canvas.height-1-py,1,1,gl.RGBA,gl.UNSIGNED_BYTE,rgba);
-  const bg=patternCtx.getImageData(Math.min(patternCanvas.width-1,Math.floor(x*patternCanvas.width/viewportSize().width)),Math.min(patternCanvas.height-1,Math.floor(y*patternCanvas.height/viewportSize().height)),1,1).data;
+  const bg=patternCtx.getImageData(Math.min(patternCanvas.width-1,Math.floor(x*patternCanvas.width/innerWidth)),Math.min(patternCanvas.height-1,Math.floor(y*patternCanvas.height/innerHeight)),1,1).data;
   const alpha=rgba[3]/255,premultiplied=gl.getContextAttributes().premultipliedAlpha;
   return '#'+[0,1,2].map(i=>Math.round(Math.min(255,rgba[i]*(premultiplied?1:alpha)+bg[i]*(1-alpha))).toString(16).padStart(2,'0')).join('').toUpperCase();
 }
@@ -3784,7 +3752,7 @@ workspace=installWorkspace({
   browse:ctx=>{pendingUploadAction=ctx.action;pendingSlot=ctx.slot||activeArtSlot;pendingLayerId=ctx.target||null;fileInput.value='';fileInput.click();}
 });
 presentation=installPresentation({
-  viewportSize,isDarkLighting,drawBackdrop:(target,dark)=>drawPatternBackground(target,dark?UV_BACKDROP:(regularBackdrop||state)),
+  isDarkLighting,drawBackdrop:(target,dark)=>drawPatternBackground(target,dark?UV_BACKDROP:(regularBackdrop||state)),
   state,canvas,THREE,renderer,setView,beforeChange:recordArtUndo,changed:()=>workspace.notify(),
   chooseGraphic:()=>workspace.openAssets({action:'presentation'}),getGraphic:id=>workspace.getAsset(id),
   capture:()=>({lighting:{reference:lightReference.toArray(),quaternion:lightRig.quaternion.toArray()},settings:structuredClone(pick(state,SETTING_FIELDS)),camera:{az:state.taz,el:state.tel,r:state.tr,focus:state.focusTarget.toArray(),view:state.view,framing:'proportions-v4'},inspection:inspectionFocus?{point:inspectionFocus.point.clone(),distance:inspectionFocus.distance}:null}),
@@ -3875,13 +3843,13 @@ await Promise.all([loadSvg(BRAND.wordmark,4096),loadSvg(BRAND.emblem,2048)]).the
   // Upload textures, compose artwork, and draw the first garment before the handoff.
   resize();await settleArtworkTreatment();draw();
   await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  for(let i=0;i<artLayers.length;i++){const registered=await workspace.register(artLayers[i]);artLayers[i].assetId=registered.assetId;}
   await workspace.ready();
-  await settleArtworkTreatment();draw();
   void workspace.loadLibrary();
   document.body.classList.add('ready');
   await window.ORBStartup?.complete();
   preloadCatalog();
 }).catch(err=>{
   console.error(err);bootMsg.textContent='Preview could not initialize. Reload to try again.';
-  window.ORBStartup?.fail(err.message||'The preview could not load. Check your connection and try again.');
+  window.ORBStartup?.fail('The preview could not load. Check your connection and try again.');
 });

@@ -161,16 +161,16 @@ export function installWorkspace(api){
     if(model)zip.file(doc.modelPath,await model.arrayBuffer());
     return zip.generateAsync({type:'blob',compression:'STORE'});
   }
-  async function autosave(force=false){
+  async function autosave(){
     if(!ready||restoring||revision===savedRevision)return;
-    if(!force&&!document.hidden&&api.deferAutosave?.()){clearTimeout(saveTimer);saveTimer=setTimeout(autosave,900);return;}
-    if(!force&&(busy||api.busy())){clearTimeout(saveTimer);saveTimer=setTimeout(autosave,900);return;}
+    if(!document.hidden&&api.deferAutosave?.()){clearTimeout(saveTimer);saveTimer=setTimeout(autosave,900);return;}
+    if(busy||api.busy()){clearTimeout(saveTimer);saveTimer=setTimeout(autosave,900);return;}
     const savingRevision=revision;
     saveChain=saveChain.catch(()=>{}).then(async()=>{
       const data=await packageData(true,false);data.revision=savingRevision;
       await dbPut(data);savedRevision=savingRevision;
       if(revision===savingRevision)status('Saved on this device');
-    }).catch(error=>{report('Automatic save failed',error);if(force)throw error;});
+    }).catch(error=>{report('Automatic save failed',error);});
     await saveChain;
   }
   async function decodePackage(data){
@@ -226,28 +226,26 @@ export function installWorkspace(api){
   document.addEventListener('click',e=>{if(e.target.closest('summary,#btnPresent,#presentSettingsButton,.toolbarMenuToggle,#btnHelp,#btnArtist,#presentChooseGraphic,#btnSave,#btnExportAll,#designSave,#designOpen'))return;if(e.target.closest('#panel,header,#colorPopover'))queueMicrotask(notify);});
   window.addEventListener('beforeunload',e=>{if(ready&&revision!==savedRevision){e.preventDefault();e.returnValue='';}});
   document.addEventListener('visibilitychange',()=>{if(document.hidden)autosave();});
-  return {getAsset:async id=>{const a=assets.get(id);if(!a)throw new Error('Background artwork is missing.');if(!a.entry.source)a.entry={...await api.decode(new File([a.blob],a.name,{type:a.blob.type})),assetId:id};return a.entry;},flushPending:async()=>{if(!ready||restoring)return;clearTimeout(saveTimer);await saveChain.catch(()=>{});await autosave(true);},register,openAssets,notify,loadLibrary,makeArchive,dropFolder,artworkData:()=>packageData(false),dropProject:file=>confirmAction({file}),get busy(){return busy;},
+  return {getAsset:async id=>{const a=assets.get(id);if(!a)throw new Error('Background artwork is missing.');if(!a.entry.source)a.entry={...await api.decode(new File([a.blob],a.name,{type:a.blob.type})),assetId:id};return a.entry;},register,openAssets,notify,loadLibrary,makeArchive,dropFolder,artworkData:()=>packageData(false),dropProject:file=>confirmAction({file}),get busy(){return busy;},
     async ready(){
-      restoring=true;ready=false;clearTimeout(saveTimer);
+      restoring=true;
+      let data=null,restored=false,failure=null;
       try{
-        let data;
         try{data=await dbGet();}
-        catch(error){throw new Error('Saved-session storage could not be checked. Your saved data has not been replaced. Reload to retry.',{cause:error});}
-        const hasSavedSession=data!==undefined&&data!==null;
-        if(hasSavedSession){
-          try{await applyPackage(data,{mergeLibrary:false});}
-          catch(error){throw new Error('Your saved design could not be restored. It has been kept unchanged. Reload to retry.',{cause:error});}
-        }else{
-          const response=await fetch(new URL('../samples/orb-mockup-01.orb',import.meta.url));
-          if(!response.ok)throw new Error('The sample design could not load. Check your connection and reload to retry.');
-          data=await readArchive(await response.blob());
-          await applyPackage(data,{mergeLibrary:false});
-          await dbPut(data);
+        catch(error){preserveRecovery=true;failure=['Recovery storage unavailable',error];}
+        if(data){
+          try{await applyPackage(data,{mergeLibrary:false});restored=true;}
+          catch(error){preserveRecovery=true;failure=['Previous design could not be restored',error];}
         }
-        revision=0;savedRevision=0;ready=true;
-        status(hasSavedSession?'Restored your last design':'Saved on this device');
-      }catch(error){report('Startup paused',error);throw error;}
-      finally{restoring=false;renderShelf();}
+        if(!restored){
+          for(const entry of api.snapshot().layers){
+            try{await register(entry);}
+            catch(error){failure=failure||['Artwork setup failed',error];console.warn('[ORB] Artwork setup failed',error);}
+          }
+        }
+        if(failure)report(...failure);
+        else status(restored?'Restored your last design':'Your work stays on this device.');
+      }finally{restoring=false;ready=true;revision=0;savedRevision=0;renderShelf();}
     }
   };
 }
