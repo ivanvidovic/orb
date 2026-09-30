@@ -16,7 +16,7 @@ import {createCityTraffic} from './city-night.js?v=43';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=82';
 import {sharedSurfaceProfiles,fitSurfacePlacements} from './surface-layout.js?v=83';
 import {torsoFrame,torsoDistance,previousTorsoFrame,previewDistance,previousPreviewFrame} from './garment-framing.js?v=89';
-import {installWorkspace} from './workspace.js?v=91-sample36';
+import {installWorkspace} from './workspace.js?v=91-memory37';
 import {installExports} from './presentation-export.js?v=91-history13';
 import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=91-present23';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
@@ -838,9 +838,9 @@ document.getElementById('garmentButtons').addEventListener('click',event=>{
 });
 
 // Fetch once, share in-flight requests, and retain prepared models for revisits.
-// Touch devices keep two decoded garments; remaining files stay ready in memory.
+// Mobile loads on demand and retains only the active prepared garment.
 const catalogBytes=new Map(),catalogReady=new Map(),catalogPreparing=new Map();
-const readyLimit=MOBILE?2:4;
+const readyLimit=MOBILE?1:4;
 async function getCatalogBytes(item){
   if(catalogBytes.has(item.id))return catalogBytes.get(item.id);
   const task=(async()=>{
@@ -918,7 +918,7 @@ async function prepareCatalog(item){
       if(imported){if(res)disposeImported(imported);else disposeModel(imported);}
       if(res)disposeModel(res.group);
       throw error;
-    }finally{catalogPreparing.delete(item.id);}
+    }finally{catalogPreparing.delete(item.id);if(MOBILE)catalogBytes.delete(item.id);}
   })();
   catalogPreparing.set(item.id,task);return task;
 }
@@ -927,7 +927,7 @@ const idleSlot=()=>new Promise(resolve=>{
 });
 let backgroundCatalogStarted=false;
 async function preloadCatalog(){
-  if(backgroundCatalogStarted)return; backgroundCatalogStarted=true;
+  if(MOBILE||backgroundCatalogStarted)return; backgroundCatalogStarted=true;
   for(const item of GARMENT_CATALOG){
     await idleSlot();
     try{
@@ -1014,6 +1014,7 @@ async function loadCatalog(id){
   bootMsg.textContent='Loading '+item.label+'…';
   document.getElementById('boot').classList.toggle('gone',!!current);
   try{
+    if(MOBILE&&current)await workspace?.flushPending();
     const res=await prepareCatalog(item);
     if(current)recordArtUndo();
     UV_PROFILES=res.profiles;modelKind='catalog';

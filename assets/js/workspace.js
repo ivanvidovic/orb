@@ -161,16 +161,16 @@ export function installWorkspace(api){
     if(model)zip.file(doc.modelPath,await model.arrayBuffer());
     return zip.generateAsync({type:'blob',compression:'STORE'});
   }
-  async function autosave(){
+  async function autosave(force=false){
     if(!ready||restoring||revision===savedRevision)return;
-    if(!document.hidden&&api.deferAutosave?.()){clearTimeout(saveTimer);saveTimer=setTimeout(autosave,900);return;}
-    if(busy||api.busy()){clearTimeout(saveTimer);saveTimer=setTimeout(autosave,900);return;}
+    if(!force&&!document.hidden&&api.deferAutosave?.()){clearTimeout(saveTimer);saveTimer=setTimeout(autosave,900);return;}
+    if(!force&&(busy||api.busy())){clearTimeout(saveTimer);saveTimer=setTimeout(autosave,900);return;}
     const savingRevision=revision;
     saveChain=saveChain.catch(()=>{}).then(async()=>{
       const data=await packageData(true,false);data.revision=savingRevision;
       await dbPut(data);savedRevision=savingRevision;
       if(revision===savingRevision)status('Saved on this device');
-    }).catch(error=>{report('Automatic save failed',error);});
+    }).catch(error=>{report('Automatic save failed',error);if(force)throw error;});
     await saveChain;
   }
   async function decodePackage(data){
@@ -226,7 +226,7 @@ export function installWorkspace(api){
   document.addEventListener('click',e=>{if(e.target.closest('summary,#btnPresent,#presentSettingsButton,.toolbarMenuToggle,#btnHelp,#btnArtist,#presentChooseGraphic,#btnSave,#btnExportAll,#designSave,#designOpen'))return;if(e.target.closest('#panel,header,#colorPopover'))queueMicrotask(notify);});
   window.addEventListener('beforeunload',e=>{if(ready&&revision!==savedRevision){e.preventDefault();e.returnValue='';}});
   document.addEventListener('visibilitychange',()=>{if(document.hidden)autosave();});
-  return {getAsset:async id=>{const a=assets.get(id);if(!a)throw new Error('Background artwork is missing.');if(!a.entry.source)a.entry={...await api.decode(new File([a.blob],a.name,{type:a.blob.type})),assetId:id};return a.entry;},register,openAssets,notify,loadLibrary,makeArchive,dropFolder,artworkData:()=>packageData(false),dropProject:file=>confirmAction({file}),get busy(){return busy;},
+  return {getAsset:async id=>{const a=assets.get(id);if(!a)throw new Error('Background artwork is missing.');if(!a.entry.source)a.entry={...await api.decode(new File([a.blob],a.name,{type:a.blob.type})),assetId:id};return a.entry;},flushPending:async()=>{if(!ready||restoring)return;clearTimeout(saveTimer);await saveChain.catch(()=>{});await autosave(true);},register,openAssets,notify,loadLibrary,makeArchive,dropFolder,artworkData:()=>packageData(false),dropProject:file=>confirmAction({file}),get busy(){return busy;},
     async ready(){
       restoring=true;ready=false;clearTimeout(saveTimer);
       try{
