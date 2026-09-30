@@ -79,7 +79,10 @@
   // Small opening fill, then hold until measured loading advances.
   progress(.06,'Preparing studio');
   window.addEventListener('error',event=>{
-    if(active&&!finished&&(event.message||event.target?.tagName==='SCRIPT'))fail('The studio could not load. Check your connection and try again.');
+    if(!active||finished||(!event.message&&event.target?.tagName!=='SCRIPT'))return;
+    let file='';try{file=new URL(event.filename||event.target?.src,location.href).pathname.split('/').pop()||'';}catch{}
+    const detail=event.error?.message||event.message||'Script download failed';
+    fail('Startup error'+(file?' in '+file:'')+(event.lineno?':'+event.lineno:'')+': '+detail);
   },true);
-  window.addEventListener('unhandledrejection',()=>{if(active&&!finished)fail('The preview could not load. Check your connection and try again.');});
+  window.addEventListener('unhandledrejection',event=>{if(active&&!finished)fail('Startup error: '+(event.reason?.message||String(event.reason||'Unknown error')));});
 })();

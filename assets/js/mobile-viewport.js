@@ -8,15 +8,18 @@ export function installViewport(onResize){
  function sync(){
   frame=0;
   // Do not resize the app into a user's pinch-zoomed viewport.
-  if(viewport&&Math.abs(viewport.scale-1)>.02)return;
+  const zoomed=viewport&&Math.abs(viewport.scale-1)>.02;
+  // A rotation must still update the underlying layout at non-default zoom.
+  // Ordinary pinch gestures retain their existing layout dimensions.
+  if(zoomed&&performance.now()>=rotationUntil)return;
   const mobile=matchMedia('(pointer:coarse)').matches;
-  const width=Math.max(1,Math.round(mobile&&viewport?viewport.width:window.innerWidth));
-  const height=Math.max(1,Math.round(mobile&&viewport?viewport.height:window.innerHeight));
+  const width=Math.max(1,Math.round(mobile&&viewport&&!zoomed?viewport.width:window.innerWidth));
+  const height=Math.max(1,Math.round(mobile&&viewport&&!zoomed?viewport.height:window.innerHeight));
   const changed=width!==size.width||height!==size.height;
   size={width,height};
   document.documentElement.style.setProperty('--orb-viewport-width',width+'px');
   document.documentElement.style.setProperty('--orb-viewport-height',height+'px');
-  if(performance.now()<rotationUntil&&!editing()&&(window.scrollX||window.scrollY))window.scrollTo(0,0);
+  if(!zoomed&&performance.now()<rotationUntil&&!editing()&&(window.scrollX||window.scrollY))window.scrollTo(0,0);
   if(changed)onResize();
  }
  function schedule(){if(!frame)frame=requestAnimationFrame(sync);}

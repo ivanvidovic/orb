@@ -1,6 +1,6 @@
-import {viewportSize} from './mobile-viewport.js?v=91-35-layout1';
+import {viewportSize} from './mobile-viewport.js?v=91-opt43';
 import {RESET_ICON} from './controls.js?v=91-history13';
-import {createPresentCompositor} from './present-compositor.js?v=91-perf24';
+import {createPresentCompositor} from './present-compositor.js?v=91-opt43';
 import {defaultPresentation,resetPresentationSection,PRESENT_LIGHTS,PRESENT_NAMES,presentationPhase} from './present-options.js?v=91-style26';
 export function installPresentation(api){
  const $=id=>document.getElementById(id),section=$('presentationSettings');

@@ -1,6 +1,7 @@
-import {viewportSize,installViewport} from './mobile-viewport.js?v=91-35-layout1';
+import {MOBILE_MEMORY,RENDER_BUDGET,artworkAtlasSize} from './render-budget.js?v=91-opt43';
+import {viewportSize,installViewport} from './mobile-viewport.js?v=91-opt43';
 import {defaultPresentation} from './present-options.js?v=91-style26';
-import {installPresentation} from './present-settings.js?v=91-35-layout1';
+import {installPresentation} from './present-settings.js?v=91-opt43';
 let presentation=null,presentRenderLight=null;
 import {setupProjectorControls,syncProjectorButtons} from './projector-controls.js?v=91-history13';
 import {installMappedRanges} from './mapped-ranges.js?v=91-history13';
@@ -17,7 +18,7 @@ import {createCityTraffic} from './city-night.js?v=43';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=82';
 import {sharedSurfaceProfiles,fitSurfacePlacements} from './surface-layout.js?v=83';
 import {torsoFrame,torsoDistance,previousTorsoFrame,previewDistance,previousPreviewFrame} from './garment-framing.js?v=89';
-import {installWorkspace} from './workspace.js?v=91-perf24';
+import {installWorkspace} from './workspace.js?v=91-opt43';
 import {installExports} from './presentation-export.js?v=91-history13';
 import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=91-present23';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
@@ -120,7 +121,7 @@ catch(error){
   document.querySelectorAll('header button,header input,#panel button,#panel input,#panel select').forEach(el=>el.disabled=true);
   throw error;
 }
-renderer.setPixelRatio(Math.min(2, devicePixelRatio||1));
+renderer.setPixelRatio(Math.min(RENDER_BUDGET.pixelRatio, devicePixelRatio||1));
 renderer.outputColorSpace=THREE.SRGBColorSpace;
 renderer.toneMapping=THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure=1.0;
@@ -623,10 +624,11 @@ function setPresentCloneOpacity(v){
   presentCloneMaterials.forEach(m=>{ m.opacity=a; });
 }
 function rebuildPresentClone(show=false){
+  presentCloneMaterials.forEach(m=>m.dispose?.());
   presentGarment.clear();
   presentCloneMaterials=[];
   presentCloneActive=false;
-  if(!current) return;
+  if(!current||MOBILE_MEMORY) return;
 
   // Share the current geometry, but use lightweight material copies so the
   // incoming shirt can fade at the viewport edge without affecting the
@@ -756,11 +758,15 @@ function adopt(root){
   root.position.x-=c.x; root.position.z-=c.z; root.position.y-=(box.min.y-HEM_Y);
   root.updateMatrixWorld(true);
 
-  const out=new THREE.Group();
+  const out=new THREE.Group(),geometryUses=new Map(),attributeUses=new Map();
+  root.traverse(o=>{if(!o.isMesh)return;const g=o.geometry;geometryUses.set(g,(geometryUses.get(g)||0)+1);
+    for(const key of ['position','normal','tangent']){const a=g.attributes[key];if(a)attributeUses.set(a,(attributeUses.get(a)||0)+1);}});
   let tris=0;
   root.traverse(o=>{
     if(!o.isMesh || !o.geometry) return;
-    const g=o.geometry.clone();
+    const sourceGeometry=o.geometry;
+    const shared=geometryUses.get(sourceGeometry)>1||['position','normal','tangent'].some(k=>attributeUses.get(sourceGeometry.attributes[k])>1);
+    const g=shared?sourceGeometry.clone():sourceGeometry;
     for(const a of ['skinIndex','skinWeight'])
       if (g.attributes[a]) g.deleteAttribute(a);
     g.morphAttributes={};
@@ -821,6 +827,11 @@ const garmentSelect=document.getElementById('garmentSelect');
 const modelStatus=document.getElementById('modelStatus');
 const modelRetry=document.getElementById('modelRetry');
 let retryModel=null;
+if(MOBILE_MEMORY){
+  document.getElementById('garmentButtons').style.display='none';
+  document.querySelector('.garmentChooser>.lbl').textContent='Men’s Tee';
+  for(const option of garmentSelect.options)if(option.value!=='mens-tee')option.remove();
+}
 function modelBusy(value){
   modelLoading=value;
   garmentSelect.disabled=value;
@@ -839,19 +850,20 @@ document.getElementById('garmentButtons').addEventListener('click',event=>{
 });
 
 // Fetch once, share in-flight requests, and retain prepared models for revisits.
-// Touch devices keep two decoded garments; remaining files stay ready in memory.
+// Retain only visited prepared models, within the device memory budget.
 const catalogBytes=new Map(),catalogReady=new Map(),catalogPreparing=new Map();
-const readyLimit=MOBILE?2:4;
+const readyLimit=RENDER_BUDGET.cacheCount;
 async function getCatalogBytes(item){
+  if(MOBILE_MEMORY&&item.id!=='mens-tee')throw new Error('Mobile supports the men’s tee only. Open this design on desktop.');
   if(catalogBytes.has(item.id))return catalogBytes.get(item.id);
   const task=(async()=>{
     const stem=item.file.replace(/\.glb$/,'');
-    const urls=['../garments/'+item.file,'../calibration/'+stem+'.json','../calibration/'+stem+'.bin'];
+    const urls=['../garments/'+(MOBILE_MEMORY?'mobile/':'')+item.file,'../calibration/'+stem+'.json','../calibration/'+stem+'.bin'];
     return Promise.all(urls.map(async (path,index)=>{
-      const url=new URL(path,import.meta.url);url.searchParams.set('v',index===0&&item.id==='womens-tee'?'35':'18');
+      const url=new URL(path,import.meta.url);url.searchParams.set('v',index===0&&MOBILE_MEMORY?'43':index===0&&item.id==='womens-tee'?'35':'18');
       const response=await fetch(url);
-      if(!response.ok)throw new Error('Garment asset could not load.');
-      if(index===0&&window.ORBStartup?.active){
+      if(!response.ok)throw new Error('Garment asset failed ('+response.status+'): '+path);
+      if(index===0&&!MOBILE_MEMORY&&window.ORBStartup?.active){
         const reader=response.body?.getReader(),total=Number(response.headers.get('Content-Length'));
         if(reader){
           const chunks=[];let loaded=0;
@@ -870,7 +882,7 @@ async function getCatalogBytes(item){
 }
 function trimCatalogCache(){
   for(const [id,res] of catalogReady){
-    if(catalogReady.size<=readyLimit)break;
+    if(catalogReady.size<=readyLimit&&(!RENDER_BUDGET.cacheBytes||[...catalogReady.values()].reduce((sum,r)=>sum+(r.memoryBytes||0),0)<=RENDER_BUDGET.cacheBytes))break;
     if(res.group===current)continue;
     catalogReady.delete(id);res.group.userData.catalogCached=false;disposeModel(res.group);
   }
@@ -913,40 +925,35 @@ async function prepareCatalog(item){
           }
         }
       });
-      disposeImported(imported);imported=null;
-      res.group.userData.catalogCached=true;catalogReady.set(item.id,res);return res;
+      disposeImported(imported,res.group);imported=null;
+      res.memoryBytes=modelMemoryBytes(res.group);res.group.userData.catalogCached=true;catalogReady.set(item.id,res);return res;
     }catch(error){
-      if(imported){if(res)disposeImported(imported);else disposeModel(imported);}
+      if(imported){if(res)disposeImported(imported,res.group);else disposeModel(imported);}
       if(res)disposeModel(res.group);
       throw error;
-    }finally{catalogPreparing.delete(item.id);}
+    }finally{catalogPreparing.delete(item.id);catalogBytes.delete(item.id);}
   })();
   catalogPreparing.set(item.id,task);return task;
 }
-const idleSlot=()=>new Promise(resolve=>{
-  if(window.requestIdleCallback)requestIdleCallback(resolve,{timeout:2500});else setTimeout(resolve,200);
-});
-let backgroundCatalogStarted=false;
-async function preloadCatalog(){
-  if(backgroundCatalogStarted)return; backgroundCatalogStarted=true;
-  for(const item of GARMENT_CATALOG){
-    await idleSlot();
-    try{
-      await getCatalogBytes(item);
-      // Avoid retaining four large decoded texture sets on iPad and phones.
-      if(!MOBILE){await idleSlot();await prepareCatalog(item);}
-    }catch(error){/* Foreground selection exposes a retry; background failure is nonblocking. */}
-  }
+function modelMemoryBytes(root){
+  const arrays=new Set(),images=new Set();let bytes=0;
+  root.traverse(o=>{if(!o.isMesh)return;for(const a of [o.geometry.index,...Object.values(o.geometry.attributes)])if(a){const data=a.isInterleavedBufferAttribute?a.data.array:a.array;if(!arrays.has(data)){arrays.add(data);bytes+=data.byteLength*2;}}
+    for(const m of Array.isArray(o.material)?o.material:[o.material])for(const t of Object.values(m))if(t?.isTexture){const image=t.source?.data||t.image;for(const img of Array.isArray(image)?image:[image])if(img&&!images.has(img)){images.add(img);bytes+=(img.width||0)*(img.height||0)*4*(1+4/3);}}});
+  return bytes;
 }
-
-function disposeImported(root){
-  // adopt() cloned geometry and material objects; its textures remain shared.
-  root.traverse(o=>{if(o.isMesh){o.geometry.dispose();for(const m of Array.isArray(o.material)?o.material:[o.material])m.dispose();}});
+function disposeImported(root,adopted){
+  const retained=new Set();adopted?.traverse(o=>{if(o.isMesh)retained.add(o.geometry);});
+  root.traverse(o=>{if(o.isMesh){if(!retained.has(o.geometry))o.geometry.dispose();for(const m of Array.isArray(o.material)?o.material:[o.material])m.dispose();}});
 }
 function disposeModel(root){
-  const textures=new Set();
-  root.traverse(o=>{if(!o.isMesh)return;o.customDepthMaterial?.dispose();o.geometry.dispose();for(const m of Array.isArray(o.material)?o.material:[o.material]){for(const v of Object.values(m))if(v?.isTexture)textures.add(v);m.dispose();}});
-  for(const t of textures)t.dispose();
+  const textures=new Set(),images=new Set(),retainedTextures=new Set(),retainedImages=new Set();
+  const collect=(group,keep)=>group?.traverse(o=>{if(o.isMesh)for(const m of Array.isArray(o.material)?o.material:[o.material])for(const t of Object.values(m))if(t?.isTexture){(keep?retainedTextures:textures).add(t);const image=t.source?.data||t.image;for(const img of Array.isArray(image)?image:[image])if(img)(keep?retainedImages:images).add(img);}});
+  if(current&&current!==root)collect(current,true);
+  for(const res of catalogReady.values())if(res.group!==root)collect(res.group,true);
+  collect(root,false);
+  root.traverse(o=>{if(!o.isMesh)return;o.customDepthMaterial?.dispose();o.geometry.dispose();for(const m of Array.isArray(o.material)?o.material:[o.material])m.dispose();});
+  for(const t of textures)if(!retainedTextures.has(t))t.dispose();
+  for(const image of images)if(!retainedImages.has(image)&&typeof image.close==='function')image.close();
 }
 
 async function applyCalibration(group,item,cached){
@@ -1004,10 +1011,11 @@ function calibratePlacements(group,kind){
   return profiles;
 }
 async function loadCatalog(id){
+  if(MOBILE_MEMORY&&id!=='mens-tee'){modelStatus.textContent='Mobile supports the men’s tee only. Open this design on desktop.';return false;}
   if(modelLoading)return false;
-  if(id===activeGarmentId)return true;
+  if(id===activeGarmentId&&current)return true;
   const item=GARMENT_CATALOG.find(g=>g.id===id);if(!item)return false;
-  const initialLoad=!current;
+  const initialLoad=!current&&!activeGarmentId;
   const previousDistance=torsoDistance(activeGarmentId),previousCenter=garmentCenter.clone();
   cancelAnchorPick();
   modelBusy(true);modelRetry.hidden=true;retryModel=()=>loadCatalog(id);
@@ -1042,7 +1050,7 @@ async function loadCatalog(id){
   }catch(error){
     console.error('Garment load failed',error);
     garmentSelect.value=activeGarmentId||selectedCatalogId;
-    modelStatus.textContent='Could not load '+item.label+'. Check your connection and retry.';
+    modelStatus.textContent='Could not load '+item.label+': '+(error.message||'Unknown error')+'. Retry when ready.';
     bootMsg.textContent=current?'':modelStatus.textContent;
     modelRetry.hidden=false;
     return false;
@@ -1054,6 +1062,7 @@ async function loadCatalog(id){
 garmentSelect.addEventListener('change',()=>loadCatalog(garmentSelect.value));
 modelRetry.addEventListener('click',()=>retryModel?.());
 async function loadModel(file){
+  if(MOBILE_MEMORY){artStatus('Custom garments are available on desktop only.');return false;}
   if(modelLoading){artStatus('A model is already loading.');return;}
   if(!/\.glb$/i.test(file.name)){artStatus('Choose a GLB with embedded textures.');return;}
   modelBusy(true);modelRetry.hidden=true;
@@ -1064,7 +1073,7 @@ async function loadModel(file){
   let imported=null,res=null,committed=false;
   try{
     const gltf=await gltfLoader.loadAsync(url);imported=gltf.scene;
-    res=adopt(imported);disposeImported(imported);imported=null;
+    res=adopt(imported);disposeImported(imported,res.group);imported=null;
     if(current)recordArtUndo();
     cancelAnchorPick();UV_PROFILES={};modelKind='custom';
     setGarment(res.group,true);committed=true;activeGarmentId='custom';customModelFile=file;customFlipped=false;trimCatalogCache();
@@ -1076,7 +1085,7 @@ async function loadModel(file){
     modelStatus.textContent='';if(initialLoad)setView('front');else if(state.view==='neck'||state.view?.startsWith('placement:')||state.view?.startsWith('sleeve:'))setView('detail');return true;
   }catch(error){
     console.error(error);
-    if(imported){if(res)disposeImported(imported);else disposeModel(imported);}
+    if(imported){if(res)disposeImported(imported,res.group);else disposeModel(imported);}
     if(res&&!committed)disposeModel(res.group);
     modelStatus.textContent='That file could not open. Choose a GLB with embedded textures and UVs.';
     bootMsg.textContent=modelStatus.textContent;return false;
@@ -2340,9 +2349,7 @@ function layoutArtworkMap(map,geometry,panelIds,layers){
   for(const id of panelIds)bounds.set(id,focusedPanelBounds(bounds.get(id),layers.filter(l=>layerProfile(l).island===id).map(artworkLayerBounds)));
   const key=JSON.stringify([...bounds].filter(([id])=>panelIds.includes(id)));
   if(map.geometry===geometry&&map.layoutKey===key&&geometry.getAttribute('aArtworkUv'))return false;
-  const cols=Math.ceil(Math.sqrt(panelIds.length||1)),rows=Math.ceil((panelIds.length||1)/cols);
-  const limit=Math.min(8192,renderer.capabilities.maxTextureSize),tileSize=Math.min(4096,Math.floor(limit/Math.max(cols,rows))),gutter=8;
-  const width=cols*tileSize,height=rows*tileSize;
+  const {cols,rows,tile:tileSize,width,height}=artworkAtlasSize(panelIds.length,renderer.capabilities.maxTextureSize),gutter=8;
   map.tiles.clear();map.geometry=geometry;map.layoutKey=key;
   if(panelIds.length){
     if(!map.target||map.target.width!==width||map.target.height!==height){
@@ -2774,7 +2781,7 @@ function syncArtworkUi(){
   if(pane.scrollTop!==scrollTop)pane.scrollTop=scrollTop;
 }
 function prepareArtworkSource(img){
-  const limit=Math.max(1,Math.min(4096,renderer.capabilities.maxTextureSize-8));
+  const limit=Math.max(1,Math.min(RENDER_BUDGET.sourceSide,renderer.capabilities.maxTextureSize-8));
   const width=img.naturalWidth||img.width,height=img.naturalHeight||img.height;
   if(!width||!height)throw new Error('Image has no usable dimensions.');
   const scale=Math.min(1,limit/width,limit/height),cv=document.createElement('canvas');
@@ -2820,7 +2827,7 @@ function openArtUpload(id,action='add'){
 }
 async function decodeArtworkFile(file){
   file=await normalizeArtworkFile(file);
-  const img=await decodeArtworkImage(file,{longEdge:Math.max(1,Math.min(4096,renderer.capabilities.maxTextureSize-8))});
+  const img=await decodeArtworkImage(file,{longEdge:Math.max(1,Math.min(RENDER_BUDGET.sourceSide,renderer.capabilities.maxTextureSize-8))});
   return {...makeArtworkEntry(img,file.name),originalFile:file};
 }
 async function loadArtFiles(slot,files,action='add',targetId=null){
@@ -3544,7 +3551,7 @@ function brandArtworkSourceUrl(url,longEdge){
   if(!(w>0&&h>0))return url;
   // Set the SVG's rasterization viewport BEFORE decoding. Enlarging a small
   // decoded bitmap later cannot recover the original vector edge detail.
-  const limit=Math.max(1,Math.min(longEdge,4096,renderer.capabilities.maxTextureSize-8));
+  const limit=Math.max(1,Math.min(longEdge,RENDER_BUDGET.sourceSide,renderer.capabilities.maxTextureSize-8));
   const scale=limit/Math.max(w,h);
   svg.setAttribute('width',Math.max(1,Math.round(w*scale))+'px');
   svg.setAttribute('height',Math.max(1,Math.round(h*scale))+'px');
@@ -3734,6 +3741,7 @@ function installDesignHistory(){
 }
 const defaultDesignSettings=structuredClone(pick(state,SETTING_FIELDS));
 workspace=installWorkspace({
+  checkProject:doc=>{if(MOBILE_MEMORY&&doc.garmentId!=='mens-tee'){const error=new Error('Mobile supports the men’s tee only. Open this design on desktop.');error.code='DESKTOP_GARMENT';throw error;}},
   schema:{garments:GARMENT_CATALOG.map(g=>g.id),slots:ART_KEYS},deferAutosave:()=>state.present,busy:()=>artLoading||modelLoading||designLocked,
   snapshot:designSnapshot,modelFile:()=>customModelFile,decode:decodeArtworkFile,
   finish:()=>{finishArtworkRename(true);colorPicker?.close();},lock:setWorkspaceLock,
@@ -3849,7 +3857,7 @@ await Promise.all([loadSvg(BRAND.wordmark,4096),loadSvg(BRAND.emblem,2048)]).the
   void workspace.loadLibrary();
   document.body.classList.add('ready');
   await window.ORBStartup?.complete();
-  preloadCatalog();
+  // Other garments load on demand; revisits use the bounded prepared cache.
 }).catch(err=>{
   console.error(err);bootMsg.textContent='Preview could not initialize. Reload to try again.';
   window.ORBStartup?.fail('The preview could not load. Check your connection and try again.');

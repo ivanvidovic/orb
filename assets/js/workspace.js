@@ -8,7 +8,7 @@ const pause=()=>new Promise(resolve=>setTimeout(resolve,0));
 export function installWorkspace(api){
   const hostedAssets=new Map();let libraryName='';
   const assets=new Map();let shelfIds=new Set(),ready=false,restoring=false,busy=false,saveTimer,dbPromise,saveChain=Promise.resolve(),revision=0,savedRevision=0,context={action:'choose'},pendingOpen=null;
-  let preserveRecovery=false;
+  let preserveRecovery=false,storageAvailable=true,recoveryBlocked=false;
   const report=(stage,error)=>{console.warn('[ORB] '+stage,error);status(stage+': '+(error?.message||error?.name||'Unavailable')+'. Use Save to keep your work.');};
   const scope=location.pathname.replace(/\/index\.html$/,'/');
   const dbName='orb-studio-36:'+scope;
@@ -23,15 +23,17 @@ export function installWorkspace(api){
   function database(){
     if(!dbPromise){
       dbPromise=new Promise((resolve,reject)=>{
-        const req=indexedDB.open(dbName,1);
+        const req=indexedDB.open(dbName,1);let settled=false;
+        const timeout=setTimeout(()=>{settled=true;reject(new Error('Browser storage did not respond'));},8000);
         req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains('workspace'))req.result.createObjectStore('workspace');};
         req.onsuccess=()=>{
           const db=req.result;
+          if(settled){db.close();return;}settled=true;clearTimeout(timeout);
           db.onversionchange=()=>{db.close();dbPromise=null;};
           db.onclose=()=>{dbPromise=null;};
           resolve(db);
         };
-        req.onerror=()=>reject(req.error);
+        req.onerror=()=>{settled=true;clearTimeout(timeout);reject(req.error);};
         req.onblocked=()=>status('Recovery storage is waiting. Close other ORB tabs, then retry.');
       }).catch(error=>{dbPromise=null;throw error;});
     }
@@ -163,6 +165,8 @@ export function installWorkspace(api){
   }
   async function autosave(){
     if(!ready||restoring||revision===savedRevision)return;
+    if(recoveryBlocked){status('Your previous design is preserved. Use New for a men’s tee design, or open the original on desktop.');return;}
+    if(!storageAvailable){status('Temporary session. Automatic saving is unavailable; use Save to download your design.');return;}
     if(!document.hidden&&api.deferAutosave?.()){clearTimeout(saveTimer);saveTimer=setTimeout(autosave,900);return;}
     if(busy||api.busy()){clearTimeout(saveTimer);saveTimer=setTimeout(autosave,900);return;}
     const savingRevision=revision;
@@ -183,6 +187,7 @@ export function installWorkspace(api){
     return {staged,layers};
   }
   async function applyPackage(data,{mergeLibrary=true}={}){
+    api.checkProject?.(data.doc);
     const {staged,layers}=await decodePackage(data);
     const snapshot={...data.doc,layers};
     // Decode and validate everything before replacing the active design.
@@ -190,13 +195,14 @@ export function installWorkspace(api){
     for(const [id,a] of staged)assets.set(id,a);api.presentationRestored?.();
     const incoming=(data.doc.shelf||Array.from(staged.keys())).filter(id=>staged.has(id));
     shelfIds=mergeLibrary?new Set([...shelfIds,...incoming]):new Set(incoming);
-    $('designName').value=data.doc.name;api.clearHistory();renderShelf();
+    $('designName').value=data.doc.name;api.clearHistory();renderShelf();recoveryBlocked=false;
   }
   async function readArchive(file){
     if(file.size>350*1024*1024)throw new Error('This design file is too large to open (350 MB limit).');
     const zip=await window.JSZip.loadAsync(file),manifest=zip.file('design.json');
     if(!manifest||manifest._data.uncompressedSize>2*1024*1024)throw new Error('This ZIP does not contain a valid ORB design.');
     const doc=validateProject(JSON.parse(await manifest.async('string')),api.schema),records=[];
+    api.checkProject?.(doc);
     let total=0;
     for(const a of doc.assets){const f=zip.file(a.path);if(!f)throw new Error('Missing artwork: '+a.name);total+=f._data.uncompressedSize;if(total>300*1024*1024)throw new Error('The artwork in this design is too large.');records.push({id:a.id,name:a.name,blob:new Blob([await f.async('uint8array')],{type:a.type})});}
     let model=null;if(doc.modelPath){const f=zip.file(doc.modelPath);if(!f||f._data.uncompressedSize>250*1024*1024)throw new Error('The custom garment is missing or too large.');model=new File([await f.async('uint8array')],'garment.glb',{type:'model/gltf-binary'});}
@@ -209,7 +215,7 @@ export function installWorkspace(api){
     finally{restoring=false;busy=false;api.lock(false);if(opened)notify();}
   }
   function confirmAction(action){pendingOpen=action;$('confirmTitle').textContent=action.file?'Open another design?':'Start a new design?';$('confirmText').textContent=action.file?'Save your current design before opening another?':'Save your current design before starting over?';$('confirmContinue').textContent=action.file?'Open without saving':'Start without saving';$('confirmSave').textContent=action.file?'Save & open':'Save & start new';$('confirmDialog').showModal();}
-  async function continueAction(){const action=pendingOpen;pendingOpen=null;$('confirmDialog').close();if(action?.file)await openFile(action.file);else{api.newDesign();$('designName').value='Untitled design';notify();}}
+  async function continueAction(){const action=pendingOpen;pendingOpen=null;$('confirmDialog').close();if(action?.file)await openFile(action.file);else{recoveryBlocked=false;api.newDesign();$('designName').value='Untitled design';notify();}}
   $('confirmContinue').onclick=continueAction;
   $('confirmSave').onclick=async()=>{if(busy)return;busy=true;const buttons=$('confirmDialog').querySelectorAll('button');buttons.forEach(b=>b.disabled=true);try{await saveDesign();busy=false;await continueAction();}catch(e){$('confirmText').textContent=e.message;}finally{busy=false;buttons.forEach(b=>b.disabled=false);}};
   $('designNew').onclick=()=>{if(!busy&&!api.busy())confirmAction({});};
@@ -232,10 +238,10 @@ export function installWorkspace(api){
       let data=null,restored=false,failure=null;
       try{
         try{data=await dbGet();}
-        catch(error){preserveRecovery=true;failure=['Recovery storage unavailable',error];}
+        catch(error){storageAvailable=false;preserveRecovery=true;failure=['Temporary session; use Save to download your design',error];}
         if(data){
           try{await applyPackage(data,{mergeLibrary:false});restored=true;}
-          catch(error){preserveRecovery=true;failure=['Previous design could not be restored',error];}
+          catch(error){preserveRecovery=true;recoveryBlocked=error.code==='DESKTOP_GARMENT';failure=['Previous design preserved',error];}
         }
         if(!restored){
           for(const entry of api.snapshot().layers){

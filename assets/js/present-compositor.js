@@ -1,10 +1,11 @@
+import {RENDER_BUDGET} from './render-budget.js?v=91-opt43';
 // Blend HDR scene targets on the GPU; no WebGL-to-Canvas2D copies.
 export function createPresentCompositor(THREE,renderer){
  let targets=null,scene=null,camera=null,material=null,geometry=null,width=0,height=0;
  const viewport=new THREE.Vector4(),scissor=new THREE.Vector4();
  const supported=renderer.capabilities.isWebGL2&&renderer.extensions.has('EXT_color_buffer_float');
  function resize(){
-  const size=renderer.getSize(new THREE.Vector2()),scale=renderer.getPixelRatio();
+  const size=renderer.getSize(new THREE.Vector2()),scale=Math.min(renderer.getPixelRatio(),Math.sqrt(RENDER_BUDGET.presentPixels/Math.max(1,size.x*size.y)));
   const w=Math.max(1,Math.floor(size.x*scale)),h=Math.max(1,Math.floor(size.y*scale));
   if(w===width&&h===height)return;
   width=w;height=h;for(const target of targets)target.setSize(w,h);
@@ -12,7 +13,7 @@ export function createPresentCompositor(THREE,renderer){
  function begin(){
   if(!supported)return false;
   if(targets)return true;
-  targets=[0,1].map(()=>new THREE.WebGLRenderTarget(1,1,{type:THREE.HalfFloatType,depthBuffer:true,stencilBuffer:false,samples:Math.min(2,renderer.capabilities.maxSamples||0)}));
+  targets=[0,1].map(()=>new THREE.WebGLRenderTarget(1,1,{type:THREE.HalfFloatType,depthBuffer:true,stencilBuffer:false,samples:Math.min(RENDER_BUDGET.presentSamples,renderer.capabilities.maxSamples||0)}));
   material=new THREE.RawShaderMaterial({
    depthTest:false,depthWrite:false,blending:THREE.NoBlending,toneMapped:false,
    uniforms:{fromMap:{value:targets[0].texture},toMap:{value:targets[1].texture},mixValue:{value:0},fromExposure:{value:1},toExposure:{value:1},toneMappingExposure:{value:1}},
