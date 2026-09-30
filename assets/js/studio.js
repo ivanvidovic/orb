@@ -108,6 +108,8 @@ const ART_DEFAULTS=Object.fromEntries(ART_KEYS.map(k=>[k,{x:0,y:0,scale:ART_META
 /* =============================== renderer =============================== */
 
 const MOBILE = Math.min(innerWidth,innerHeight)<760 || navigator.maxTouchPoints>0;
+// Cache policy follows device type, not window size or desktop touch support.
+const MOBILE_MEMORY = navigator.userAgentData?.mobile===true || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 const canvas=document.getElementById('gl'), stage=document.getElementById('stage');
 const patternCanvas=document.getElementById('bgPattern');
 const patternCtx=patternCanvas.getContext('2d');
@@ -756,10 +758,14 @@ function adopt(root){
   root.updateMatrixWorld(true);
 
   const out=new THREE.Group();
+  // Transfer exclusively owned geometry; clone shared accessors before transforming.
+  const geometryUses=new Map(),attributeUses=new Map();
+  root.traverse(o=>{if(!o.isMesh)return;geometryUses.set(o.geometry,(geometryUses.get(o.geometry)||0)+1);for(const key of ['position','normal','tangent']){const a=o.geometry.attributes[key];if(a)attributeUses.set(a,(attributeUses.get(a)||0)+1);}});
   let tris=0;
   root.traverse(o=>{
     if(!o.isMesh || !o.geometry) return;
-    const g=o.geometry.clone();
+    const shared=geometryUses.get(o.geometry)>1||['position','normal','tangent'].some(key=>attributeUses.get(o.geometry.attributes[key])>1);
+    const g=shared?o.geometry.clone():o.geometry;
     for(const a of ['skinIndex','skinWeight'])
       if (g.attributes[a]) g.deleteAttribute(a);
     g.morphAttributes={};
@@ -840,7 +846,7 @@ document.getElementById('garmentButtons').addEventListener('click',event=>{
 // Fetch once, share in-flight requests, and retain prepared models for revisits.
 // Mobile loads on demand and retains only the active prepared garment.
 const catalogBytes=new Map(),catalogReady=new Map(),catalogPreparing=new Map();
-const readyLimit=MOBILE?1:4;
+const readyLimit=MOBILE_MEMORY?1:4;
 async function getCatalogBytes(item){
   if(catalogBytes.has(item.id))return catalogBytes.get(item.id);
   const task=(async()=>{
@@ -912,13 +918,13 @@ async function prepareCatalog(item){
           }
         }
       });
-      disposeImported(imported);imported=null;
+      disposeImported(imported,res.group);imported=null;
       res.group.userData.catalogCached=true;catalogReady.set(item.id,res);return res;
     }catch(error){
-      if(imported){if(res)disposeImported(imported);else disposeModel(imported);}
+      if(imported){if(res)disposeImported(imported,res.group);else disposeModel(imported);}
       if(res)disposeModel(res.group);
       throw error;
-    }finally{catalogPreparing.delete(item.id);if(MOBILE)catalogBytes.delete(item.id);}
+    }finally{catalogPreparing.delete(item.id);if(MOBILE_MEMORY)catalogBytes.delete(item.id);}
   })();
   catalogPreparing.set(item.id,task);return task;
 }
@@ -927,25 +933,31 @@ const idleSlot=()=>new Promise(resolve=>{
 });
 let backgroundCatalogStarted=false;
 async function preloadCatalog(){
-  if(MOBILE||backgroundCatalogStarted)return; backgroundCatalogStarted=true;
+  if(MOBILE_MEMORY||backgroundCatalogStarted)return; backgroundCatalogStarted=true;
   for(const item of GARMENT_CATALOG){
     await idleSlot();
     try{
       await getCatalogBytes(item);
       // Avoid retaining four large decoded texture sets on iPad and phones.
-      if(!MOBILE){await idleSlot();await prepareCatalog(item);}
+      if(!MOBILE_MEMORY){await idleSlot();await prepareCatalog(item);}
     }catch(error){/* Foreground selection exposes a retry; background failure is nonblocking. */}
   }
 }
 
-function disposeImported(root){
-  // adopt() cloned geometry and material objects; its textures remain shared.
-  root.traverse(o=>{if(o.isMesh){o.geometry.dispose();for(const m of Array.isArray(o.material)?o.material:[o.material])m.dispose();}});
+function disposeImported(root,adopted){
+  const retained=new Set();adopted?.traverse(o=>{if(o.isMesh)retained.add(o.geometry);});
+  root.traverse(o=>{if(o.isMesh){if(!retained.has(o.geometry))o.geometry.dispose();for(const m of Array.isArray(o.material)?o.material:[o.material])m.dispose();}});
 }
 function disposeModel(root){
-  const textures=new Set();
+  const textures=new Set(),images=new Set(),retainedImages=new Set(),retainedTextures=new Set();
+  const collect=(group,set,keep=false)=>group?.traverse(o=>{if(o.isMesh)for(const m of Array.isArray(o.material)?o.material:[o.material])for(const v of Object.values(m))if(v?.isTexture){if(keep)retainedTextures.add(v);const image=v.source?.data||v.image;for(const img of Array.isArray(image)?image:[image])if(img)set.add(img);}});
+  // Never close a bitmap still used by the active garment or another cached model.
+  if(current&&current!==root)collect(current,retainedImages,true);
+  for(const res of catalogReady.values())if(res.group!==root)collect(res.group,retainedImages,true);
+  collect(root,images);
   root.traverse(o=>{if(!o.isMesh)return;o.customDepthMaterial?.dispose();o.geometry.dispose();for(const m of Array.isArray(o.material)?o.material:[o.material]){for(const v of Object.values(m))if(v?.isTexture)textures.add(v);m.dispose();}});
-  for(const t of textures)t.dispose();
+  for(const t of textures)if(!retainedTextures.has(t))t.dispose();
+  for(const img of images)if(!retainedImages.has(img)&&typeof img.close==='function')img.close();
 }
 
 async function applyCalibration(group,item,cached){
@@ -1014,7 +1026,7 @@ async function loadCatalog(id){
   bootMsg.textContent='Loading '+item.label+'…';
   document.getElementById('boot').classList.toggle('gone',!!current);
   try{
-    if(MOBILE&&current)await workspace?.flushPending();
+    if(MOBILE_MEMORY&&current)await workspace?.flushPending();
     const res=await prepareCatalog(item);
     if(current)recordArtUndo();
     UV_PROFILES=res.profiles;modelKind='catalog';
@@ -1064,7 +1076,7 @@ async function loadModel(file){
   let imported=null,res=null,committed=false;
   try{
     const gltf=await gltfLoader.loadAsync(url);imported=gltf.scene;
-    res=adopt(imported);disposeImported(imported);imported=null;
+    res=adopt(imported);disposeImported(imported,res.group);imported=null;
     if(current)recordArtUndo();
     cancelAnchorPick();UV_PROFILES={};modelKind='custom';
     setGarment(res.group,true);committed=true;activeGarmentId='custom';customModelFile=file;customFlipped=false;trimCatalogCache();
@@ -1076,7 +1088,7 @@ async function loadModel(file){
     modelStatus.textContent='';if(initialLoad)setView('front');else if(state.view==='neck'||state.view?.startsWith('placement:')||state.view?.startsWith('sleeve:'))setView('detail');return true;
   }catch(error){
     console.error(error);
-    if(imported){if(res)disposeImported(imported);else disposeModel(imported);}
+    if(imported){if(res)disposeImported(imported,res.group);else disposeModel(imported);}
     if(res&&!committed)disposeModel(res.group);
     modelStatus.textContent='That file could not open. Choose a GLB with embedded textures and UVs.';
     bootMsg.textContent=modelStatus.textContent;return false;
