@@ -3384,6 +3384,7 @@ const presentScreenRight=new THREE.Vector3();
 function activeRenderRect(eased){
   const W=window.innerWidth||1;
   const H=window.innerHeight||1;
+  if(state.present&&isMobilePresent())return {left:0,top:0,width:W,height:H,W,H};
   const r=stage.getBoundingClientRect();
 
   // #stage remains the normal-mode render region. Present smoothly grows that
