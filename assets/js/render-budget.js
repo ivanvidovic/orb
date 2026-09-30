@@ -6,7 +6,7 @@ export const RENDER_BUDGET=Object.freeze({
  artworkTile:MOBILE_MEMORY?1024:4096,
  sourceSide:MOBILE_MEMORY?2048:4096,
  cacheCount:MOBILE_MEMORY?1:4,
- cacheBytes:(MOBILE_MEMORY?0:((navigator.deviceMemory||8)>=8?1024:512))*1024*1024,
+ cacheBytes:(MOBILE_MEMORY?0:((navigator.deviceMemory||8)>=8?2048:1024))*1024*1024,
  presentPixels:MOBILE_MEMORY?1000000:Infinity,
  presentSamples:MOBILE_MEMORY?0:2
 });

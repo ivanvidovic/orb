@@ -1,6 +1,8 @@
+import {configureGarmentShadow} from './shadow-quality.js?v=91-shadow47';
+import {preloadCatalog} from './catalog-preload.js?v=91-shadow47';
 import {createPresentMotion} from './present-motion.js?v=91-present46';
 import {installMobileInteraction} from './mobile-interaction.js?v=91-art44';
-import {MOBILE_MEMORY,RENDER_BUDGET,artworkAtlasSize} from './render-budget.js?v=91-opt43';
+import {MOBILE_MEMORY,RENDER_BUDGET,artworkAtlasSize} from './render-budget.js?v=91-shadow47';
 import {viewportSize,installViewport} from './mobile-viewport.js?v=91-opt43';
 import {defaultPresentation} from './present-options.js?v=91-style26';
 import {installPresentation} from './present-settings.js?v=91-opt43';
@@ -12,7 +14,7 @@ import {quadTransform,alphaBounds,flattenTransform,collectSurfaces} from './prin
 import {createTreatmentQueue,createTreatmentProcessor} from './artwork-processing.js?v=91-history13';
 import {hasPrintTexture} from './print-texture.js?v=91-history13';
 import {focusedPanelBounds,layerCustomColor} from './artwork-detail.js?v=91-history13';
-import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=91-history13';
+import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=91-shadow47';
 import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE,fullSleeveCamera} from './sleeve-camera.js?v=91-camera';
 import {hasDirectory} from './folder-import.js?v=58';
 import {decodeArtworkImage,normalizeArtworkFile} from './artwork-decode.js?v=91-svg21';
@@ -182,7 +184,7 @@ key.castShadow=true;
 key.shadow.mapSize.set(MOBILE?1024:2048,MOBILE?1024:2048);
 Object.assign(key.shadow.camera,{left:-.72,right:.72,top:.68,bottom:-.68,near:.1,far:6});
 key.shadow.camera.updateProjectionMatrix();
-key.shadow.bias=-.00008;key.shadow.normalBias=.0015;
+configureGarmentShadow(key,{span:1.44,mobile:MOBILE_MEMORY});
 function updateShadowMap(){
   const c=camera.quaternion,g=garment,p=presentGarment;
   const sig=[state.selfShadows,state.light,state.lightLocked,c.x,c.y,c.z,c.w,g.position.x,g.position.z,g.rotation.y,p.visible,p.position.x,p.position.z,p.rotation.y,activeGarmentId].join('/');
@@ -190,7 +192,7 @@ function updateShadowMap(){
   // Every moving scene pass needs a matching depth map, including both fade passes.
   if(state.selfShadows&&(shadowDirty||sig!==lastShadowSignature||moving)){
     const extent=presentGarment.visible?1.15:.72;
-    if(key.shadow.camera.right!==extent){key.shadow.camera.left=-extent;key.shadow.camera.right=extent;key.shadow.camera.updateProjectionMatrix();}
+    if(key.shadow.camera.right!==extent){key.shadow.camera.left=-extent;key.shadow.camera.right=extent;key.shadow.camera.updateProjectionMatrix();configureGarmentShadow(key,{span:extent*2,mobile:MOBILE_MEMORY});}
     renderer.shadowMap.needsUpdate=true;shadowDirty=false;lastShadowSignature=sig;
   }
 }
@@ -3858,7 +3860,15 @@ await Promise.all([loadSvg(BRAND.wordmark,4096),loadSvg(BRAND.emblem,2048)]).the
   void workspace.loadLibrary();
   document.body.classList.add('ready');
   await window.ORBStartup?.complete();
-  // Other garments load on demand; revisits use the bounded prepared cache.
+  preloadCatalog({
+    mobile:MOBILE_MEMORY,items:GARMENT_CATALOG,ready:id=>catalogReady.has(id),
+    busy:()=>document.hidden||dragging||state.present||modelLoading||artLoading||designLocked||workspace.busy,
+    prepare:prepareCatalog,trim:trimCatalogCache,
+    schedule:task=>setTimeout(()=>{
+      if(window.requestIdleCallback)window.requestIdleCallback(task,{timeout:2000});else task();
+    },750),
+    onError:(item,error)=>console.warn('[ORB] Background garment preparation failed: '+item.id,error)
+  });
 }).catch(err=>{
   console.error(err);bootMsg.textContent='Preview could not initialize. Reload to try again.';
   window.ORBStartup?.fail('The preview could not load. Check your connection and try again.');
