@@ -1,3 +1,4 @@
+import {createPresentMotion} from './present-motion.js?v=91-present46';
 import {installMobileInteraction} from './mobile-interaction.js?v=91-art44';
 import {MOBILE_MEMORY,RENDER_BUDGET,artworkAtlasSize} from './render-budget.js?v=91-opt43';
 import {viewportSize,installViewport} from './mobile-viewport.js?v=91-opt43';
@@ -1406,10 +1407,12 @@ function pickNativePosition(e){
 }
 
 let dragging=false,lastX=0,lastY=0,pinch=0,lastPlacementClick=-Infinity;
+const presentMotion=createPresentMotion(),presentPointers=new Map();
 let orbitInputVelocity=0;
 let lastOrbitInputTime=performance.now();
 
 canvas.addEventListener('pointerdown',e=>{
+  if(state.present){presentPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});presentMotion.interact();}
   if(anchorPickId){lastPlacementClick=performance.now();e.preventDefault();pickNativePosition(e);return;}
   dragging=true; lastX=e.clientX; lastY=e.clientY;
   orbitInputVelocity=0;
@@ -1420,9 +1423,12 @@ canvas.addEventListener('pointerdown',e=>{
   inertiaLastMotionVelocity=0;
   lastOrbitInputTime=performance.now();
   canvas.setPointerCapture(e.pointerId); canvas.classList.add('drag');
-  if(state.present) exitPresent();
 });
 canvas.addEventListener('pointermove',e=>{
+  if(state.present&&presentPointers.has(e.pointerId)){
+    presentPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(presentPointers.size>1){lastX=e.clientX;lastY=e.clientY;orbitInputVelocity=0;return;}
+  }
   if(!dragging) return;
   const now=performance.now();
   const dx=e.clientX-lastX;
@@ -1438,7 +1444,12 @@ canvas.addEventListener('pointermove',e=>{
   lastOrbitInputTime=now;
   lastX=e.clientX; lastY=e.clientY; setView(null);
 });
-function endOrbitDrag(){
+function endOrbitDrag(event){
+  if(state.present){
+    if(event?.pointerId!=null)presentPointers.delete(event.pointerId);else presentPointers.clear();
+    if(presentPointers.size){const point=presentPointers.values().next().value;lastX=point.x;lastY=point.y;lastOrbitInputTime=performance.now();return;}
+    presentMotion.interact();
+  }
   if(dragging){
     if(!state.present)workspace?.notify();
     // The shirt has been "loaded" in the lag direction while held.
@@ -1456,21 +1467,18 @@ function endOrbitDrag(){
 }
 addEventListener('pointerup',endOrbitDrag);
 addEventListener('pointercancel',endOrbitDrag);
+canvas.addEventListener('lostpointercapture',e=>{if(presentPointers.has(e.pointerId))endOrbitDrag(e);});
+addEventListener('blur',()=>{if(state.present)endOrbitDrag();});
 canvas.addEventListener('wheel',e=>{
   e.preventDefault();
-  if(state.present && isMobilePresent()) return;
+  if(state.present)presentMotion.interact();
   zoomGarment(e.deltaY*.0012);
 },{passive:false});
 canvas.addEventListener('touchmove',e=>{
   if(e.touches.length!==2) return;
   e.preventDefault();
 
-  // Mobile Present is a fixed presentation view. No pinch zoom is allowed;
-  // touching the shield exits back to the normal interactive view instead.
-  if(state.present && isMobilePresent()){
-    pinch=0;
-    return;
-  }
+  if(state.present)presentMotion.interact();
 
   const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,
                      e.touches[0].clientY-e.touches[1].clientY);
@@ -3228,6 +3236,7 @@ const isMobilePresent=()=>mobilePresentQuery.matches;
 function enterPresent(){
   if(state.present || !current) return;
   presentRenderLight=null;
+  presentPointers.clear();presentMotion.reset();
   presentation.begin();
 
   // Clone is already cached. Make it visible and mark Present active in the
@@ -3246,6 +3255,7 @@ function enterPresent(){
 }
 function exitPresent(){
   if(!state.present) return;
+  endOrbitDrag();presentPointers.clear();
 
   // Preserve the apparent orientation of the primary shirt when its temporary
   // presentation rotation is removed, avoiding a visual snap on exit.
@@ -3260,22 +3270,7 @@ function exitPresent(){
 document.getElementById('btnPresent').onclick=enterPresent;
 addEventListener('keydown',e=>{ if(e.key==='Escape'&&state.present) exitPresent(); });
 
-const presentExitShield=document.getElementById('presentExitShield');
-presentExitShield.addEventListener('pointerdown',e=>{
-  // Block the gesture before it can reach the full-viewport WebGL canvas.
-  e.preventDefault();
-  e.stopPropagation();
-},{passive:false});
-presentExitShield.addEventListener('click',e=>{
-  e.preventDefault();
-  e.stopPropagation();
-  if(state.present) exitPresent();
-});
-presentExitShield.addEventListener('wheel',e=>{
-  if(!state.present) return;
-  e.preventDefault();
-  e.stopPropagation();
-},{passive:false});
+document.getElementById('presentExitButton').addEventListener('click',exitPresent);
 
 /* ================================= loop ================================= */
 
@@ -3519,7 +3514,7 @@ function tick(){
   const presentFollow=1-Math.exp(-dt*6.2);
   presentMix+=(presentTarget-presentMix)*presentFollow;
 
-  if(state.present && !REDUCED && state.presentation.rotate) presentSpin+=dt*0.19*state.presentation.speed/100;
+  if(state.present && !REDUCED && state.presentation.rotate) presentSpin+=dt*0.19*state.presentation.speed/100*presentMotion.step(dt,presentPointers.size>0);
 
   if(!state.present && presentMix<0.002 && presentCloneActive){
     presentMix=0;

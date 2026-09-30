@@ -289,15 +289,14 @@
     pointer-events:none
   }
 
-  /* Present mode interaction shield. Hidden in normal mode; in Present it sits
-     above every toolbar/control so the only possible action is exiting. */
-  #presentExitShield{
-    position:fixed;inset:0;z-index:50;display:none;pointer-events:none;
-    background:transparent
+  #presentExitButton{
+    display:none;position:fixed;top:calc(12px + env(safe-area-inset-top));
+    right:calc(12px + env(safe-area-inset-right));z-index:50;
+    min-height:44px;padding:0 14px;border:1px solid var(--rule-strong);
+    border-radius:6px;background:var(--paper);color:var(--ink);
+    font:inherit;font-size:12px;cursor:pointer;touch-action:manipulation
   }
-  body.present #presentExitShield{
-    display:block;pointer-events:auto;touch-action:none
-  }
+  body.present #presentExitButton{display:block}
 
   @media (max-width:1180px){
     .topTools{gap:8px;margin-right:0}
