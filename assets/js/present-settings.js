@@ -1,3 +1,4 @@
+import {viewportSize} from './mobile-viewport.js?v=91-35-layout1';
 import {RESET_ICON} from './controls.js?v=91-history13';
 import {createPresentCompositor} from './present-compositor.js?v=91-perf24';
 import {defaultPresentation,resetPresentationSection,PRESENT_LIGHTS,PRESENT_NAMES,presentationPhase} from './present-options.js?v=91-style26';
@@ -65,11 +66,11 @@ export function installPresentation(api){
   section.open=true;const p=$('panel');p.scrollTop=0;
   section.scrollIntoView({block:'start',behavior:'auto'});section.querySelector('summary').focus({preventScroll:true});
  };
- function resize(c){const scale=Math.min(devicePixelRatio||1,1.5),w=Math.round(innerWidth*scale),h=Math.round(innerHeight*scale);if(c.width!==w||c.height!==h){c.width=w;c.height=h;}return c.getContext('2d');}
+ function resize(c){const scale=Math.min(devicePixelRatio||1,1.5),w=Math.round(viewportSize().width*scale),h=Math.round(viewportSize().height*scale);if(c.width!==w||c.height!==h){c.width=w;c.height=h;}return c.getContext('2d');}
  function drawBackground(){
   const p=settings(),from=Number(api.isDarkLighting(phase.from)),to=Number(api.isDarkLighting(phase.to));
   const mix=useGPU?phase.mix:Number(phase.mix>=.5),dark=from+(to-from)*mix;
-  const key=[innerWidth,innerHeight,devicePixelRatio,p.background,p.bg,p.opacity,p.size,p.x,p.y,p.background?'custom':dark].join('/');
+  const key=[viewportSize().width,viewportSize().height,devicePixelRatio,p.background,p.bg,p.opacity,p.size,p.x,p.y,p.background?'custom':dark].join('/');
   if(!backgroundDirty&&key===backgroundKey)return;
   backgroundKey=key;backgroundDirty=false;
   const ctx=resize(background),w=background.width,h=background.height;

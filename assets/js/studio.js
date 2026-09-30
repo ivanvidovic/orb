@@ -1,5 +1,6 @@
+import {viewportSize,installViewport} from './mobile-viewport.js?v=91-35-layout1';
 import {defaultPresentation} from './present-options.js?v=91-style26';
-import {installPresentation} from './present-settings.js?v=91-shadow27';
+import {installPresentation} from './present-settings.js?v=91-35-layout1';
 let presentation=null,presentRenderLight=null;
 import {setupProjectorControls,syncProjectorButtons} from './projector-controls.js?v=91-history13';
 import {installMappedRanges} from './mapped-ranges.js?v=91-history13';
@@ -1175,7 +1176,7 @@ function drawPatternMark(x,y,kind,val,size,patternCtxOverride=null,gridColor=sta
 }
 function drawPatternBackground(target=null,backdrop=state){
   const patternCanvas=target||document.getElementById('bgPattern'),patternCtx=patternCanvas.getContext('2d');
-  const w=target?target.width:window.innerWidth||1,h=target?target.height:window.innerHeight||1;
+  const w=target?target.width:viewportSize().width,h=target?target.height:viewportSize().height;
   const dpr=target?1:Math.min(2, window.devicePixelRatio||1);
   if(patternCanvas.width!==Math.round(w*dpr) || patternCanvas.height!==Math.round(h*dpr)){
     patternCanvas.width=Math.round(w*dpr);
@@ -3209,7 +3210,7 @@ window.addEventListener('blur',()=>{dragDepth=0;dropEl.classList.remove('on');})
 // present + save
 const pageHeader=document.querySelector('header');
 const panel=document.getElementById('panel');
-const mobilePresentQuery=window.matchMedia('(max-width:820px)');
+const mobilePresentQuery=window.matchMedia('(max-width:820px), (pointer:coarse)');
 const isMobilePresent=()=>mobilePresentQuery.matches;
 function enterPresent(){
   if(state.present || !current) return;
@@ -3267,11 +3268,11 @@ presentExitShield.addEventListener('wheel',e=>{
 
 function resize(){
   if(renderSuspended)return;
-  const w=window.innerWidth||1,h=window.innerHeight||1;
+  const {width:w,height:h}=viewportSize();
   renderer.setSize(w,h,false);
   drawPatternBackground();
 }
-addEventListener('resize',resize);
+installViewport(resize);
 
 const clock=new THREE.Clock();
 let intro=REDUCED?1:0;
@@ -3369,8 +3370,8 @@ function updateFabricInertia(dt){
 const presentScreenRight=new THREE.Vector3();
 
 function activeRenderRect(eased){
-  const W=window.innerWidth||1;
-  const H=window.innerHeight||1;
+  const {width:W,height:H}=viewportSize();
+  if(state.present&&isMobilePresent())return {left:0,top:0,width:W,height:H,W,H};
   const r=stage.getBoundingClientRect();
 
   // #stage remains the normal-mode render region. Present smoothly grows that
@@ -3629,7 +3630,7 @@ function samplePreviewColor(x,y){
   const px=Math.max(0,Math.min(canvas.width-1,Math.floor((x-rect.left)*canvas.width/rect.width)));
   const py=Math.max(0,Math.min(canvas.height-1,Math.floor((y-rect.top)*canvas.height/rect.height)));
   gl.readPixels(px,canvas.height-1-py,1,1,gl.RGBA,gl.UNSIGNED_BYTE,rgba);
-  const bg=patternCtx.getImageData(Math.min(patternCanvas.width-1,Math.floor(x*patternCanvas.width/innerWidth)),Math.min(patternCanvas.height-1,Math.floor(y*patternCanvas.height/innerHeight)),1,1).data;
+  const bg=patternCtx.getImageData(Math.min(patternCanvas.width-1,Math.floor(x*patternCanvas.width/viewportSize().width)),Math.min(patternCanvas.height-1,Math.floor(y*patternCanvas.height/viewportSize().height)),1,1).data;
   const alpha=rgba[3]/255,premultiplied=gl.getContextAttributes().premultipliedAlpha;
   return '#'+[0,1,2].map(i=>Math.round(Math.min(255,rgba[i]*(premultiplied?1:alpha)+bg[i]*(1-alpha))).toString(16).padStart(2,'0')).join('').toUpperCase();
 }
