@@ -290,13 +290,11 @@
   }
 
   #presentExitButton{
-    display:none;position:fixed;top:calc(12px + env(safe-area-inset-top));
-    right:calc(12px + env(safe-area-inset-right));z-index:50;
-    min-height:44px;padding:0 14px;border:1px solid var(--rule-strong);
-    border-radius:6px;background:var(--paper);color:var(--ink);
-    font:inherit;font-size:12px;cursor:pointer;touch-action:manipulation
+    display:none;position:fixed;top:calc(8px + env(safe-area-inset-top));
+    right:calc(8px + env(safe-area-inset-right));z-index:50;
+    width:44px;height:44px;touch-action:manipulation
   }
-  body.present #presentExitButton{display:block}
+  body.present #presentExitButton{display:grid}
 
   @media (max-width:1180px){
     .topTools{gap:8px;margin-right:0}
@@ -1114,3 +1112,28 @@ body.present .stage-reset,body.present .stage-help{display:none}
 
 /* Keep the Garment Appearance divider; remove the duplicate above it on mobile. */
 .orb-mobile #panel .design-bar{border-bottom:0}
+
+/* Use the existing drawer control treatment instead of native rounded widgets. */
+#panel input[type=color]{
+  -webkit-appearance:none;appearance:none;box-sizing:border-box;
+  border-radius:0;
+}
+#panel input[type=color]::-webkit-color-swatch-wrapper{padding:0}
+#panel input[type=color]::-webkit-color-swatch{border:0;border-radius:0}
+#panel input[type=color]::-moz-color-swatch{border:0;border-radius:0}
+/* Same dimensions, border and inset as the existing .color-tools swatches. */
+#panel .present-field input[type=color]{
+  justify-self:end;flex:none;width:24px;min-width:24px;max-width:24px;
+  height:26px;min-height:26px;padding:1px;
+  border:1px solid var(--rule-mid);background:none;cursor:pointer;
+}
+#panel select,#panel .grid-style-row select,#panel .present-field select{
+  -webkit-appearance:none;appearance:none;border-radius:0;
+  padding-right:22px;
+  background-image:linear-gradient(45deg,transparent 50%,var(--ink) 50%),linear-gradient(135deg,var(--ink) 50%,transparent 50%);
+  background-position:calc(100% - 11px) 50%,calc(100% - 7px) 50%;
+  background-size:4px 4px;background-repeat:no-repeat;
+}
+#panel input[type=number],#panel input[type=text]{-webkit-appearance:none;appearance:none;border-radius:0}
+/* Keep readable 16px mobile fields without cropping their selected labels. */
+.orb-mobile #panel .present-field:has(select){grid-template-columns:minmax(0,1fr) minmax(0,148px)}

@@ -25,7 +25,7 @@
 @media(prefers-reduced-motion:reduce){#startup{transition:none}.startup-emblem .startup-glint{display:none}}
 </style>
 <script src="./assets/js/brand.js?v=49"></script>
-<link rel="stylesheet" href="./assets/css/studio.css?v=91-present46">
+<link rel="stylesheet" href="./assets/css/studio.css?v=91-exit49">
 <link rel="stylesheet" href="./assets/css/toolbar.css?v=91-inline33">
 <link rel="stylesheet" href="./assets/css/present-settings.css?v=91-style26">
 </head>
@@ -36,7 +36,7 @@
 <script>(()=>{const theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.body.dataset.theme=theme;document.documentElement.dataset.theme=theme;document.documentElement.style.colorScheme=theme;})();</script>
 
 <canvas id="bgPattern" aria-hidden="true"></canvas>
-<button id="presentExitButton" type="button" aria-label="Exit Present mode">Exit Present</button>
+<button id="presentExitButton" class="helpClose" type="button" aria-label="Exit Present mode" title="Exit Present">×</button>
 
 <header id="mainToolbar">
   <button class="brand-mark" id="btnArtist" type="button" aria-label="About the artist" aria-haspopup="dialog" aria-controls="artistDialog" title="About the artist"><svg id="mark" class="fadein" role="img" aria-label="ORB" xmlns="http://www.w3.org/2000/svg"></svg><svg id="mobileMark" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"></svg></button>
