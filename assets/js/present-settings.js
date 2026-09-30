@@ -65,11 +65,11 @@ export function installPresentation(api){
   section.open=true;const p=$('panel');p.scrollTop=0;
   section.scrollIntoView({block:'start',behavior:'auto'});section.querySelector('summary').focus({preventScroll:true});
  };
- function resize(c){const scale=Math.min(devicePixelRatio||1,1.5),w=Math.round(innerWidth*scale),h=Math.round(innerHeight*scale);if(c.width!==w||c.height!==h){c.width=w;c.height=h;}return c.getContext('2d');}
+ function resize(c){const scale=Math.min(devicePixelRatio||1,1.5),w=Math.round(api.viewportSize().width*scale),h=Math.round(api.viewportSize().height*scale);if(c.width!==w||c.height!==h){c.width=w;c.height=h;}return c.getContext('2d');}
  function drawBackground(){
   const p=settings(),from=Number(api.isDarkLighting(phase.from)),to=Number(api.isDarkLighting(phase.to));
   const mix=useGPU?phase.mix:Number(phase.mix>=.5),dark=from+(to-from)*mix;
-  const key=[innerWidth,innerHeight,devicePixelRatio,p.background,p.bg,p.opacity,p.size,p.x,p.y,p.background?'custom':dark].join('/');
+  const key=[api.viewportSize().width,api.viewportSize().height,devicePixelRatio,p.background,p.bg,p.opacity,p.size,p.x,p.y,p.background?'custom':dark].join('/');
   if(!backgroundDirty&&key===backgroundKey)return;
   backgroundKey=key;backgroundDirty=false;
   const ctx=resize(background),w=background.width,h=background.height;
