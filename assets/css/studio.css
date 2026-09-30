@@ -1103,3 +1103,12 @@ body.present .stage-reset,body.present .stage-help{display:none}
   body.present main{position:fixed;inset:0;width:var(--orb-viewport-width,100vw);height:var(--orb-viewport-height,100dvh);overflow:visible}
   body.present #stage{width:100%;height:100%;flex:1 1 auto}
 }
+
+/* Mobile has one garment. Keep load errors/retry, without a chooser row. */
+.orb-mobile #panelContent>.garmentChooser{display:contents}
+.orb-mobile .garmentChooser>.lbl,.orb-mobile #garmentButtons{display:none}
+.orb-mobile #modelRetry[hidden]{display:none}
+/* Disable page gestures; #gl retains its existing custom garment gestures. */
+.orb-mobile body{touch-action:pan-x pan-y}
+.orb-mobile input:not([type=range]):not([type=checkbox]):not([type=radio]):not([type=color]):not([type=hidden]),
+.orb-mobile textarea,.orb-mobile select{font-size:16px!important}

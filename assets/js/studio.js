@@ -1,3 +1,4 @@
+import {installMobileInteraction} from './mobile-interaction.js?v=91-art44';
 import {MOBILE_MEMORY,RENDER_BUDGET,artworkAtlasSize} from './render-budget.js?v=91-opt43';
 import {viewportSize,installViewport} from './mobile-viewport.js?v=91-opt43';
 import {defaultPresentation} from './present-options.js?v=91-style26';
@@ -30,6 +31,7 @@ let renderSuspended=false,designLocked=false,historyRestoring=false,customModelF
 const modelHistoryIds=new WeakMap();let nextModelHistoryId=1;
 function modelHistoryId(file){if(!file)return null;if(!modelHistoryIds.has(file))modelHistoryIds.set(file,nextModelHistoryId++);return modelHistoryIds.get(file);}
 
+installMobileInteraction();
 setupProjectorControls();
 installMappedRanges();
 const BRAND=window.BRAND;
@@ -423,11 +425,13 @@ vec3 kFabricColor=vec3(0.0),kArtColor=vec3(0.0),kEffectNormal=vec3(0.0);
 vec2 kArtEffects=vec2(0.0);
 varying vec2 vArtworkUv;
 varying vec4 vArtworkClamp;
+// Outside a panel's packed region, artwork is absent, not its repeated edge.
+bool insideArtworkTile(){return all(greaterThanEqual(vArtworkUv,vArtworkClamp.xy))&&all(lessThanEqual(vArtworkUv,vArtworkClamp.zw))&&vArtworkClamp.z>vArtworkClamp.x;}
 vec2 boundedArtworkUv(){return clamp(vArtworkUv,vArtworkClamp.xy,vArtworkClamp.zw);}
 float kArtworkMask=0.0;`;
 const FRAG_PRINT=`{
 kArtworkMask=0.0;kFabricColor=diffuseColor.rgb;
-if(gl_FrontFacing&&uHasArtwork>0.5&&vArtworkUv.x>=0.0&&vArtworkUv.y>=0.0){
+if(gl_FrontFacing&&uHasArtwork>0.5&&insideArtworkTile()){
   vec4 art=texture2D(uArtwork,boundedArtworkUv());
   diffuseColor.rgb=diffuseColor.rgb*(1.0-art.a)+art.rgb;
   kArtworkMask=art.a;kArtColor=art.rgb/max(art.a,.0001);
@@ -483,7 +487,7 @@ reflectedLight.indirectSpecular*=kUVReflection;
 // exposure. No ambient emission floor; shadowed folds retain their depth.
 totalEmissiveRadiance+=.008*kFabricColor*kFabricLight*kUVExposure*uFabricReactive*(1.0-kArtworkMask)*(gl_FrontFacing?1.0:.6);
 
-if(gl_FrontFacing&&uHasEffects>.5&&vArtworkUv.x>=0.0&&vArtworkUv.y>=0.0){
+if(gl_FrontFacing&&uHasEffects>.5&&insideArtworkTile()){
   // A short-range surface bounce approximation. Cached colors retain the
   // separate glow/UV strengths; current lighting gates their visible spill.
   vec3 bounce=4.0*(texture2D(uSpillGlow,boundedArtworkUv()).rgb*kDark+texture2D(uSpillUV,boundedArtworkUv()).rgb*kUV);
@@ -578,7 +582,7 @@ function patchFabricMaterial(mat){
     sh.fragmentShader = sh.fragmentShader.replace('#include <roughnessmap_fragment>',
       '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, clamp(uArtRough, 0.02, 1.0), clamp(kArtworkMask, 0.0, 1.0));');
   };
-  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v78-detail';
+  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v91-art44';
   mat.needsUpdate=true;
   return mat;
 }
@@ -829,7 +833,7 @@ const modelRetry=document.getElementById('modelRetry');
 let retryModel=null;
 if(MOBILE_MEMORY){
   document.getElementById('garmentButtons').style.display='none';
-  document.querySelector('.garmentChooser>.lbl').textContent='Men’s Tee';
+  document.querySelector('.garmentChooser>.lbl').hidden=true;
   for(const option of garmentSelect.options)if(option.value!=='mens-tee')option.remove();
 }
 function modelBusy(value){
@@ -2355,13 +2359,15 @@ function layoutArtworkMap(map,geometry,panelIds,layers){
     if(!map.target||map.target.width!==width||map.target.height!==height){
       map.target?.dispose();
       map.target=new THREE.WebGLRenderTarget(width,height,{
-        depthBuffer:false,stencilBuffer:false,generateMipmaps:true,
-        minFilter:THREE.LinearMipmapLinearFilter,magFilter:THREE.LinearFilter,
+        // Whole-atlas mipmaps mix separate panels and poison their clear gutters.
+        // Source images keep their own filtering; the packed atlas samples level 0.
+        depthBuffer:false,stencilBuffer:false,generateMipmaps:false,
+        minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,
         // WebGL2 encodes the linear blend into sRGB storage on the GPU, keeping
         // dark image detail without a larger floating-point render target.
         colorSpace:renderer.capabilities.isWebGL2?THREE.SRGBColorSpace:THREE.LinearSRGBColorSpace
       });
-      map.target.texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+      map.target.texture.anisotropy=1;
       map.map.value=map.target.texture;
     }
     map.camera.right=width;map.camera.top=height;map.camera.updateProjectionMatrix();
