@@ -1112,3 +1112,6 @@ body.present .stage-reset,body.present .stage-help{display:none}
 .orb-mobile body{touch-action:pan-x pan-y}
 .orb-mobile input:not([type=range]):not([type=checkbox]):not([type=radio]):not([type=color]):not([type=hidden]),
 .orb-mobile textarea,.orb-mobile select{font-size:16px!important}
+
+/* Keep the Garment Appearance divider; remove the duplicate above it on mobile. */
+.orb-mobile #panel .design-bar{border-bottom:0}

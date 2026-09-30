@@ -235,13 +235,25 @@ export function installWorkspace(api){
   return {getAsset:async id=>{const a=assets.get(id);if(!a)throw new Error('Background artwork is missing.');if(!a.entry.source)a.entry={...await api.decode(new File([a.blob],a.name,{type:a.blob.type})),assetId:id};return a.entry;},register,openAssets,notify,loadLibrary,makeArchive,dropFolder,artworkData:()=>packageData(false),dropProject:file=>confirmAction({file}),get busy(){return busy;},
     async ready(){
       restoring=true;
-      let data=null,restored=false,failure=null;
+      let data=null,restored=false,sampleLoaded=false,failure=null;
       try{
         try{data=await dbGet();}
         catch(error){storageAvailable=false;preserveRecovery=true;failure=['Temporary session; use Save to download your design',error];}
-        if(data){
+        if(data!=null){
           try{await applyPackage(data,{mergeLibrary:false});restored=true;}
           catch(error){preserveRecovery=true;recoveryBlocked=error.code==='DESKTOP_GARMENT';failure=['Previous design preserved',error];}
+        }
+        // Only an absent saved project is a first visit. Never substitute the
+        // sample for an empty design, unreadable recovery, or unavailable storage.
+        if(storageAvailable&&data==null){
+          const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),8000);
+          try{
+            const response=await fetch(new URL('../samples/ORB-Mockup-01.orb',import.meta.url),{signal:controller.signal});
+            if(!response.ok)throw new Error('Sample download failed ('+response.status+')');
+            const sample=await readArchive(await response.blob());
+            await applyPackage(sample,{mergeLibrary:false});restored=true;sampleLoaded=true;
+          }catch(error){failure=['Sample unavailable',error];}
+          finally{clearTimeout(timeout);}
         }
         if(!restored){
           for(const entry of api.snapshot().layers){
@@ -250,7 +262,7 @@ export function installWorkspace(api){
           }
         }
         if(failure)report(...failure);
-        else status(restored?'Restored your last design':'Your work stays on this device.');
+        else status(restored&&!sampleLoaded?'Restored your last design':'Your work stays on this device.');
       }finally{restoring=false;ready=true;revision=0;savedRevision=0;renderShelf();}
     }
   };
