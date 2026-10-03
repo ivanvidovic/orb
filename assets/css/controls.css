@@ -1,0 +1,38 @@
+/* Shared control language. Layout remains responsive; controls keep one treatment. */
+:root{--ui-value-width:44px;--ui-field-height:28px;--ui-control-gap:6px;--ui-row-gap:4px;--ui-section-gap:10px}
+body input[type=range]{accent-color:var(--ink)!important;cursor:pointer}
+body input[type=checkbox]{accent-color:var(--ink)!important}
+#panel .slider-row,#colorPopover .slider-row{align-items:center;column-gap:var(--ui-control-gap);min-height:30px}
+#panel .slider-row input.num,#colorPopover .slider-row input.num{
+ box-sizing:border-box;width:var(--ui-value-width);min-width:0;height:var(--ui-field-height);min-height:var(--ui-field-height);
+ padding:3px 2px;margin:0;border:1px solid var(--rule);border-radius:0;background:transparent;color:var(--ink);
+ font:400 11px/1.3 var(--sans);font-variant-numeric:tabular-nums;text-align:right;appearance:textfield;
+}
+#panel .art-control.slider-row,#panel .compact-control.slider-row{grid-template-columns:70px minmax(30px,1fr) var(--ui-value-width) 24px}
+#panel .ctrl.slider-row{grid-template-columns:minmax(max-content,90px) minmax(30px,1fr) var(--ui-value-width) 24px}
+#panel .inline-range.slider-row{grid-template-columns:auto minmax(30px,1fr) var(--ui-value-width) 24px;margin:var(--ui-row-gap) 0}
+#colorPopover .hue-control{grid-template-columns:minmax(30px,1fr) var(--ui-value-width) 24px}
+#panel .art-transforms,#panel .subsec,#panel .appearanceControls .subsec,#panel .adjustBody{gap:var(--ui-row-gap)}
+#panel .envItem{gap:var(--ui-control-gap);padding:8px 0}
+#panel .sectionBody{gap:var(--ui-control-gap)}
+#panel .setting-heading{display:flex;align-items:center;justify-content:space-between;gap:var(--ui-control-gap)}
+#panel .setting-heading>.lbl{font-size:9.5px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--graphite)}
+#panel .check-option,#panel .mask-source-row>.check-option,#panel .present-check,#panel .present-light-row label{
+ font:400 11px/1.3 var(--sans);letter-spacing:normal;text-transform:none;color:var(--ink);
+ display:inline-flex;align-items:center;gap:6px;min-height:30px;margin:0;
+}
+#panel :is(.check-option,.present-check,.present-light-row) input[type=checkbox]{width:14px;height:14px;min-width:14px;margin:0;flex:0 0 14px}
+#panel select,#panel .grid-style-row select,#panel .present-field select{
+ box-sizing:border-box;min-height:30px;height:30px;padding:4px 22px 4px 8px;border:1px solid var(--rule-mid);border-radius:0;
+ font:400 11px/1.3 var(--sans);letter-spacing:normal;text-transform:none;color:var(--ink);background-color:var(--paper);
+}
+#panel .mask-source-row{display:flex;align-items:center;gap:6px;flex-wrap:nowrap}
+#panel .mask-source-row>label:first-child{flex:none;white-space:nowrap}
+#panel .mask-source-row select{flex:1;min-width:0;width:auto}
+#panel .mask-source-row>.check-option{flex:none;gap:4px;white-space:nowrap}
+#panel .present-field{gap:6px;min-height:30px}
+#panel .present-field input:not([type=color]){height:var(--ui-field-height);padding:3px 6px;border-radius:0}
+#panel .present-settings .setting-heading{margin-top:var(--ui-section-gap);padding-top:var(--ui-section-gap);border-top:1px solid var(--rule)}
+#panel .present-settings .setting-heading:first-child{margin-top:0;padding-top:0;border-top:0}
+@media(pointer:coarse){#panel :is(.check-option,.present-check,.present-light-row label){min-height:36px}}
+@media(max-width:600px){#panel .mask-source-row{gap:4px}#panel .mask-source-row>label:first-child{font-size:9px;letter-spacing:0}}
