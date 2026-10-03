@@ -25,7 +25,7 @@
 @media(prefers-reduced-motion:reduce){#startup{transition:none}.startup-emblem .startup-glint{display:none}}
 </style>
 <script src="./assets/js/brand.js?v=49"></script>
-<link rel="stylesheet" href="./assets/css/studio.css?v=91-layer51">
+<link rel="stylesheet" href="./assets/css/studio.css?v=91-spacing52">
 <link rel="stylesheet" href="./assets/css/toolbar.css?v=91-inline33">
 <link rel="stylesheet" href="./assets/css/present-settings.css?v=91-style26">
 </head>
@@ -181,12 +181,12 @@
   </div><details id="solidSettings" class="solid-settings" hidden>
     <summary>Solid settings</summary>
     <p>Use Alpha for transparent graphics. Spread and Edge softness shape flat artwork.</p>
-    <div class="grid-style-row"><label for="solidMaskSource">Mask source</label><select id="solidMaskSource"><option value="auto">Auto</option><option value="brightness">Brightness</option><option value="alpha">Alpha</option></select></div>
+    <div class="grid-style-row mask-source-row"><label for="solidMaskSource">Mask source</label><select id="solidMaskSource"><option value="auto">Auto</option><option value="brightness">Brightness</option><option value="alpha">Alpha</option></select><label class="check-option"><input id="solidInvert" type="checkbox">Invert mask <span title="Use dark artwork as ink and remove light areas">ⓘ</span></label></div>
     <div class="inline-range"><label for="solidCutoff">Cutoff</label><input id="solidCutoff" type="range" min="0" max="95" value="12" step="1" title="Higher removes more dark detail"></div>
     <div class="inline-range"><label for="solidSoftness">Softness</label><input id="solidSoftness" type="range" min="1" max="100" value="65" step="1" title="Lower gives heavier, more abrupt ink coverage; higher preserves more tonal detail"></div>
     <div class="inline-range"><label for="solidSpread">Spread</label><input id="solidSpread" type="range" min="-20" max="20" value="0" step="0.1" title="Negative thins the shape; positive expands it within the source image."></div>
     <div class="inline-range"><label for="solidEdgeSoftness">Edge softness</label><input id="solidEdgeSoftness" type="range" min="0" max="20" value="0" step="0.1"></div>
-    <label class="check-option"><input id="solidInvert" type="checkbox">Invert mask <span title="Use dark artwork as ink and remove light areas">ⓘ</span></label>
+    
   </details><details class="solid-settings" id="printTextureSettings"><summary>Print texture</summary>
     <div class="grid-style-row"><label for="printPattern">Pattern</label><select id="printPattern"><option value="none">None</option><option value="dots">Dots</option><option value="lines">Lines</option><option value="grain">Grain</option><option value="pixel">Pixel</option><option value="maze">Maze</option><option value="branching">Branching</option></select><button id="printVariation" class="color-sample" type="button" hidden data-tip="New variation" aria-label="Generate a new pattern variation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h3c4 0 8 12 12 12h3M3 18h3c1.8 0 3.6-2.4 5.4-5.1M13.6 9.1C15.1 7.3 16.6 6 18 6h3M18 3l3 3-3 3M18 15l3 3-3 3"/></svg></button></div>
     <div class="grid-style-row" hidden><label for="printBranchMode">Branching <button type="button" class="control-help" data-tip="Natural grows long connected branches across the artwork. Repeat keeps the tiled texture." aria-label="Branching help: Natural grows long connected branches across the artwork. Repeat keeps the tiled texture.">ⓘ</button></label><select id="printBranchMode"><option value="repeat">Repeat</option><option value="natural">Natural</option></select></div>

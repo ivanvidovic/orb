@@ -1144,3 +1144,25 @@ body.present .stage-reset,body.present .stage-help{display:none}
 #artWorkspace .art-appearance-group{border-top:1px solid var(--rule);margin-top:10px;padding-top:10px}
 #artWorkspace .art-appearance-group .emission-controls{border:0;margin:6px 0 0;padding:0;gap:4px}
 #artWorkspace .art-appearance-group>.solid-settings{border-top:1px solid var(--rule);border-bottom:0;margin:10px 0 0;padding:10px 0 0}
+
+/* Shared value-field sizing and compact spacing throughout the sidebar. */
+#panel{--slider-value-width:44px}
+#panel .slider-row input.num{box-sizing:border-box;width:var(--slider-value-width);min-width:0;height:28px;min-height:28px;padding:3px 2px;font-variant-numeric:tabular-nums;text-align:right}
+#panel .compact-control.slider-row,#panel .art-control.slider-row{grid-template-columns:70px minmax(30px,1fr) var(--slider-value-width) 24px;column-gap:6px}
+#panel .inline-range.slider-row{grid-template-columns:auto minmax(30px,1fr) var(--slider-value-width) 24px;min-height:30px;column-gap:6px}
+#panel .art-transforms{gap:4px}
+#panel .solid-settings .inline-range{margin:6px 0}
+#panel .appearanceControls .subsec,#panel .subsec{gap:6px}
+#panel select,#panel .grid-style-row select,#panel .present-field select{padding-left:8px}
+#panel .mask-source-row{display:flex;align-items:center;gap:6px;flex-wrap:nowrap}
+#panel .mask-source-row>label:first-child{flex:none;white-space:nowrap}
+#panel .mask-source-row select{flex:1;min-width:0;width:auto}
+#panel .mask-source-row>.check-option{flex:none;display:flex;align-items:center;gap:4px;margin:0;white-space:nowrap;font-size:11px}
+@media(max-width:600px){
+ #panel .art-transforms{gap:4px}
+ #panel .subsec,#panel .appearanceControls .subsec{gap:4px}
+ #panel .mask-source-row{gap:4px}
+ #panel .mask-source-row>label:first-child{font-size:9px;letter-spacing:0}
+}
+
+#panel .ctrl.slider-row{grid-template-columns:minmax(max-content,108px) minmax(30px,1fr) var(--slider-value-width) 24px;column-gap:6px}
