@@ -25,7 +25,7 @@
 @media(prefers-reduced-motion:reduce){#startup{transition:none}.startup-emblem .startup-glint{display:none}}
 </style>
 <script src="./assets/js/brand.js?v=49"></script>
-<link rel="stylesheet" href="./assets/css/studio.css?v=91-exit49">
+<link rel="stylesheet" href="./assets/css/studio.css?v=91-layer50">
 <link rel="stylesheet" href="./assets/css/toolbar.css?v=91-inline33">
 <link rel="stylesheet" href="./assets/css/present-settings.css?v=91-style26">
 </head>
@@ -163,8 +163,15 @@
 <p id="artEmpty" hidden>Drop an image or choose Add artwork to get started.</p>
 <div id="artEditorParking" hidden>
 <section id="artEditor" hidden aria-label="Selected artwork controls">
+  <div class="art-order art-order-top" role="group" aria-label="Layer order"><button id="artRaise" type="button" aria-label="Move layer up" title="Move layer up">↑</button><button id="artLower" type="button" aria-label="Move layer down" title="Move layer down">↓</button></div>
   <div class="art-editor-head"><strong id="artEditorName" class="sr-only">Artwork placement</strong><button id="artAdd" type="button" title="Add separate layers at this placement">+ Add</button><button id="artReplace" type="button" title="Replace image" aria-label="Replace image">Replace</button><button id="artPosition" type="button" title="Move this layer to a standard placement">Move</button><button id="artDuplicate" type="button">Duplicate</button><button id="artView" type="button" title="View on garment" aria-label="View on garment">View</button><button id="artClose" type="button" aria-label="Close artwork controls" title="Close artwork controls">×</button></div>
+  <div class="art-transforms"><div class="art-control"><label for="art-x">Left / right</label><input id="art-x" data-art-range data-prop="x" type="range" min="-100" max="100" step="1"><input class="num" data-art-num data-prop="x" type="number" min="-100" max="100" step="1" aria-label="Left / right value"><button type="button" data-reset-art-one="x" aria-label="Reset left / right" title="Reset left / right">↺</button></div>
+<div class="art-control"><label for="art-y">Up / down</label><input id="art-y" data-art-range data-prop="y" type="range" min="-100" max="100" step="1"><input class="num" data-art-num data-prop="y" type="number" min="-100" max="100" step="1" aria-label="Up / down value"><button type="button" data-reset-art-one="y" aria-label="Reset up / down" title="Reset up / down">↺</button></div>
+<div class="art-control"><label for="art-scale">Scale</label><input id="art-scale" data-art-range data-prop="scale" type="range" min="25" max="200" step="1"><input class="num" data-art-num data-prop="scale" type="number" min="25" max="200" step="1" aria-label="Scale value"><button type="button" data-reset-art-one="scale" aria-label="Reset scale" title="Reset scale">↺</button></div>
+<div class="art-control"><label for="art-rot">Rotation</label><input id="art-rot" data-art-range data-prop="rot" type="range" min="-180" max="180" step="1"><input class="num" data-art-num data-prop="rot" type="number" min="-180" max="180" step="1" aria-label="Rotation value"><button type="button" data-reset-art-one="rot" aria-label="Reset rotation" title="Reset rotation">↺</button></div></div>
+  <div class="art-fit-row"><label class="art-fit check-option"><input id="artFit" type="checkbox">Fit visible artwork <span title="Ignore transparent margins when sizing. Opaque backgrounds stay intact.">ⓘ</span></label></div>
   <div id="sleevePresetControl" class="sleeve-preset-row" hidden><span>Sleeve print</span><div role="group" aria-label="Sleeve print preset"><button type="button" data-sleeve-preset="patch" aria-pressed="true">Patch</button><button type="button" data-sleeve-preset="full" aria-pressed="false" title="100% fits shoulder to wrist; scale up to 600%">Full sleeve</button></div></div>
+  <div class="art-editor-foot"><button id="artFitLayout" type="button" hidden>Fit layout</button><button id="artReset" type="button">Reset placement</button></div>
   <div class="art-modes" role="group" aria-label="Artwork color mode">
     <div class="art-mode-option"><button type="button" data-art-mode="original" aria-pressed="true">Original</button></div>
     <div class="art-mode-option"><button type="button" data-art-mode="tint" aria-pressed="false">Tint</button><button type="button" class="art-color-swatch" data-art-color="tint" aria-label="Choose tint color" title="Choose tint color"></button></div>
@@ -197,16 +204,11 @@
     </div>
     <div class="inline-range"><label for="printRounding">Rounding <button type="button" class="control-help" data-tip="Rounds the combined artwork and erosion while keeping crisp edges. Higher values remove fine details." aria-label="Rounding help: Rounds the combined artwork and erosion while keeping crisp edges. Higher values remove fine details.">ⓘ</button></label><input id="printRounding" type="range" min="0" max="100" step="0.1" value="0" title="Round the combined artwork and pattern edges while retaining a crisp contour. High values remove fine details."></div>
   </details>
-  <div class="art-fit-row"><label class="art-fit check-option"><input id="artFit" type="checkbox">Fit visible artwork <span title="Ignore transparent margins when sizing. Opaque backgrounds stay intact.">ⓘ</span></label><button type="button" id="artAppearanceReset" data-reset-group="artwork" class="slider-reset" aria-label="Reset artwork appearance" title="Reset artwork appearance"></button></div>
   <div class="emission-controls" role="group" aria-label="Artwork light response">
     <div class="option-row"><label class="check-option"><input id="artGlow" type="checkbox">Glow in the dark</label><label class="check-option"><input id="artUV" type="checkbox">UV reactive</label></div>
     <div class="inline-range" id="artEmissionControl" hidden><label for="artEmission">Glow intensity</label><input id="artEmission" type="range" min="0" max="300" step="5" value="100" aria-label="Artwork glow intensity"><input type="number" class="num" id="artEmissionValue" value="100" aria-label="artEmissionValue"></div>
   </div>
-  <div class="art-transforms"><div class="art-control"><label for="art-x">Left / right</label><input id="art-x" data-art-range data-prop="x" type="range" min="-100" max="100" step="1"><input class="num" data-art-num data-prop="x" type="number" min="-100" max="100" step="1" aria-label="Left / right value"><button type="button" data-reset-art-one="x" aria-label="Reset left / right" title="Reset left / right">↺</button></div>
-<div class="art-control"><label for="art-y">Up / down</label><input id="art-y" data-art-range data-prop="y" type="range" min="-100" max="100" step="1"><input class="num" data-art-num data-prop="y" type="number" min="-100" max="100" step="1" aria-label="Up / down value"><button type="button" data-reset-art-one="y" aria-label="Reset up / down" title="Reset up / down">↺</button></div>
-<div class="art-control"><label for="art-scale">Scale</label><input id="art-scale" data-art-range data-prop="scale" type="range" min="25" max="200" step="1"><input class="num" data-art-num data-prop="scale" type="number" min="25" max="200" step="1" aria-label="Scale value"><button type="button" data-reset-art-one="scale" aria-label="Reset scale" title="Reset scale">↺</button></div>
-<div class="art-control"><label for="art-rot">Rotation</label><input id="art-rot" data-art-range data-prop="rot" type="range" min="-180" max="180" step="1"><input class="num" data-art-num data-prop="rot" type="number" min="-180" max="180" step="1" aria-label="Rotation value"><button type="button" data-reset-art-one="rot" aria-label="Reset rotation" title="Reset rotation">↺</button></div></div>
-  <div class="art-editor-foot"><div class="art-order" role="group" aria-label="Layer order"><button id="artRaise" type="button" aria-label="Move layer up" title="Move layer up">↑</button><button id="artLower" type="button" aria-label="Move layer down" title="Move layer down">↓</button></div><button id="artFitLayout" type="button" hidden>Fit layout</button><button id="artReset" type="button">Reset placement</button></div>
+  <div class="art-appearance-reset-row"><button type="button" id="artAppearanceReset" data-reset-group="artwork" class="slider-reset" aria-label="Reset artwork appearance" title="Reset artwork appearance"></button></div>
 </section>
 </div>
 <p id="artStatus" role="status" aria-live="polite"></p>

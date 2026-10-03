@@ -1137,3 +1137,9 @@ body.present .stage-reset,body.present .stage-help{display:none}
 #panel input[type=number],#panel input[type=text]{-webkit-appearance:none;appearance:none;border-radius:0}
 /* Keep readable 16px mobile fields without cropping their selected labels. */
 .orb-mobile #panel .present-field:has(select){grid-template-columns:minmax(0,1fr) minmax(0,148px)}
+
+/* Placement first; retain the established layer controls and section styling. */
+#artWorkspace .art-order-top{justify-content:flex-end;margin-bottom:4px}
+#artWorkspace .art-editor-foot{gap:8px;margin-bottom:10px}
+#artWorkspace .art-fit-row{margin-top:6px}
+#artWorkspace .art-appearance-reset-row{display:flex;justify-content:flex-end;margin-top:4px}
