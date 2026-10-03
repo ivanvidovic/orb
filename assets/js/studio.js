@@ -2778,17 +2778,11 @@ function syncArtworkUi(){
   document.getElementById('artPosition').textContent=isCustom?'Set position':'Move';
   for(const id of ['artPosition','artUploadAny'])document.getElementById(id).disabled=artLoading;
   document.getElementById('artUploadAny').textContent=artLoading?'Adding…':'+ Add artwork';
-  for(const id of ['artFit','artReset','artAdd','artReplace','artView'])document.getElementById(id).disabled=artLoading||!entry;
+  for(const id of ['artFit','artAdd','artReplace','artView'])document.getElementById(id).disabled=artLoading||!entry;
   document.getElementById('artFit').checked=!!entry?.fit;
-  const surface=entry&&!isCustom&&!entry.anchor&&surfaceForSlot(entry.slot),fitButton=document.getElementById('artFitLayout');
-  fitButton.hidden=!surface;fitButton.disabled=artLoading||!surface;
-  fitButton.title=surface?`Fit visible ${ART_META[entry.slot].side.toLowerCase()} artwork; all layers on this side move together`:'Fit layout';
   document.getElementById('artUndo').disabled=artLoading||!artHistory.length;
   document.getElementById('artRedo').disabled=artLoading||!artFuture.length;
   document.getElementById('artDuplicate').disabled=artLoading||!entry;
-  const index=artLayers.indexOf(entry);
-  document.getElementById('artRaise').disabled=artLoading||index<=0;
-  document.getElementById('artLower').disabled=artLoading||index<0||index>=artLayers.length-1;
   document.querySelectorAll('[data-art-range],[data-art-num],[data-reset-art-one]').forEach(el=>el.disabled=artLoading||!entry);
   document.getElementById('artEmpty').hidden=artLayers.length>0;
   syncInkUi();syncArtControls();
@@ -3001,8 +2995,6 @@ document.getElementById('artView').onclick=()=>viewArtwork(activeArtSlot);
 document.getElementById('artClose').onclick=()=>{
   leaveInspection();const id=activeArtId;selectArtwork(null);layerRows.get(id)?.querySelector('.art-select').focus();
 };
-document.getElementById('artRaise').onclick=()=>moveArtwork(activeArtId,-1);
-document.getElementById('artLower').onclick=()=>moveArtwork(activeArtId,1);
 for(const [id,prop] of [['artGlow','glow'],['artUV','uvReactive']])document.getElementById(id).onchange=e=>{
   const entry=artEntry();if(artLoading||!entry)return;
   recordArtUndo();entry[prop]=e.target.checked;
@@ -3058,24 +3050,6 @@ document.getElementById('artFit').onchange=e=>{
   recordArtUndo();entry.fit=e.target.checked;requestArtworkRender(entry);syncArtworkUi();
 };
 function surfaceForSlot(slot){return Object.values(surfaceCalibration?.surfaces||{}).find(s=>s.placements[slot]);}
-document.getElementById('artFitLayout').onclick=async()=>{
-  const entry=artEntry(),surface=entry&&surfaceForSlot(entry.slot);
-  if(artLoading||designLocked||isCustom||entry?.anchor||!surface)return;
-  setWorkspaceLock(true,'Fitting layout…');
-  try{
-    await settleArtworkTreatment();
-    const layers=artLayers.filter(l=>!l.anchor&&surface.placements[l.slot]&&UV_PROFILES[l.slot]);
-    const edits=fitSurfacePlacements(layers,UV_PROFILES,surface.garments[activeGarmentId].safeBounds,artworkLayerBounds);
-    if(!edits.length){artStatus('Layout already fits.');return;}
-    setWorkspaceLock(false);recordArtUndo();for(const edit of edits)edit.layer.placement=edit.placement;
-    requestArtworkRender();syncArtworkUi();workspace?.notify();artStatus('Layout fitted. Undo restores its previous size and position.');
-  }catch(error){artStatus(error.message||'The layout could not be fitted.');}
-  finally{setWorkspaceLock(false);}
-};
-document.getElementById('artReset').onclick=()=>{
-  const entry=artEntry();if(artLoading||!entry)return;
-  recordArtUndo();for(const prop of ['x','y','scale','rot'])applyArtValue(entry.id,prop,artDefault(entry.slot,prop));
-};
 for(const prop of ['x','y','scale','rot']){
   const pair=artControlPair(activeArtSlot,prop);let editingId=null,wheelTimer;
   const begin=()=>{if(editingId!==activeArtId){recordArtUndo();editingId=activeArtId;}};
@@ -3629,7 +3603,7 @@ function installGroupResets(){
     };
   }
   // Text group resets use the same glyph and borderless treatment as individual resets.
-  for(const [id,label] of [['artReset','Reset placement'],['resetInertia','Reset motion']]){
+  for(const [id,label] of [['resetInertia','Reset motion']]){
     const button=document.getElementById(id);button.classList.add('reset-action');button.innerHTML=RESET_ICON+'<span>'+label+'</span>';
   }
 }

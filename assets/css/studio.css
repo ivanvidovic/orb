@@ -1138,8 +1138,9 @@ body.present .stage-reset,body.present .stage-help{display:none}
 /* Keep readable 16px mobile fields without cropping their selected labels. */
 .orb-mobile #panel .present-field:has(select){grid-template-columns:minmax(0,1fr) minmax(0,148px)}
 
-/* Placement first; retain the established layer controls and section styling. */
-#artWorkspace .art-order-top{justify-content:flex-end;margin-bottom:4px}
-#artWorkspace .art-editor-foot{gap:8px;margin-bottom:10px}
+/* Artwork controls follow placement, then appearance and its refinements. */
+#artWorkspace .art-placement-group>.setting-heading{margin-bottom:8px}
 #artWorkspace .art-fit-row{margin-top:6px}
-#artWorkspace .art-appearance-reset-row{display:flex;justify-content:flex-end;margin-top:4px}
+#artWorkspace .art-appearance-group{border-top:1px solid var(--rule);margin-top:10px;padding-top:10px}
+#artWorkspace .art-appearance-group .emission-controls{border:0;margin:6px 0 0;padding:0;gap:4px}
+#artWorkspace .art-appearance-group>.solid-settings{border-top:1px solid var(--rule);border-bottom:0;margin:10px 0 0;padding:10px 0 0}
