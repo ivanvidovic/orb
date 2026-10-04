@@ -3,9 +3,9 @@ export function createSnapshotStore(name='orb-snapshots-1:'+location.pathname.re
   let pending;
   function database(){
     if(!pending)pending=new Promise((resolve,reject)=>{
-      const request=indexedDB.open(name,1);let settled=false;
+      const request=indexedDB.open(name,2);let settled=false;
       const timer=setTimeout(()=>{settled=true;reject(new Error('Snapshot storage did not respond.'));},8000);
-      request.onupgradeneeded=()=>{for(const key of ['snapshots','assets'])if(!request.result.objectStoreNames.contains(key))request.result.createObjectStore(key);};
+      request.onupgradeneeded=()=>{for(const key of ['snapshots','assets','counters'])if(!request.result.objectStoreNames.contains(key))request.result.createObjectStore(key);};
       request.onerror=()=>{clearTimeout(timer);reject(request.error);};
       request.onblocked=()=>{clearTimeout(timer);settled=true;reject(new Error('Close other ORB tabs and try again.'));};
       request.onsuccess=()=>{if(settled){request.result.close();return;}clearTimeout(timer);const db=request.result;db.onversionchange=()=>{db.close();pending=null;};resolve(db);};
@@ -13,7 +13,7 @@ export function createSnapshotStore(name='orb-snapshots-1:'+location.pathname.re
     return pending;
   }
   async function read(store,key){const db=await database();return new Promise((resolve,reject)=>{const req=db.transaction(store).objectStore(store)[key===undefined?'getAll':'get'](key);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
-  async function write(action){const db=await database();return new Promise((resolve,reject)=>{const tx=db.transaction(['snapshots','assets'],'readwrite');tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('Snapshot could not be saved.'));try{action(tx.objectStore('snapshots'),tx.objectStore('assets'));}catch(error){tx.abort();reject(error);}});}
+  async function write(action){const db=await database();return new Promise((resolve,reject)=>{const tx=db.transaction(['snapshots','assets','counters'],'readwrite');tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('Snapshot could not be saved.'));try{action(tx.objectStore('snapshots'),tx.objectStore('assets'),tx.objectStore('counters'));}catch(error){tx.abort();reject(error);}});}
   const fingerprint=doc=>JSON.stringify(doc);
   return {
     fingerprint,
@@ -22,7 +22,23 @@ export function createSnapshotStore(name='orb-snapshots-1:'+location.pathname.re
       const id=crypto.randomUUID(),doc=structuredClone(data.doc);let modelKey=null;
       if(data.model){const hash=await crypto.subtle.digest('SHA-256',await data.model.arrayBuffer());modelKey='model-'+Array.from(new Uint8Array(hash),v=>v.toString(16).padStart(2,'0')).join('');}
       const entry={id,name,doc,modelKey,previews,created:Date.now(),fingerprint:fingerprint(doc)};
-      await write((snapshots,assets)=>{for(const record of data.records)assets.put(record,record.id);if(modelKey)assets.put({blob:data.model},modelKey);snapshots.put(entry,id);});
+      // Allocate the number and save the snapshot in one transaction, including across tabs.
+      const base=(name?.trim()||'ORB Garment').slice(0,72),key=base.normalize('NFKC').toLowerCase();
+      await write((snapshots,assets,counters)=>{
+        const counter=counters.get(key);
+        counter.onsuccess=()=>{
+          const existing=snapshots.getAll();
+          existing.onsuccess=()=>{
+            let number=Number(counter.result)||0;
+            for(const old of existing.result){const label=old.name.normalize('NFKC').toLowerCase(),prefix=key+' ';if(label.startsWith(prefix)){const suffix=label.slice(prefix.length);if(/^\d+$/.test(suffix))number=Math.max(number,Number(suffix));}}
+            number++;entry.name=base+' '+String(number).padStart(3,'0');
+            counters.put(number,key);
+            for(const record of data.records)assets.put(record,record.id);
+            if(modelKey)assets.put({blob:data.model},modelKey);
+            snapshots.put(entry,id);
+          };
+        };
+      });
       return entry;
     },
     async load(id){

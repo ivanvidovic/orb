@@ -6,7 +6,8 @@ const $=id=>document.getElementById(id);
 const imageFile=f=>f.type.startsWith('image/')||/\.(png|jpe?g|webp|gif|avif|svg)$/i.test(f.name);
 const pause=()=>new Promise(resolve=>setTimeout(resolve,0));
 export function installWorkspace(api){
-  const hostedAssets=new Map();let libraryName='';
+  const hostedAssets=new Map();let libraryName='',automaticName=true;
+  const defaultName=()=>libraryName?libraryName+' Garment':'ORB Garment';
   const assets=new Map();let shelfIds=new Set(),ready=false,restoring=false,busy=false,saveTimer,dbPromise,saveChain=Promise.resolve(),revision=0,savedRevision=0,context={action:'choose'},pendingOpen=null;
   let preserveRecovery=false,storageAvailable=true,recoveryBlocked=false;
   const report=(stage,error)=>{console.warn('[ORB] '+stage,error);status(stage+': '+(error?.message||error?.name||'Unavailable')+'. Use Save to keep your work.');};
@@ -73,7 +74,7 @@ export function installWorkspace(api){
     libraryMessage('Loading library…');
     try{const library=await loadHostedLibrary(location.href);if(!library)return;
       hostedAssets.clear();for(const asset of library.assets)hostedAssets.set(asset.id,asset);
-      libraryName=library.name;libraryMessage(libraryName+' · '+hostedAssets.size+' graphics');renderShelf();
+      libraryName=library.name;if(automaticName)$('designName').value=defaultName();libraryMessage(libraryName+' · '+hostedAssets.size+' graphics');renderShelf();
     }catch(error){libraryMessage(error.message||'Library unavailable. Reload to retry.');}
   }
   async function materializeHosted(asset){
@@ -149,7 +150,7 @@ export function installWorkspace(api){
     // Autosave never downloads unused hosted graphics. Explicit Include library does.
     if(includeLibrary&&finishEditing)for(const asset of hostedAssets.values()){const a=await materializeHosted(asset);ids.add(a.id);}
     const records=Array.from(ids).map(id=>assets.get(id));
-    const doc={format:'orb-design',version:FORMAT_VERSION,name:$('designName').value.trim()||'Untitled design',garmentId:snapshot.garmentId,settings:pick(snapshot.settings,SETTING_FIELDS),regularBackdrop:snapshot.regularBackdrop,lighting:snapshot.lighting,camera:snapshot.camera,customFlipped:snapshot.customFlipped,active:snapshot.active,layers:snapshot.layers.map(l=>pick(l,LAYER_FIELDS)),assets:records.map(a=>({id:a.id,name:a.name,type:a.blob.type||'image/png',path:'artwork/'+a.id+'.'+(a.blob.type==='image/svg+xml'?'svg':a.blob.type==='image/jpeg'?'jpg':a.blob.type==='image/webp'?'webp':a.blob.type==='image/gif'?'gif':a.blob.type==='image/avif'?'avif':'png')})),shelf:includeLibrary?Array.from(new Set([...shelfIds,...ids])):Array.from(ids)};
+    const doc={format:'orb-design',version:FORMAT_VERSION,name:$('designName').value.trim()||defaultName(),garmentId:snapshot.garmentId,settings:pick(snapshot.settings,SETTING_FIELDS),regularBackdrop:snapshot.regularBackdrop,lighting:snapshot.lighting,camera:snapshot.camera,customFlipped:snapshot.customFlipped,active:snapshot.active,layers:snapshot.layers.map(l=>pick(l,LAYER_FIELDS)),assets:records.map(a=>({id:a.id,name:a.name,type:a.blob.type||'image/png',path:'artwork/'+a.id+'.'+(a.blob.type==='image/svg+xml'?'svg':a.blob.type==='image/jpeg'?'jpg':a.blob.type==='image/webp'?'webp':a.blob.type==='image/gif'?'gif':a.blob.type==='image/avif'?'avif':'png')})),shelf:includeLibrary?Array.from(new Set([...shelfIds,...ids])):Array.from(ids)};
     const model=api.modelFile();if(doc.garmentId==='custom'){if(!model)throw new Error('Please re-upload the custom GLB before saving.');doc.modelPath='model/garment.glb';}
     const artworkSize=records.reduce((sum,a)=>sum+a.blob.size,0),modelSize=doc.garmentId==='custom'?model.size:0;
     if(artworkSize>300*1024*1024||modelSize>250*1024*1024||artworkSize+modelSize>340*1024*1024)throw new Error('This design is too large to save. Use smaller artwork files or exclude unused library graphics.');
@@ -196,7 +197,7 @@ export function installWorkspace(api){
     for(const [id,a] of staged)assets.set(id,a);api.presentationRestored?.();
     const incoming=(data.doc.shelf||Array.from(staged.keys())).filter(id=>staged.has(id));
     shelfIds=mergeLibrary?new Set([...shelfIds,...incoming]):new Set(incoming);
-    $('designName').value=data.doc.name;api.clearHistory();renderShelf();recoveryBlocked=false;
+    $('designName').value=data.doc.name;automaticName=false;api.clearHistory();renderShelf();recoveryBlocked=false;
   }
   async function readArchive(file){
     if(file.size>350*1024*1024)throw new Error('This design file is too large to open (350 MB limit).');
@@ -216,7 +217,7 @@ export function installWorkspace(api){
     finally{restoring=false;busy=false;api.lock(false);if(opened)notify();}
   }
   function confirmAction(action){pendingOpen=action;$('confirmTitle').textContent=action.file?'Open another design?':'Start a new design?';$('confirmText').textContent=action.file?'Save your current design before opening another?':'Save your current design before starting over?';$('confirmContinue').textContent=action.file?'Open without saving':'Start without saving';$('confirmSave').textContent=action.file?'Save & open':'Save & start new';$('confirmDialog').showModal();}
-  async function continueAction(){const action=pendingOpen;pendingOpen=null;$('confirmDialog').close();if(action?.file)await openFile(action.file);else{recoveryBlocked=false;api.newDesign();$('designName').value='Untitled design';notify();}}
+  async function continueAction(){const action=pendingOpen;pendingOpen=null;$('confirmDialog').close();if(action?.file)await openFile(action.file);else{recoveryBlocked=false;api.newDesign();automaticName=true;$('designName').value=defaultName();notify();}}
   $('confirmContinue').onclick=continueAction;
   $('confirmSave').onclick=async()=>{if(busy)return;busy=true;const buttons=$('confirmDialog').querySelectorAll('button');buttons.forEach(b=>b.disabled=true);try{await saveDesign();busy=false;await continueAction();}catch(e){$('confirmText').textContent=e.message;}finally{busy=false;buttons.forEach(b=>b.disabled=false);}};
   $('designNew').onclick=()=>{if(!busy&&!api.busy())confirmAction({});};
@@ -225,7 +226,7 @@ export function installWorkspace(api){
   async function saveDesign(){const blob=await makeArchive($('saveIncludeLibrary').checked);downloadBlob(blob,cleanFilename($('designName').value)+'.orb');status('Design file downloaded');return blob;}
   $('designSave').onclick=()=>{if(!busy&&!api.busy()){$('saveStatus').textContent='';$('saveDialog').showModal();}};
   $('saveConfirm').onclick=async()=>{if(busy||api.busy())return;busy=true;$('saveConfirm').disabled=true;$('saveStatus').textContent='Packaging artwork…';try{await saveDesign();$('saveDialog').close();}catch(e){$('saveStatus').textContent=e.message;}finally{busy=false;$('saveConfirm').disabled=false;}};
-  $('designName').addEventListener('input',notify);
+  $('designName').addEventListener('input',()=>{automaticName=false;notify();});
   document.getElementById('gl').addEventListener('wheel',notify,{passive:true});
   for(const button of document.querySelectorAll('[data-close-dialog]'))button.onclick=()=>{if(!busy)button.closest('dialog').close();};
   for(const dialog of document.querySelectorAll('.workspace-dialog'))dialog.addEventListener('cancel',e=>{if(busy)e.preventDefault();});
@@ -265,7 +266,7 @@ export function installWorkspace(api){
             const response=await fetch(new URL('../samples/ORB-Mockup-01.orb',import.meta.url),{signal:controller.signal});
             if(!response.ok)throw new Error('Sample download failed ('+response.status+')');
             const sample=await readArchive(await response.blob());
-            await applyPackage(sample,{mergeLibrary:false});restored=true;sampleLoaded=true;
+            sample.doc.name=defaultName();await applyPackage(sample,{mergeLibrary:false});automaticName=true;restored=true;sampleLoaded=true;
           }catch(error){failure=['Sample unavailable',error];}
           finally{clearTimeout(timeout);}
         }
