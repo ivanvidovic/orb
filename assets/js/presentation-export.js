@@ -153,7 +153,7 @@ export function installExports(api){
     try{
       await api.prepare?.();
       const width=1200,height=1400;
-      session=captureSession(width,height);camera.aspect=width/height;
+      session=captureSession(width,height);shirtShadow.visible=false;camera.aspect=width/height;
       const {center,points}=pointsAndCenter();
       const distance=fitDistance(THREE,points,center,['front','back'].map(api.viewAngles),camera.aspect,camera.fov,1.12);
       const previews={gallery:{}};

@@ -1,11 +1,11 @@
-import {reviewLayout,mosaicLayout,createCaptureDisclosure} from './snapshot-layout.js?v=91-layout58';
+import {reviewLayout,createCaptureDisclosure} from './snapshot-layout.js?v=91-review62';
 import {snapshotIcons,snapshotTip as tip,snapshotIconButton as iconButton} from './snapshot-icons.js?v=91-layout58';
 import {createSnapshotStore} from './snapshot-store.js?v=91-gallery56';
 import {downloadBlob,cleanFilename} from './design-format.js?v=91-present23';
 const $=id=>document.getElementById(id);
 export function installSnapshots(api){
   const store=createSnapshotStore(),section=$('snapshotsSection'),review=$('snapshotReview');
-  let entries=[],selected=null,working=false,reviewing=false,returnFocus=null,galleryScale=null,layoutMode='grid',statusTimer;
+  let entries=[],selected=null,working=false,reviewing=false,returnFocus=null,galleryScale=null,statusTimer;
   const disclosure=createCaptureDisclosure(),sides=new Map(),urls=new Map();
   const mobile=matchMedia('(max-width:820px), (pointer:coarse)');
   const message=(text,temporary=false)=>{clearTimeout(statusTimer);for(const id of ['snapshotStatus','snapshotReviewStatus']){$(id).textContent=text;$(id).hidden=!text;}if(temporary)statusTimer=setTimeout(()=>message(''),2500);};
@@ -86,10 +86,10 @@ export function installSnapshots(api){
     const anchorTop=anchor?before.get(anchor).top:null;
     for(const card of cards)laidOutCards.add(card);
     for(const animation of layoutAnimations.values())animation.cancel();layoutAnimations.clear();
-    const layout=(layoutMode==='mosaic'?mosaicLayout:reviewLayout)(entries.length,grid.clientWidth-4,grid.clientHeight-4,mobile.matches,gap,galleryScale);
-    grid.dataset.layout=layoutMode;grid.style.gridTemplateColumns=`repeat(${layout.columns},minmax(0,${layout.width}px))`;grid.style.gridAutoRows=layout.tiles?layout.width+'px':'max-content';
+    const layout=reviewLayout(entries.length,grid.clientWidth-4,grid.clientHeight-4,mobile.matches,gap,galleryScale);
+    grid.style.gridTemplateColumns=`repeat(${layout.columns},minmax(0,${layout.width}px))`;grid.style.gridAutoRows='max-content';
 
-    Array.from(grid.children).forEach((card,i)=>{const tile=layout.tiles?.[i];card.style.gridColumn=tile?`${tile.x} / span ${tile.w}`:'';card.style.gridRow=tile?`${tile.y} / span ${tile.h}`:'';card.style.height=tile?'100%':'';card.style.aspectRatio=tile?'auto':'6 / 7';card.style.transform='';card.classList.toggle('compact-actions',(tile?tile.w*layout.width+(tile.w-1)*gap:layout.width)<152);});
+    for(const card of cards){card.style.aspectRatio='6 / 7';card.classList.toggle('compact-actions',layout.width<300);}
     if(anchor){const next=anchor.getBoundingClientRect();grid.scrollTop+=next.top-anchorTop;}
     if(!reducedMotion.matches)for(const card of cards){
       const old=before.get(card),next=card.getBoundingClientRect?.();
@@ -116,17 +116,17 @@ export function installSnapshots(api){
   configure('snapshotReviewOpen','review','Review snapshots','Review the saved designs side by side; click a shirt to flip it.',openReview);
   configure('snapshotReviewClose','close','Close snapshot review','Return to the live garment editor. Escape also closes review.',()=>{if(!working)closeReview();});
   $('snapshotsToggle').onclick=()=>{const expanded=$('snapshotsBody').hidden;disclosure.toggled(expanded);setExpanded(expanded);};tip($('snapshotsToggle'),'Snapshots','Expand or collapse snapshots saved in this browser.');setExpanded(false);
-  for(const mode of ['grid','mosaic']){configure('snapshotLayout'+(mode==='grid'?'Grid':'Mosaic'),mode==='grid'?'review':'mosaic',mode==='grid'?'Grid layout':'Mosaic layout',mode==='grid'?'Equal-sized tiles for comparing designs.':'Varied tile sizes with consistent gutters and complete garments.',()=>{layoutMode=mode;for(const el of review.querySelectorAll('[data-snapshot-layout]'))el.setAttribute('aria-pressed',String(el.dataset.snapshotLayout===mode));closeActions();layoutReview();});}
+
   for(const el of review.querySelectorAll('[data-snapshot-side]')){const side=el.dataset.snapshotSide;tip(el,'Show all '+side+' views','Show the '+side+' of every design. Individual shirts can still be flipped.');el.onclick=()=>{for(const entry of entries)if((sides.get(entry.id)||'front')!==side)flip(entry);syncSides();};}
-  document.addEventListener('pointerdown',event=>{if(!event.target.closest('.snapshot-card')){closeActions();if(!working&&!event.target.closest('button,input,select,textarea,a,label,[role=button],dialog')){selected=null;syncSelected();}}if(reviewing&&!working&&!event.target.closest('#snapshotReview,#snapshotsSection')&&event.target.closest('#panel,header'))closeReview();},true);
-  document.addEventListener('focusin',event=>{if(reviewing&&!working&&!mobile.matches&&!event.target.closest('#snapshotReview,#snapshotsSection')&&event.target.closest('#panel,header'))closeReview();},true);
+  document.addEventListener('pointerdown',event=>{if(!event.target.closest('.snapshot-card')){closeActions();if(!working&&!event.target.closest('button,input,select,textarea,a,label,[role=button],dialog')){selected=null;syncSelected();}}},true);
+
   document.addEventListener('keydown',event=>{
     if(document.querySelector('dialog[open]'))return;
     if(event.key==='Escape'&&document.querySelector('.snapshot-card.actions-open')){event.preventDefault();event.stopImmediatePropagation();closeActions();return;}
     if(!reviewing)return;
     if(event.key==='Escape'&&!event.target.matches('input')){event.preventDefault();event.stopImmediatePropagation();if(!working)closeReview();return;}
     if(event.key==='Tab'&&mobile.matches){const items=Array.from(review.querySelectorAll('button:not(:disabled),input:not(:disabled)')).filter(el=>getComputedStyle(el).visibility!=='hidden');const first=items[0],last=items.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}}
-    if(!event.target.matches('input')&&!['Tab','Enter',' '].includes(event.key))event.stopImmediatePropagation();
+    if(event.target.closest('#snapshotReview')&&!event.target.matches('input')&&!['Tab','Enter',' '].includes(event.key))event.stopImmediatePropagation();
   },true);
   mobile.addEventListener('change',()=>{if(reviewing){mobileMode();layoutReview();}});
   window.addEventListener('pagehide',()=>{for(const value of urls.values())URL.revokeObjectURL(value);urls.clear();});window.addEventListener('pageshow',event=>{if(event.persisted)render();});
