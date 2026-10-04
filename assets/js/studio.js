@@ -1,3 +1,4 @@
+import {installSnapshots} from './snapshots.js?v=91-snapshots54';
 import {configureGarmentShadow} from './shadow-quality.js?v=91-shadow47';
 import {preloadCatalog} from './catalog-preload.js?v=91-shadow47';
 import {createPresentMotion} from './present-motion.js?v=91-present46';
@@ -22,14 +23,15 @@ import {createCityTraffic} from './city-night.js?v=43';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=82';
 import {sharedSurfaceProfiles,fitSurfacePlacements} from './surface-layout.js?v=83';
 import {torsoFrame,torsoDistance,previousTorsoFrame,previewDistance,previousPreviewFrame} from './garment-framing.js?v=89';
-import {installWorkspace} from './workspace.js?v=91-sample45';
-import {installExports} from './presentation-export.js?v=91-history13';
+import {installWorkspace} from './workspace.js?v=91-snapshots54';
+import {installExports} from './presentation-export.js?v=91-snapshots54';
 import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=91-present23';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
 import {installColorPicker} from './color-picker.js?v=36';
 import {installSliderControls,rangeDisplayValue,RESET_ICON} from './controls.js?v=91-history13';
 import {installColorActions} from './color-actions.js?v=34';
 let colorPicker=null,colorActions=null,workspace=null;
+let snapshotReviewActive=false;
 let renderSuspended=false,designLocked=false,historyRestoring=false,customModelFile=null,customFlipped=false;
 const modelHistoryIds=new WeakMap();let nextModelHistoryId=1;
 function modelHistoryId(file){if(!file)return null;if(!modelHistoryIds.has(file))modelHistoryIds.set(file,nextModelHistoryId++);return modelHistoryIds.get(file);}
@@ -3251,7 +3253,7 @@ document.getElementById('presentExitButton').addEventListener('click',exitPresen
 /* ================================= loop ================================= */
 
 function resize(){
-  if(renderSuspended)return;
+  if(renderSuspended||snapshotReviewActive)return;
   const {width:w,height:h}=viewportSize();
   renderer.setSize(w,h,false);
   drawPatternBackground();
@@ -3370,6 +3372,7 @@ function activeRenderRect(eased){
 }
 
 function draw(){
+  if(snapshotReviewActive)return;
   flushArtwork();
   const eased=presentMix*presentMix*(3-2*presentMix);
   const mobileSingle=isMobilePresent();
@@ -3479,7 +3482,7 @@ function draw(){
 function tick(){
   requestAnimationFrame(tick);
   const dt=Math.min(0.05,clock.getDelta());
-  if(renderSuspended)return;
+  if(renderSuspended||snapshotReviewActive)return;
   uni.uTime.value+=dt;
   if(state.present)presentation.advance(dt);else{updateCityTraffic(dt);updateCreativeLighting(dt);}
   if(intro<1){
@@ -3697,7 +3700,7 @@ function setWorkspaceLock(value,message='Working…'){
 function installDesignHistory(){
   let editing=null;
   const before=e=>{if(designLocked||historyRestoring)return;const t=e.target;
-    if(!t.closest('#panel,header,#colorPopover'))return;
+    if(t.closest('#snapshotsSection,#snapshotReview')||!t.closest('#panel,header,#colorPopover'))return;
     if(t.matches('input[type="file"],input[type="search"]'))return;
     if(e.type==='input'){
       if(!t.matches('input')||t.matches('input[type="checkbox"]'))return;
@@ -3799,7 +3802,7 @@ function handlePresetShortcut(event){
   else if(view){event.preventDefault();if(view[1]==='6')cycleDetailCamera(event.shiftKey?-1:1);else{closeDetailMenu();setView(cameraShortcutViews[Number(view[1])-1]);}}
 }
 document.addEventListener('keydown',handlePresetShortcut);
-installExports({THREE,renderer,scene,camera,garment,presentGarment,shirtShadow,presentShadow,uni,state,current:()=>current,
+const exportsUI=installExports({THREE,renderer,scene,camera,garment,presentGarment,shirtShadow,presentShadow,uni,state,current:()=>current,
   artworkColor:inkHex,printLayouts,snapshot:designSnapshot,workspace,busy:()=>artLoading||modelLoading||designLocked||workspace.busy,
   lock:setWorkspaceLock,pause:value=>renderSuspended=value,flush:flushArtwork,prepare:settleArtworkTreatment,draw,resize,
   updateLights:updateLightLock,updateShadows:()=>{shadowDirty=true;updateShadowMap();},
@@ -3812,6 +3815,11 @@ installExports({THREE,renderer,scene,camera,garment,presentGarment,shirtShadow,p
   framing:()=>{const f=torsoFrame(activeGarmentId);return f?{center:new THREE.Vector3(...f.center),points:f.points.map(p=>new THREE.Vector3(...p))}:null;},
   label:()=>GARMENT_CATALOG.find(g=>g.id===activeGarmentId)?.label||'Custom garment'
 });
+installSnapshots({workspace,previews:()=>exportsUI.snapshotPreviews(),
+  reviewing:value=>{snapshotReviewActive=value;if(!value){resize();draw();}},
+  canReview:()=>!state.present&&!artLoading&&!modelLoading&&!designLocked&&!workspace.busy,
+});
+
 
 colorPicker=installColorPicker({onReset:input=>resetStudioColor(input.id,true)});
 colorActions=installColorActions({picker:colorPicker,artworkTarget:()=>{const entry=artEntry();return entry&&entry.mode!=='original'?document.getElementById(entry.mode==='tint'?'tintCustom':'inkCustom'):null;},resetColor:resetStudioColor,samplePreview:samplePreviewColor});

@@ -156,13 +156,14 @@ export function installWorkspace(api){
     validateProject(doc,api.schema);
     return {doc,records:records.map(({id,name,blob})=>({id,name,blob})),model:doc.garmentId==='custom'?model:null};
   }
-  async function makeArchive(includeLibrary=false){
-    const {doc,records,model}=await packageData(includeLibrary),zip=new window.JSZip();
+  async function archiveData({doc,records,model}){
+    const zip=new window.JSZip();
     zip.file('design.json',JSON.stringify(doc,null,2));
     for(const a of doc.assets)zip.file(a.path,await records.find(r=>r.id===a.id).blob.arrayBuffer());
     if(model)zip.file(doc.modelPath,await model.arrayBuffer());
     return zip.generateAsync({type:'blob',compression:'STORE'});
   }
+  async function makeArchive(includeLibrary=false){return archiveData(await packageData(includeLibrary));}
   async function autosave(){
     if(!ready||restoring||revision===savedRevision)return;
     if(recoveryBlocked){status('Your previous design is preserved. Use New for a men’s tee design, or open the original on desktop.');return;}
@@ -228,11 +229,24 @@ export function installWorkspace(api){
   document.getElementById('gl').addEventListener('wheel',notify,{passive:true});
   for(const button of document.querySelectorAll('[data-close-dialog]'))button.onclick=()=>{if(!busy)button.closest('dialog').close();};
   for(const dialog of document.querySelectorAll('.workspace-dialog'))dialog.addEventListener('cancel',e=>{if(busy)e.preventDefault();});
-  document.addEventListener('change',e=>{if(e.target.closest('#panel,header,#colorPopover'))notify();});
-  document.addEventListener('click',e=>{if(e.target.closest('summary,#btnPresent,#presentSettingsButton,.toolbarMenuToggle,#btnHelp,#btnArtist,#presentChooseGraphic,#btnSave,#btnExportAll,#designSave,#designOpen'))return;if(e.target.closest('#panel,header,#colorPopover'))queueMicrotask(notify);});
+  document.addEventListener('change',e=>{if(!e.target.closest('#snapshotsSection,#snapshotReview')&&e.target.closest('#panel,header,#colorPopover'))notify();});
+  document.addEventListener('click',e=>{if(e.target.closest('#snapshotsSection,#snapshotReview'))return;if(e.target.closest('summary,#btnPresent,#presentSettingsButton,.toolbarMenuToggle,#btnHelp,#btnArtist,#presentChooseGraphic,#btnSave,#btnExportAll,#designSave,#designOpen'))return;if(e.target.closest('#panel,header,#colorPopover'))queueMicrotask(notify);});
   window.addEventListener('beforeunload',e=>{if(ready&&revision!==savedRevision){e.preventDefault();e.returnValue='';}});
   document.addEventListener('visibilitychange',()=>{if(document.hidden)autosave();});
-  return {getAsset:async id=>{const a=assets.get(id);if(!a)throw new Error('Background artwork is missing.');if(!a.entry.source)a.entry={...await api.decode(new File([a.blob],a.name,{type:a.blob.type})),assetId:id};return a.entry;},register,openAssets,notify,loadLibrary,makeArchive,dropFolder,artworkData:()=>packageData(false),dropProject:file=>confirmAction({file}),get busy(){return busy;},
+  async function captureSnapshot(previews){
+    if(!ready||busy||restoring||api.busy())throw new Error('Wait for the current operation to finish.');
+    busy=true;clearTimeout(saveTimer);api.lock(true,'Capturing snapshot…');
+    try{const data=await packageData(false);data.doc=structuredClone(data.doc);return {data,previews:await previews()};}
+    finally{busy=false;api.lock(false);if(revision!==savedRevision)saveTimer=setTimeout(autosave,900);}
+  }
+  async function restoreSavedSnapshot(data){
+    if(!ready||busy||restoring||api.busy())throw new Error('Wait for the current operation to finish.');
+    busy=true;restoring=true;clearTimeout(saveTimer);api.lock(true,'Opening snapshot…');
+    let opened=false;
+    try{await applyPackage(data);opened=true;}
+    finally{restoring=false;busy=false;api.lock(false);if(opened)notify();}
+  }
+  return {captureSnapshot,restoreSavedSnapshot,archiveData,checkSnapshot:data=>{validateProject(data.doc,api.schema);api.checkProject?.(data.doc);},getAsset:async id=>{const a=assets.get(id);if(!a)throw new Error('Background artwork is missing.');if(!a.entry.source)a.entry={...await api.decode(new File([a.blob],a.name,{type:a.blob.type})),assetId:id};return a.entry;},register,openAssets,notify,loadLibrary,makeArchive,dropFolder,artworkData:()=>packageData(false),dropProject:file=>confirmAction({file}),get busy(){return busy;},
     async ready(){
       restoring=true;
       let data=null,restored=false,sampleLoaded=false,failure=null;

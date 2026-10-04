@@ -147,4 +147,25 @@ export function installExports(api){
     }catch(error){$('designStatus').textContent=error.message||'The image could not be saved.';}
     finally{session?.finish();working=false;api.lock(false);}
   };
+  return {async snapshotPreviews(){
+    if(working||preparing||!api.current())throw new Error('The garment is not ready for a snapshot.');
+    working=true;let session;
+    try{
+      await api.prepare?.();
+      const width=480,height=560;
+      session=captureSession(width,height);camera.aspect=width/height;
+      const {center,points}=api.framing?.()||pointsAndCenter();
+      const distance=fitDistance(THREE,points,center,['front','back'].map(api.viewAngles),camera.aspect,camera.fov);
+      const previews={};
+      for(const view of ['front','back']){
+        const [az,el]=api.viewAngles(view),d=distance;
+        camera.position.set(center.x+d*Math.sin(el)*Math.sin(az),center.y+d*Math.cos(el),center.z+d*Math.sin(el)*Math.cos(az));camera.lookAt(center);
+        const canvas=frame(width,height,{background:'current',grid:false});
+        try{previews[view]=await new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('Could not create snapshot preview.')),'image/webp',.86));}
+        finally{canvas.width=canvas.height=1;}
+      }
+      return previews;
+    }finally{try{session?.finish();}finally{working=false;}}
+  }};
+
 }
