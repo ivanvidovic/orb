@@ -114,7 +114,7 @@ body.snapshot-reviewing #stage>.stage-reset,body.snapshot-reviewing #stage>.stag
 .snapshot-sides{grid-area:1/2}
 .snapshot-spacing{grid-area:1/3}
 .snapshot-size:not(.snapshot-spacing){grid-area:1/4}
-#snapshotViewReset{grid-area:1/5}
+.snapshot-view-tools{grid-area:1/5}
 #snapshotReviewClose{grid-area:1/6}
 .snapshot-size{display:grid;grid-template-columns:auto 110px 44px auto;gap:8px;font:400 11px/1.3 var(--sans)}
 .snapshot-size input[type=range]{box-sizing:border-box;margin:0;width:110px;min-width:0}
@@ -126,7 +126,7 @@ body.snapshot-reviewing #stage>.stage-reset,body.snapshot-reviewing #stage>.stag
  .snapshot-sides{grid-area:2/1}
  .snapshot-spacing{grid-area:2/2}
  .snapshot-size:not(.snapshot-spacing){grid-area:2/3}
- #snapshotViewReset{grid-area:2/4}
+ .snapshot-view-tools{grid-area:2/4}
  .snapshot-size{grid-template-columns:auto minmax(80px,1fr) 44px auto}
  .snapshot-size input[type=range]{width:100%}
 }
@@ -135,7 +135,7 @@ body.snapshot-reviewing #stage>.stage-reset,body.snapshot-reviewing #stage>.stag
  .snapshot-review-title{grid-area:1/1}
  #snapshotReviewClose{grid-area:1/2}
  .snapshot-sides{grid-area:2/1;justify-self:start}
- #snapshotViewReset{grid-area:2/2}
+ .snapshot-view-tools{grid-area:2/2}
  .snapshot-spacing{grid-area:3/1/4/3}
  .snapshot-size:not(.snapshot-spacing){grid-area:4/1/5/3}
  .snapshot-size{grid-template-columns:46px minmax(0,1fr) 44px 16px}
@@ -178,7 +178,7 @@ body.snapshot-reviewing #stage>.stage-reset,body.snapshot-reviewing #stage>.stag
 .snapshot-review-head{grid-template-columns:minmax(120px,1fr) auto auto auto auto 32px 32px}
 .snapshot-spacing{grid-area:1/4}
 .snapshot-size:not(.snapshot-spacing){grid-area:1/5}
-#snapshotViewReset{grid-area:1/6}
+.snapshot-view-tools{grid-area:1/6}
 #snapshotReviewClose{grid-area:1/7}
 @container(max-width:1080px){
  .snapshot-review-head{grid-template-columns:auto auto minmax(0,1fr) minmax(0,1fr) 32px}
@@ -188,7 +188,7 @@ body.snapshot-reviewing #stage>.stage-reset,body.snapshot-reviewing #stage>.stag
  .snapshot-order{grid-area:2/2}
  .snapshot-spacing{grid-area:2/3}
  .snapshot-size:not(.snapshot-spacing){grid-area:2/4}
- #snapshotViewReset{grid-area:2/5}
+ .snapshot-view-tools{grid-area:2/5}
  .snapshot-size{grid-template-columns:auto minmax(80px,1fr) 44px auto}
  .snapshot-size:not(.snapshot-spacing){grid-template-columns:auto minmax(80px,1fr) 44px}
  .snapshot-size input[type=range]{width:100%}
@@ -199,7 +199,7 @@ body.snapshot-reviewing #stage>.stage-reset,body.snapshot-reviewing #stage>.stag
  #snapshotReviewClose{grid-area:1/3}
  .snapshot-sides{grid-area:2/1;justify-self:start}
  .snapshot-order{grid-area:2/2;justify-self:start}
- #snapshotViewReset{grid-area:2/3}
+ .snapshot-view-tools{grid-area:2/3}
  .snapshot-spacing{grid-area:3/1/4/4}
  .snapshot-size:not(.snapshot-spacing){grid-area:4/1/5/4}
  .snapshot-size,.snapshot-size:not(.snapshot-spacing){grid-template-columns:46px minmax(0,1fr) 44px 16px}
@@ -217,7 +217,7 @@ body.snapshot-reviewing #stage>.stage-reset,body.snapshot-reviewing #stage>.stag
  .snapshot-order{grid-area:2/2}
  .snapshot-spacing{grid-area:2/3}
  .snapshot-size:not(.snapshot-spacing){grid-area:2/4}
- #snapshotViewReset{grid-area:2/5}
+ .snapshot-view-tools{grid-area:2/5}
  #snapshotDeleteAll{grid-area:2/6}
  .snapshot-size{grid-template-columns:auto minmax(80px,1fr) 44px auto}
  .snapshot-size:not(.snapshot-spacing){grid-template-columns:auto minmax(80px,1fr) 44px}
@@ -229,7 +229,7 @@ body.snapshot-reviewing #stage>.stage-reset,body.snapshot-reviewing #stage>.stag
  #snapshotReviewClose{grid-area:1/4}
  .snapshot-sides{grid-area:2/1}
  .snapshot-order{grid-area:2/2}
- #snapshotViewReset{grid-area:2/3}
+ .snapshot-view-tools{grid-area:2/3}
  #snapshotDeleteAll{grid-area:2/4}
  .snapshot-spacing{grid-area:3/1/4/5}
  .snapshot-size:not(.snapshot-spacing){grid-area:4/1/5/5}
@@ -242,7 +242,7 @@ body.snapshot-reviewing #stage>.stage-reset,body.snapshot-reviewing #stage>.stag
  #snapshotReviewClose{grid-area:1/3}
  .snapshot-sides{grid-area:2/1}
  .snapshot-order{grid-area:2/2/3/4}
- #snapshotViewReset{grid-area:3/1/4/3;justify-self:start}
+ .snapshot-view-tools{grid-area:3/1/4/3;justify-self:start}
  #snapshotDeleteAll{grid-area:3/3}
  .snapshot-spacing{grid-area:4/1/5/4}
  .snapshot-size:not(.snapshot-spacing){grid-area:5/1/6/4}
@@ -256,7 +256,7 @@ body.snapshot-reviewing #stage>.stage-reset,body.snapshot-reviewing #stage>.stag
  #snapshotReviewClose{grid-area:1/3}
  .snapshot-sides{grid-area:2/1}
  .snapshot-order{grid-area:2/2/3/4}
- #snapshotViewReset{grid-area:3/1/4/3;justify-self:start}
+ .snapshot-view-tools{grid-area:3/1/4/3;justify-self:start}
  #snapshotDeleteAll{grid-area:3/3}
  .snapshot-spacing{grid-area:4/1/5/4}
  .snapshot-size:not(.snapshot-spacing){grid-area:5/1/6/4}
@@ -266,3 +266,20 @@ body.snapshot-reviewing #stage>.stage-reset,body.snapshot-reviewing #stage>.stag
 .shelf-available:not([hidden]){animation:shelf-available-breathe 2s ease-in-out infinite}
 @keyframes shelf-available-breathe{0%,100%{opacity:1}50%{opacity:.25}}
 @media(prefers-reduced-motion:reduce){.shelf-available:not([hidden]){animation:none;opacity:1}}
+
+/* Review-only color control shares the existing Fit all toolbar position. */
+.snapshot-view-tools{display:flex;align-items:center;gap:8px;min-width:0}
+.snapshot-background{position:relative;flex:none}
+.snapshot-background>summary{display:flex;align-items:center;justify-content:center;width:28px;height:28px;padding:3px;box-sizing:border-box;border:1px solid var(--rule-mid);cursor:pointer;list-style:none}
+.snapshot-background>summary::-webkit-details-marker{display:none}
+#snapshotBackgroundChip{display:block;width:100%;height:100%;background:var(--review-background,var(--paper));border:1px solid var(--rule)}
+.snapshot-background-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:30;min-width:180px;display:grid;gap:8px;padding:10px;background:var(--paper);color:var(--ink);border:1px solid var(--rule-mid)}
+.snapshot-background-color{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:11px}
+#snapshotBackgroundColor{width:28px;height:28px;padding:2px;border:1px solid var(--rule-mid);border-radius:0;background:var(--paper);cursor:pointer}
+#snapshotBackgroundColor::-webkit-color-swatch-wrapper{padding:0}
+#snapshotBackgroundColor::-webkit-color-swatch{border:0;border-radius:0}
+#snapshotBackgroundColor::-moz-color-swatch{border:0;border-radius:0}
+#snapshotBackgroundTheme{font-size:11px;text-align:left}
+#snapshotReview{background:var(--review-background,var(--paper))}
+#snapshotReview .snapshot-review-head{background:var(--paper);z-index:21}
+#snapshotReviewGrid{color:var(--ink)}

@@ -5,6 +5,34 @@ import {downloadBlob,cleanFilename} from './design-format.js?v=91-present23';
 const $=id=>document.getElementById(id);
 export function installSnapshots(api){
   const store=createSnapshotStore(),section=$('snapshotsSection'),review=$('snapshotReview');
+  const backgroundMenu=$('snapshotBackground'),backgroundInput=$('snapshotBackgroundColor'),backgroundGrid=$('snapshotReviewGrid');
+  let customBackground=null;
+  const backgroundTokens=['--paper','--ink','--muted','--graphite','--accent','--rule','--rule-mid','--wash'];
+  function applyReviewBackground(value){
+    customBackground=/^#[0-9a-f]{6}$/i.test(value||'')?value:null;
+    if(customBackground){
+      const {ink,muted,rule,ruleMid,wash}=reviewContrast(customBackground);
+      review.style.setProperty('--review-background',customBackground);
+      const values=[customBackground,ink,muted,ink,ink,rule,ruleMid,wash];
+      backgroundTokens.forEach((key,i)=>backgroundGrid.style.setProperty(key,values[i]));
+      backgroundInput.value=customBackground;
+    }else{
+      review.style.removeProperty('--review-background');
+      backgroundTokens.forEach(key=>backgroundGrid.style.removeProperty(key));
+    }
+    $('snapshotBackgroundTheme').setAttribute('aria-pressed',String(!customBackground));
+  }
+  backgroundInput.addEventListener('input',()=>applyReviewBackground(backgroundInput.value));
+  $('snapshotBackgroundTheme').onclick=()=>{applyReviewBackground(null);backgroundMenu.open=false;};
+  backgroundMenu.addEventListener('toggle',()=>{
+    if(backgroundMenu.open&&!customBackground){
+      const rgb=getComputedStyle(review).backgroundColor.match(/[\d.]+/g);
+      if(rgb?.length>=3)backgroundInput.value='#'+rgb.slice(0,3).map(n=>Math.round(Number(n)).toString(16).padStart(2,'0')).join('');
+    }
+  });
+  document.addEventListener('pointerdown',event=>{if(!backgroundMenu.contains(event.target))backgroundMenu.open=false;});
+  backgroundMenu.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();backgroundMenu.open=false;backgroundMenu.querySelector('summary').focus();}});
+  applyReviewBackground(null);
   let reviewOrder=null;
   let entries=[],selected=null,working=false,reviewing=false,returnFocus=null,galleryScale=100,fitAll=true,innerSpacing=10,reviewPreparing=false,manualSide=false,statusTimer,revealGeneration=0;
   const trimCache=new Map();
@@ -201,7 +229,7 @@ export function installSnapshots(api){
   const reviewObserver=new ResizeObserver(layoutReview);reviewObserver.observe($('snapshotReviewGrid'));
   function mobileMode(){const modal=reviewing&&mobile.matches;review.setAttribute('role',modal?'dialog':'region');if(modal)review.setAttribute('aria-modal','true');else review.removeAttribute('aria-modal');for(const el of [document.querySelector('header'),$('panel')])el.inert=modal;}
   function openReview(){if(working||!api.canReview())return;returnFocus=document.activeElement;reviewing=true;review.hidden=false;document.body.classList.add('snapshot-reviewing');api.reviewing(true);renderReview();mobileMode();$('snapshotReviewClose').focus();}
-  function closeReview(){if(!reviewing)return;++revealGeneration;reviewing=false;review.hidden=true;$('snapshotReviewGrid').replaceChildren();for(const [key,value] of urls)if(key.includes(':gallery:')){URL.revokeObjectURL(value);urls.delete(key);}document.body.classList.remove('snapshot-reviewing');mobileMode();api.reviewing(false);returnFocus?.focus({preventScroll:true});}
+  function closeReview(){if(!reviewing)return;backgroundMenu.open=false;++revealGeneration;reviewing=false;review.hidden=true;$('snapshotReviewGrid').replaceChildren();for(const [key,value] of urls)if(key.includes(':gallery:')){URL.revokeObjectURL(value);urls.delete(key);}document.body.classList.remove('snapshot-reviewing');mobileMode();api.reviewing(false);returnFocus?.focus({preventScroll:true});}
   const configure=(id,icon,label,detail,action)=>{const el=$(id);el.innerHTML=snapshotIcons[icon];el.classList.add('snapshot-icon');tip(el,label,detail);el.onclick=action;};
   configure('snapshotCapture','capture','Capture snapshot','Save this design with front and back previews in this browser.',()=>run(async()=>{const button=$('snapshotCapture');button.classList.add('capturing');button.setAttribute('aria-busy','true');try{await capture();if(disclosure.captured())setExpanded(true);}finally{button.classList.remove('capturing');button.removeAttribute('aria-busy');}}));
   configure('snapshotReviewOpen','review','Review snapshots','Review the saved designs side by side; click a shirt to flip it.',openReview);
@@ -216,17 +244,27 @@ export function installSnapshots(api){
   $('snapshotsToggle').onclick=()=>{const expanded=$('snapshotsBody').hidden;disclosure.toggled(expanded);setExpanded(expanded);};tip($('snapshotsToggle'),'Snapshots','Expand or collapse snapshots saved in this browser.');setExpanded(false);
 
   for(const el of review.querySelectorAll('[data-snapshot-side]')){const side=el.dataset.snapshotSide;tip(el,'Show all '+side+' views','Show the '+side+' of every design. Individual shirts can still be flipped.');el.onclick=()=>{const ordered=orderedEntries(),step=matchMedia('(prefers-reduced-motion: reduce)').matches?0:Math.min(25,250/Math.max(1,ordered.length-1));for(const [index,entry] of ordered.entries())if((sides.get(entry.id)||'front')!==side)flip(entry,index*step);manualSide=false;syncSides();};}
-  document.addEventListener('pointerdown',event=>{if(!event.target.closest('.snapshot-card')){closeActions();if(!working&&!event.target.closest('button,input,select,textarea,a,label,[role=button],dialog')){selected=null;syncSelected();}}},true);
+  document.addEventListener('pointerdown',event=>{if(!event.target.closest('.snapshot-card')){closeActions();if(!working&&!event.target.closest('button,input,select,textarea,a,label,summary,[role=button],dialog')){selected=null;syncSelected();}}},true);
 
   document.addEventListener('keydown',event=>{
     if(document.querySelector('dialog[open]'))return;
     if(event.key==='Escape'&&document.querySelector('.snapshot-card.actions-open')){event.preventDefault();event.stopImmediatePropagation();closeActions();return;}
     if(!reviewing)return;
+    if(event.key==='Escape'&&backgroundMenu.open){event.preventDefault();event.stopImmediatePropagation();backgroundMenu.open=false;backgroundMenu.querySelector('summary').focus();return;}
     if(event.key==='Escape'&&!event.target.matches('input')){event.preventDefault();event.stopImmediatePropagation();if(!working)closeReview();return;}
-    if(event.key==='Tab'&&mobile.matches){const items=Array.from(review.querySelectorAll('button:not(:disabled),input:not(:disabled)')).filter(el=>getComputedStyle(el).visibility!=='hidden');const first=items[0],last=items.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}}
+    if(event.key==='Tab'&&mobile.matches){const items=Array.from(review.querySelectorAll('button:not(:disabled),input:not(:disabled),summary')).filter(el=>el.getClientRects().length&&getComputedStyle(el).visibility!=='hidden');const first=items[0],last=items.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}}
     if(event.target.closest('#snapshotReview')&&!event.target.matches('input')&&!['Tab','Enter',' '].includes(event.key))event.stopImmediatePropagation();
   },true);
   mobile.addEventListener('change',()=>{resetTip();if(reviewing){mobileMode();layoutReview();}});
   window.addEventListener('pagehide',()=>{for(const value of urls.values())URL.revokeObjectURL(value);urls.clear();});window.addEventListener('pageshow',event=>{if(event.persisted)render();});
   run(refresh);
+}
+
+// Relative luminance chooses whichever of black/white has the greater contrast.
+export function reviewContrast(hex){
+ const rgb=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255);
+ const linear=rgb.map(c=>c<=.04045?c/12.92:((c+.055)/1.055)**2.4);
+ const luminance=linear[0]*.2126+linear[1]*.7152+linear[2]*.0722;
+ const dark=(luminance+.05)/.05>=1.05/(luminance+.05),base=dark?'0,0,0':'255,255,255';
+ return {ink:dark?'#000000':'#ffffff',muted:dark?'#000000':'#ffffff',rule:`rgba(${base},.22)`,ruleMid:`rgba(${base},.42)`,wash:`rgba(${base},.06)`};
 }
