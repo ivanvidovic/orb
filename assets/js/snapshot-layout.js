@@ -25,3 +25,16 @@ export function reviewLayout(count,width,height,mobile=false,gap=12,percent=null
   return {width:cardWidth,columns,minPercent,percent:Math.round(100*cardWidth/largest),scroll:rows*(cardWidth*7/6+2)+gap*(rows-1)>height+.5};
 }
 export function createCaptureDisclosure(){let first=true,explicitlyClosed=false;return {toggled(open){if(!open)explicitlyClosed=true;},captured(){const reveal=first&&!explicitlyClosed;first=false;return reveal;}};}
+
+// Fit all cards without imposing the manual-size minimum.
+export function fitReviewLayout(count,width,height,requestedGap=80){
+  width=Math.max(1,width);height=Math.max(1,height);count=Math.max(1,count);
+  const bestAt=gap=>{let best={width:0,columns:1,gap};for(let columns=1;columns<=count;columns++){
+    const rows=Math.ceil(count/columns),w=Math.floor(Math.min((width-gap*(columns-1))/columns,(height-gap*(rows-1))/rows*6/7));
+    if(w>best.width)best={width:w,columns,gap};
+  }return best;};
+  let result=bestAt(requestedGap);
+  if(result.width<90){for(let gap=requestedGap-1;gap>=0;gap--){result=bestAt(gap);if(result.width>=90)break;}}
+  const largest=Math.max(1,Math.min(width,(height-2)*6/7));
+  return {...result,width:Math.max(1,result.width),percent:Math.max(1,Math.round(100*result.width/largest)),minPercent:1,scroll:false};
+}

@@ -101,3 +101,10 @@ body.snapshot-reviewing #stage>.stage-reset,body.snapshot-reviewing #stage>.stag
 
 .snapshot-card.snapshot-pending{visibility:hidden}
 @media(prefers-reduced-motion:reduce){.snapshot-card-actions{transition:none}}
+
+/* Review groups share the existing rules and active colors. */
+.snapshot-review-head> *{position:relative}
+.snapshot-review-head>.group-divider::before{content:"";position:absolute;left:-9px;top:50%;height:20px;transform:translateY(-50%);border-left:1px solid var(--rule);pointer-events:none}
+.snapshot-sides{gap:0}
+#snapshotReview .snapshot-sides button{border-radius:0;margin:0}
+#snapshotReview .snapshot-sides button+button{border-left:0}
