@@ -64,7 +64,7 @@
 :is(#snapshotSizeValue,#snapshotSpacingValue){box-sizing:border-box;width:44px;min-width:44px;height:28px;padding:3px 2px;border:1px solid var(--rule);border-radius:0;background:transparent;color:var(--ink);font:400 11px/1.3 var(--sans);font-variant-numeric:tabular-nums;text-align:right;appearance:textfield}
 :is(#snapshotSizeValue,#snapshotSpacingValue)::-webkit-inner-spin-button,:is(#snapshotSizeValue,#snapshotSpacingValue)::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 #snapshotReview #snapshotViewReset,#snapshotReview #snapshotReviewClose{border-color:transparent}
-#snapshotReviewGrid{overflow-anchor:none;min-height:0;overflow:auto;overscroll-behavior:contain;display:grid;justify-content:start;align-content:start;align-items:start;gap:80px;flex:1;padding:2px;scrollbar-gutter:stable}
+#snapshotReviewGrid{overflow-anchor:none;min-height:0;overflow:auto;overscroll-behavior:contain;display:grid;justify-content:start;align-content:start;align-items:start;gap:12px;flex:1;padding:2px;scrollbar-gutter:stable}
 body.snapshot-reviewing #stage>.stage-reset,body.snapshot-reviewing #stage>.stage-help{visibility:hidden}
 .snapshot-edit-dialog{width:min(330px,calc(100vw - 24px));padding:12px;background:var(--paper);color:var(--ink);border:1px solid var(--rule-mid);border-radius:0}
 .snapshot-edit-heading{margin-bottom:8px}
@@ -151,3 +151,5 @@ body.snapshot-reviewing #stage>.stage-reset,body.snapshot-reviewing #stage>.stag
 #snapshotReviewGrid .snapshot-face{height:var(--source-height);object-fit:fill;bottom:auto}
 #snapshotReviewGrid .snapshot-caption{top:calc(var(--image-height) + 8px);bottom:auto;height:14px}
 #snapshotReviewGrid .snapshot-card-actions,#snapshotReviewGrid .snapshot-more{bottom:auto;top:calc(var(--image-height) - 8px);transform:translate(-50%,-100%)}
+
+#snapshotReviewGrid .snapshot-art{position:absolute;inset:0;display:block;overflow:hidden;transform:scale(var(--art-scale,1));transform-origin:50% 100%}
