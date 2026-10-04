@@ -171,3 +171,35 @@ body.snapshot-reviewing #stage>.stage-reset,body.snapshot-reviewing #stage>.stag
 #snapshotReviewGrid .tiny-actions.actions-open{z-index:8}
 #snapshotReviewGrid .tiny-actions.actions-open .snapshot-more{visibility:hidden}
 #snapshotReviewGrid .tiny-actions .snapshot-card-actions{max-width:none}
+
+/* Review ordering is an intact toolbar group. */
+.snapshot-order{display:flex;align-items:center;gap:3px;grid-area:1/3}
+.snapshot-review-head{grid-template-columns:minmax(120px,1fr) auto auto auto auto 32px 32px}
+.snapshot-spacing{grid-area:1/4}
+.snapshot-size:not(.snapshot-spacing){grid-area:1/5}
+#snapshotViewReset{grid-area:1/6}
+#snapshotReviewClose{grid-area:1/7}
+@container(max-width:1080px){
+ .snapshot-review-head{grid-template-columns:auto auto minmax(0,1fr) minmax(0,1fr) 32px}
+ .snapshot-review-title{grid-area:1/1/2/5}
+ #snapshotReviewClose{grid-area:1/5}
+ .snapshot-sides{grid-area:2/1}
+ .snapshot-order{grid-area:2/2}
+ .snapshot-spacing{grid-area:2/3}
+ .snapshot-size:not(.snapshot-spacing){grid-area:2/4}
+ #snapshotViewReset{grid-area:2/5}
+ .snapshot-size{grid-template-columns:auto minmax(80px,1fr) 44px auto}
+ .snapshot-size:not(.snapshot-spacing){grid-template-columns:auto minmax(80px,1fr) 44px}
+ .snapshot-size input[type=range]{width:100%}
+}
+@container(max-width:760px){
+ .snapshot-review-head{grid-template-columns:auto minmax(0,1fr) 32px}
+ .snapshot-review-title{grid-area:1/1/2/3}
+ #snapshotReviewClose{grid-area:1/3}
+ .snapshot-sides{grid-area:2/1;justify-self:start}
+ .snapshot-order{grid-area:2/2;justify-self:start}
+ #snapshotViewReset{grid-area:2/3}
+ .snapshot-spacing{grid-area:3/1/4/4}
+ .snapshot-size:not(.snapshot-spacing){grid-area:4/1/5/4}
+ .snapshot-size,.snapshot-size:not(.snapshot-spacing){grid-template-columns:46px minmax(0,1fr) 44px 16px}
+}
