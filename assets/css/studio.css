@@ -1041,9 +1041,9 @@ body.present .stage-reset,body.present .stage-help{display:none}
 /* Artist bio: share the Info panel styling and existing responsive logo height. */
 #btnArtist{border:0;border-radius:0;font:inherit;cursor:pointer;position:relative}
 #btnArtist:hover{opacity:.75}
-#btnArtist:focus-visible,#artistDialog a:focus-visible,#artistClose:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
+#btnArtist:focus-visible,#artistDialog a:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
 #mobileMark{display:none;fill:none;color:inherit;flex:0 0 auto}
-#artistBio{margin:0;font-size:12px;line-height:1.65;color:var(--graphite)}
+#artistBio{margin:0;text-align:justify;text-align-last:left;font-size:12px;line-height:1.65;color:var(--graphite)}
 .artistLinks{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;column-gap:24px;row-gap:4px;margin-top:18px}
 .artistLinks a{display:inline-flex;align-items:center;gap:5px;min-height:44px;color:var(--ink);font-size:12px;text-decoration:underline;text-underline-offset:3px}
 .artistLinks a:hover{text-decoration-thickness:2px}
@@ -1053,8 +1053,6 @@ body.present .stage-reset,body.present .stage-help{display:none}
   #btnArtist::before{content:"";position:absolute;inset:-9px}
 }
 
-/* Headerless artist bio; close control occupies only its own corner. */
-#artistClose{float:right;margin:-8px -10px 4px 12px}
 #artistDialog .artistLinks{clear:both}
 
 #uiTooltip{max-width:min(260px,calc(100vw - 16px));overflow-wrap:anywhere}

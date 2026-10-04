@@ -5,7 +5,7 @@ import {downloadBlob,cleanFilename} from './design-format.js?v=91-present23';
 const $=id=>document.getElementById(id);
 export function installSnapshots(api){
   const store=createSnapshotStore(),section=$('snapshotsSection'),review=$('snapshotReview');
-  let entries=[],selected=null,working=false,reviewing=false,returnFocus=null,galleryScale=null,statusTimer;
+  let entries=[],selected=null,working=false,reviewing=false,returnFocus=null,galleryScale=null,statusTimer,revealGeneration=0;
   const disclosure=createCaptureDisclosure(),sides=new Map(),urls=new Map();
   const mobile=matchMedia('(max-width:820px), (pointer:coarse)');
   const message=(text,temporary=false)=>{clearTimeout(statusTimer);for(const id of ['snapshotStatus','snapshotReviewStatus']){$(id).textContent=text;$(id).hidden=!text;}if(temporary)statusTimer=setTimeout(()=>message(''),2500);};
@@ -69,7 +69,19 @@ export function installSnapshots(api){
   }
   function empty(grid){const text=document.createElement('p');text.className='snapshot-note';text.textContent='Capture a design with + to start your collection.';grid.append(text);}
   function renderSidebar(){const grid=$('snapshotGrid');grid.replaceChildren(...entries.map(entry=>card(entry,false)));if(!entries.length)empty(grid);}
-  function renderReview(){const grid=$('snapshotReviewGrid');grid.replaceChildren(...entries.map(entry=>card(entry,true)));if(!entries.length)empty(grid);syncSides();syncSelected();layoutReview();}
+  async function revealReview(cards,generation){
+    for(const card of cards){
+      if(generation!==revealGeneration||!reviewing)return;
+      const images=Array.from(card.querySelectorAll('img'));
+      let timer;
+      await Promise.race([Promise.all(images.map(image=>{image.loading='eager';return image.decode().catch(()=>{});})),new Promise(resolve=>{timer=setTimeout(resolve,10000);})]);
+      clearTimeout(timer);
+      if(generation!==revealGeneration||!reviewing)return;
+      card.classList.remove('snapshot-pending');
+    }
+  }
+  function renderReview(){const grid=$('snapshotReviewGrid'),cards=entries.map(entry=>card(entry,true)),generation=++revealGeneration;for(const card of cards)card.classList.add('snapshot-pending');grid.replaceChildren(...cards);if(!entries.length)empty(grid);syncSides();syncSelected();layoutReview();void revealReview(cards,generation);}
+
   function render(){ $('snapshotCount').textContent=$('snapshotReviewCount').textContent=String(entries.length);renderSidebar();if(reviewing)renderReview();syncSelected();if(working)lock(true); }
   const laidOutCards=new WeakSet();
   function fitReviewLabels(){
@@ -82,7 +94,7 @@ export function installSnapshots(api){
   }
   document.fonts?.ready.then(()=>{if(reviewing)fitReviewLabels();});
   function layoutReview(){
-    if(!reviewing)return;const grid=$('snapshotReviewGrid'),gap=parseFloat(getComputedStyle(grid).columnGap)||8;
+    if(!reviewing)return;const grid=$('snapshotReviewGrid'),gap=parseFloat(getComputedStyle(grid).columnGap)||0;
     if(!entries.length){grid.style.gridTemplateColumns='1fr';grid.style.gridAutoRows='auto';return;}
     const cards=Array.from(grid.children);
     const before=new Map(cards.map(card=>[card,laidOutCards.has(card)?card.getBoundingClientRect?.():null]));
@@ -106,10 +118,14 @@ export function installSnapshots(api){
   $('snapshotSize').oninput=event=>setGalleryScale(event.target.value);$('snapshotSizeValue').onchange=event=>setGalleryScale(event.target.value);
   $('snapshotSizeReset').innerHTML=api.resetIcon;$('snapshotSizeReset').onclick=()=>{galleryScale=null;layoutReview();};
   tip($('snapshotSize'),'Thumbnail size','Resize gallery tiles. 100% is the largest size that fits the viewer.');tip($('snapshotSizeValue'),'Thumbnail size percent','Enter a gallery tile size up to 100 percent. The minimum keeps card actions usable.');tip($('snapshotSizeReset'),'Reset size','Reset size — fit the gallery to the available space and number of designs.');
+  function setSpacing(value){const gap=Math.max(0,Math.min(80,Math.round(Number(value)||0)));$('snapshotSpacing').value=$('snapshotSpacingValue').value=String(gap);$('snapshotReviewGrid').style.gap=gap+'px';layoutReview();}
+  $('snapshotSpacing').oninput=event=>setSpacing(event.target.value);$('snapshotSpacingValue').onchange=event=>setSpacing(event.target.value);
+  $('snapshotSpacingReset').innerHTML=api.resetIcon;$('snapshotSpacingReset').onclick=()=>setSpacing(24);
+  tip($('snapshotSpacing'),'Image spacing','Adjust the horizontal and vertical gaps between snapshot tiles.');tip($('snapshotSpacingValue'),'Image spacing in pixels');tip($('snapshotSpacingReset'),'Reset spacing','Restore the default image spacing.');
   const reviewObserver=new ResizeObserver(layoutReview);reviewObserver.observe($('snapshotReviewGrid'));
   function mobileMode(){const modal=reviewing&&mobile.matches;review.setAttribute('role',modal?'dialog':'region');if(modal)review.setAttribute('aria-modal','true');else review.removeAttribute('aria-modal');for(const el of [document.querySelector('header'),$('panel')])el.inert=modal;}
   function openReview(){if(working||!api.canReview())return;returnFocus=document.activeElement;reviewing=true;review.hidden=false;document.body.classList.add('snapshot-reviewing');api.reviewing(true);renderReview();mobileMode();$('snapshotReviewClose').focus();}
-  function closeReview(){if(!reviewing)return;reviewing=false;review.hidden=true;$('snapshotReviewGrid').replaceChildren();for(const [key,value] of urls)if(key.includes(':gallery:')){URL.revokeObjectURL(value);urls.delete(key);}document.body.classList.remove('snapshot-reviewing');mobileMode();api.reviewing(false);returnFocus?.focus({preventScroll:true});}
+  function closeReview(){if(!reviewing)return;++revealGeneration;reviewing=false;review.hidden=true;$('snapshotReviewGrid').replaceChildren();for(const [key,value] of urls)if(key.includes(':gallery:')){URL.revokeObjectURL(value);urls.delete(key);}document.body.classList.remove('snapshot-reviewing');mobileMode();api.reviewing(false);returnFocus?.focus({preventScroll:true});}
   const configure=(id,icon,label,detail,action)=>{const el=$(id);el.innerHTML=snapshotIcons[icon];el.classList.add('snapshot-icon');tip(el,label,detail);el.onclick=action;};
   configure('snapshotCapture','capture','Capture snapshot','Save this design with front and back previews in this browser.',()=>run(async()=>{const button=$('snapshotCapture');button.classList.add('capturing');button.setAttribute('aria-busy','true');try{await capture();if(disclosure.captured())setExpanded(true);}finally{button.classList.remove('capturing');button.removeAttribute('aria-busy');}}));
   configure('snapshotReviewOpen','review','Review snapshots','Review the saved designs side by side; click a shirt to flip it.',openReview);
