@@ -1,40 +1,28 @@
-export function reviewLayout(count,width,height,mobile=false,gap=12,percent=null){
-  width=Math.max(1,width);height=Math.max(1,height);
-  if(!count)return {width,columns:1,scroll:false,percent:100};
-  const largest=Math.max(1,Math.min(width,(height-2)*6/7)),minPercent=Math.min(100,Math.ceil(100*Math.min(mobile?96:90,largest)/largest));
-  if(percent!==null){
-    percent=Math.max(minPercent,Math.min(100,percent));
-    const cardWidth=Math.max(1,Math.floor(Math.min(width,largest*percent/100)));
-    const columns=Math.max(1,Math.min(count,Math.floor((width+gap)/(cardWidth+gap))));
-    return {width:cardWidth,columns,percent,minPercent,scroll:Math.ceil(count/columns)*(cardWidth*7/6+2)+gap*(Math.ceil(count/columns)-1)>height};
-  }
-  const minimum=mobile?145:190,maxColumns=Math.max(1,Math.floor((width+gap)/(minimum+gap)));
-  let columns;
-  if(mobile)columns=Math.min(count,2,maxColumns);
-  else if(count<=6)columns=Math.min(count===4?2:Math.min(count,3),maxColumns);
-  else{
-    let best=0;columns=1;
-    for(let c=1;c<=Math.min(count,maxColumns);c++){
-      const rows=Math.ceil(count/c),w=Math.min((width-gap*(c-1))/c,((height-gap*(rows-1))/rows-2)*6/7);
-      if(w>best){best=w;columns=c;}
-    }
-    if(best<minimum)columns=Math.min(count,maxColumns);
-  }
-  const rows=Math.ceil(count/columns),across=(width-gap*(columns-1))/columns,fit=((height-gap*(rows-1))/rows-2)*6/7;
-  const cardWidth=Math.max(1,Math.floor(Math.min(largest,across,Math.max(Math.min(minimum,across),fit))));
-  return {width:cardWidth,columns,minPercent,percent:Math.round(100*cardWidth/largest),scroll:rows*(cardWidth*7/6+2)+gap*(rows-1)>height+.5};
+export function reviewLayout(count,width,height,mobile=false,gap=80,percent=35,ratio=7/6){
+ width=Math.max(1,width);height=Math.max(1,height);
+ const largest=Math.max(1,Math.min(width,(height-27)/ratio));
+ const minPercent=Math.min(100,Math.ceil(100*Math.min(mobile?96:90,largest)/largest));
+ percent=Math.max(minPercent,Math.min(100,percent??35));
+ const cardWidth=Math.max(1,Math.floor(largest*percent/100));
+ const columns=Math.max(1,Math.min(count||1,Math.floor((width+gap)/(cardWidth+gap)))),rows=Math.ceil(count/columns);
+ return {width:cardWidth,columns,percent,minPercent,scroll:rows*(cardWidth*ratio+27)+gap*Math.max(0,rows-1)>height};
 }
 export function createCaptureDisclosure(){let first=true,explicitlyClosed=false;return {toggled(open){if(!open)explicitlyClosed=true;},captured(){const reveal=first&&!explicitlyClosed;first=false;return reveal;}};}
 
-// Fit all cards without imposing the manual-size minimum.
-export function fitReviewLayout(count,width,height,requestedGap=80){
-  width=Math.max(1,width);height=Math.max(1,height);count=Math.max(1,count);
-  const bestAt=gap=>{let best={width:0,columns:1,gap};for(let columns=1;columns<=count;columns++){
-    const rows=Math.ceil(count/columns),w=Math.floor(Math.min((width-gap*(columns-1))/columns,(height-gap*(rows-1))/rows*6/7));
-    if(w>best.width)best={width:w,columns,gap};
-  }return best;};
-  let result=bestAt(requestedGap);
-  if(result.width<90){for(let gap=requestedGap-1;gap>=0;gap--){result=bestAt(gap);if(result.width>=90)break;}}
-  const largest=Math.max(1,Math.min(width,(height-2)*6/7));
-  return {...result,width:Math.max(1,result.width),percent:Math.max(1,Math.round(100*result.width/largest)),minPercent:1,scroll:false};
+
+export function fitReviewLayout(count,width,height,_gap=80,ratio=7/6){
+ count=Math.max(1,count);width=Math.max(1,width);height=Math.max(1,height);
+ let best={width:0,columns:1,gap:0};
+ // A proportional gutter leaves room without preserving oversized manual gaps.
+ for(let columns=1;columns<=count;columns++){
+  const rows=Math.ceil(count/columns);let lo=0,hi=width;
+  for(let i=0;i<24;i++){const w=(lo+hi)/2,gap=Math.round(Math.min(80,Math.max(8,w*.12)));
+   if(columns*w+(columns-1)*gap<=width&&rows*(w*ratio+27)+(rows-1)*gap<=height)lo=w;else hi=w;
+  }
+  const w=Math.floor(lo),gap=Math.round(Math.min(80,Math.max(8,w*.12)));
+  if(w>best.width)best={width:w,columns,gap};
+ }
+ if(best.width<1){best={width:1,columns:Math.max(1,Math.floor(width/9)),gap:8};}
+ const largest=Math.max(1,Math.min(width,(height-27)/ratio)),rows=Math.ceil(count/best.columns);
+ return {...best,percent:Math.max(1,Math.round(100*best.width/largest)),minPercent:1,scroll:rows*(best.width*ratio+27)+(rows-1)*best.gap>height};
 }

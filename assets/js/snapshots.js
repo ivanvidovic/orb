@@ -1,4 +1,4 @@
-import {reviewLayout,fitReviewLayout,createCaptureDisclosure} from './snapshot-layout.js?v=91-review66';
+import {reviewLayout,fitReviewLayout,createCaptureDisclosure} from './snapshot-layout.js?v=91-labels68';
 import {snapshotIcons,snapshotTip as tip,snapshotIconButton as iconButton} from './snapshot-icons.js?v=91-layout58';
 import {createSnapshotStore} from './snapshot-store.js?v=91-gallery56';
 import {downloadBlob,cleanFilename} from './design-format.js?v=91-present23';
@@ -6,6 +6,7 @@ const $=id=>document.getElementById(id);
 export function installSnapshots(api){
   const store=createSnapshotStore(),section=$('snapshotsSection'),review=$('snapshotReview');
   let entries=[],selected=null,working=false,reviewing=false,returnFocus=null,galleryScale=35,fitAll=false,manualSide=false,statusTimer,revealGeneration=0;
+  const trimCache=new Map();
   const disclosure=createCaptureDisclosure(),sides=new Map(),urls=new Map();
   const mobile=matchMedia('(max-width:820px), (pointer:coarse)');
   const message=(text,temporary=false)=>{clearTimeout(statusTimer);for(const id of ['snapshotStatus','snapshotReviewStatus']){$(id).textContent=text;$(id).hidden=!text;}if(temporary)statusTimer=setTimeout(()=>message(''),2500);};
@@ -31,7 +32,7 @@ export function installSnapshots(api){
   function closeActions(except=null){for(const card of allCards())if(card!==except){card.classList.remove('actions-open');card.querySelector('.snapshot-more').setAttribute('aria-expanded','false');}}
   function syncSides(){const all=entries.map(e=>sides.get(e.id)||'front');for(const el of review.querySelectorAll('[data-snapshot-side]'))el.setAttribute('aria-pressed',String(!manualSide&&all.length>0&&all.every(side=>side===el.dataset.snapshotSide)));}
   function flipTip(card,entry){const side=card.dataset.side,large=card.dataset.large==='true';tip(card.querySelector('.snapshot-flip'),entry.name+', '+side,large?entry.name+' · '+side+'. Click or tap to flip; use the action icons to open or manage this design.':entry.name+' · Select this snapshot. Use its action icons to open, rename, download or delete.');}
-  function flip(entry){manualSide=true;const next=(sides.get(entry.id)||'front')==='front'?'back':'front';sides.set(entry.id,next);for(const card of allCards())if(card.dataset.snapshotId===entry.id){card.dataset.side=next;card.querySelector('.snapshot-side-label').textContent=next==='front'?'Front':'Back';flipTip(card,entry);}syncSides();if(reviewing)fitReviewLabels();}
+  function flip(entry){manualSide=true;const next=(sides.get(entry.id)||'front')==='front'?'back':'front';sides.set(entry.id,next);for(const card of allCards())if(card.dataset.snapshotId===entry.id){card.dataset.side=next;card.querySelector('.snapshot-side-label').textContent=next==='front'?'Front':'Back';flipTip(card,entry);}syncSides();if(reviewing)layoutReview();}
   function restoreActionFocus(id,large){const grid=large?$('snapshotReviewGrid'):$('snapshotGrid');const card=Array.from(grid.children).find(c=>c.dataset.snapshotId===id);card?.querySelector('.snapshot-flip').focus({preventScroll:true});}
   // Shared editor keeps tiny thumbnails free of cramped text fields and confirmations.
   const dialog=document.createElement('dialog');dialog.className='workspace-dialog snapshot-edit-dialog';dialog.setAttribute('aria-labelledby','snapshotEditTitle');
@@ -69,6 +70,21 @@ export function installSnapshots(api){
   }
   function empty(grid){const text=document.createElement('p');text.className='snapshot-note';text.textContent='Capture a design with + to start your collection.';grid.append(text);}
   function renderSidebar(){const grid=$('snapshotGrid');grid.replaceChildren(...entries.map(entry=>card(entry,false)));if(!entries.length)empty(grid);}
+  function measureBottom(image,key){
+    if(trimCache.has(key))return trimCache.get(key);
+    if(!image.naturalWidth||!image.naturalHeight)return 7/6;
+    const canvas=document.createElement('canvas');canvas.width=image.naturalWidth;canvas.height=image.naturalHeight;
+    try{const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.drawImage(image,0,0);const {data}=ctx.getImageData(0,0,canvas.width,canvas.height);
+      let bottom=canvas.height;outer:for(let y=canvas.height-1;y>=0;y--)for(let x=0;x<canvas.width;x++)if(data[(y*canvas.width+x)*4+3]>0){bottom=y+1;break outer;}
+      const ratio=bottom/canvas.width;trimCache.set(key,ratio);return ratio;
+    }catch{return 7/6;}finally{canvas.width=canvas.height=1;}
+  }
+  function sizeCard(card,width){
+    const ratio=trimCache.get(card.dataset.snapshotId+':'+card.dataset.side)||7/6;
+    card.style.setProperty('--image-height',Math.ceil(width*ratio)+'px');
+    card.style.setProperty('--source-height',(width*7/6)+'px');
+    card.style.aspectRatio='auto';card.style.height=(Math.ceil(width*ratio)+26)+'px';
+  }
   async function revealReview(cards,generation){
     for(const card of cards){
       if(generation!==revealGeneration||!reviewing)return;
@@ -77,7 +93,8 @@ export function installSnapshots(api){
       await Promise.race([Promise.all(images.map(image=>{image.loading='eager';return image.decode().catch(()=>{});})),new Promise(resolve=>{timer=setTimeout(resolve,10000);})]);
       clearTimeout(timer);
       if(generation!==revealGeneration||!reviewing)return;
-      card.classList.remove('snapshot-pending');
+      images.forEach((image,i)=>measureBottom(image,card.dataset.snapshotId+':'+(i?'back':'front')));
+      layoutReview();card.classList.remove('snapshot-pending');
     }
   }
   function renderReview(){const grid=$('snapshotReviewGrid'),cards=entries.map(entry=>card(entry,true)),generation=++revealGeneration;for(const card of cards)card.classList.add('snapshot-pending');grid.replaceChildren(...cards);if(!entries.length)empty(grid);syncSides();syncSelected();layoutReview();void revealReview(cards,generation);}
@@ -92,7 +109,7 @@ export function installSnapshots(api){
       caption.classList.toggle('name-hidden',Math.ceil(name.scrollWidth+side.scrollWidth+5)>Math.floor(caption.clientWidth));
     }
   }
-  document.fonts?.ready.then(()=>{if(reviewing)fitReviewLabels();});
+  document.fonts?.ready.then(()=>{if(reviewing)layoutReview();});
   function layoutReview(spacing){
     const groups=Array.from(review.querySelector('.snapshot-review-head').children);
     groups.forEach((el,i)=>el.classList.toggle('group-divider',i>0&&el.offsetTop===groups[i-1].offsetTop));
@@ -108,11 +125,12 @@ export function installSnapshots(api){
     const anchorTop=anchor?before.get(anchor).top:null;
     for(const card of cards)laidOutCards.add(card);
     grid.style.gap=gap+'px';
-    const layout=fitAll&&!mobile.matches?fitReviewLayout(entries.length,grid.clientWidth-4,grid.clientHeight-4,gap):reviewLayout(entries.length,grid.clientWidth-4,grid.clientHeight-4,mobile.matches,gap,galleryScale);
+    const ratio=Math.max(...entries.flatMap(entry=>['front','back'].map(side=>trimCache.get(entry.id+':'+side)||7/6)));
+    const layout=fitAll&&!mobile.matches?fitReviewLayout(entries.length,grid.clientWidth-4,grid.clientHeight-4,gap,ratio):reviewLayout(entries.length,grid.clientWidth-4,grid.clientHeight-4,mobile.matches,gap,galleryScale,ratio);
     if(fitAll&&!mobile.matches){galleryScale=layout.percent;grid.style.gap=layout.gap+'px';$('snapshotSpacing').value=$('snapshotSpacingValue').value=String(layout.gap);}
     grid.style.gridTemplateColumns=`repeat(${layout.columns},minmax(0,${layout.width}px))`;grid.style.gridAutoRows='max-content';
 
-    for(const card of cards){card.style.aspectRatio='6 / 7';card.classList.toggle('compact-actions',layout.width<152);}
+    for(const card of cards){sizeCard(card,layout.width);card.classList.toggle('compact-actions',layout.width<152);}
     if(anchor){const next=anchor.getBoundingClientRect();grid.scrollTop+=next.top-anchorTop;}
     fitReviewLabels();
     $('snapshotSize').min=$('snapshotSizeValue').min=String(layout.minPercent||1);
