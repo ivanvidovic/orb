@@ -51,6 +51,7 @@ export function createSnapshotStore(name='orb-snapshots-1:'+location.pathname.re
       return {doc:entry.doc,records,model};
     },
     async rename(id,name){await write(snapshots=>{const req=snapshots.get(id);req.onsuccess=()=>{if(req.result)snapshots.put({...req.result,name},id);};});},
+    async clear(){await write((snapshots,assets)=>{snapshots.clear();assets.clear();});},
     async remove(id){await write((snapshots,assets)=>{
       snapshots.delete(id);
       const req=snapshots.getAll();req.onsuccess=()=>{
