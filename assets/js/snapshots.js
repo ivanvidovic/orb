@@ -32,7 +32,7 @@ export function installSnapshots(api){
   function closeActions(except=null){for(const card of allCards())if(card!==except){card.classList.remove('actions-open');card.querySelector('.snapshot-more').setAttribute('aria-expanded','false');}}
   function syncSides(){const all=entries.map(e=>sides.get(e.id)||'front');for(const el of review.querySelectorAll('[data-snapshot-side]'))el.setAttribute('aria-pressed',String(!manualSide&&all.length>0&&all.every(side=>side===el.dataset.snapshotSide)));}
   function flipTip(card,entry){const side=card.dataset.side,large=card.dataset.large==='true';tip(card.querySelector('.snapshot-flip'),entry.name+', '+side,large?entry.name+' · '+side+'. Click or tap to flip; use the action icons to open or manage this design.':entry.name+' · Select this snapshot. Use its action icons to open, rename, download or delete.');}
-  function flip(entry){manualSide=true;const next=(sides.get(entry.id)||'front')==='front'?'back':'front';sides.set(entry.id,next);for(const card of allCards())if(card.dataset.snapshotId===entry.id){card.dataset.side=next;card.querySelector('.snapshot-side-label').textContent=next==='front'?'Front':'Back';flipTip(card,entry);}syncSides();if(reviewing)layoutReview();}
+  function flip(entry){manualSide=true;const next=(sides.get(entry.id)||'front')==='front'?'back':'front';sides.set(entry.id,next);for(const card of allCards())if(card.dataset.snapshotId===entry.id){card.dataset.side=next;card.querySelector('.snapshot-side-label').textContent=next==='front'?'Front':'Back';flipTip(card,entry);}syncSides();if(reviewing)fitReviewLabels();}
   function restoreActionFocus(id,large){const grid=large?$('snapshotReviewGrid'):$('snapshotGrid');const card=Array.from(grid.children).find(c=>c.dataset.snapshotId===id);card?.querySelector('.snapshot-flip').focus({preventScroll:true});}
   // Shared editor keeps tiny thumbnails free of cramped text fields and confirmations.
   const dialog=document.createElement('dialog');dialog.className='workspace-dialog snapshot-edit-dialog';dialog.setAttribute('aria-labelledby','snapshotEditTitle');
@@ -79,8 +79,12 @@ export function installSnapshots(api){
       const ratio=bottom/canvas.width;trimCache.set(key,ratio);return ratio;
     }catch{return 7/6;}finally{canvas.width=canvas.height=1;}
   }
-  function sizeCard(card,width){
-    const ratio=trimCache.get(card.dataset.snapshotId+':'+card.dataset.side)||7/6;
+  function sizeCard(card,width,ratio){
+    // Align both silhouettes to a shared baseline without changing the tile.
+    for(const side of ['front','back']){
+      const bottom=trimCache.get(card.dataset.snapshotId+':'+side)||7/6;
+      card.style.setProperty('--'+side+'-top',(Math.ceil(width*ratio)-width*bottom)+'px');
+    }
     card.style.setProperty('--image-height',Math.ceil(width*ratio)+'px');
     card.style.setProperty('--source-height',(width*7/6)+'px');
     card.style.setProperty('--art-scale',String(1-innerSpacing/100));
@@ -131,7 +135,7 @@ export function installSnapshots(api){
     if(fitAll)galleryScale=layout.percent;
     grid.style.gridTemplateColumns=`repeat(${layout.columns},minmax(0,${layout.width}px))`;grid.style.gridAutoRows='max-content';
 
-    for(const card of cards){sizeCard(card,layout.width);card.classList.toggle('compact-actions',layout.width<152);}
+    for(const card of cards){sizeCard(card,layout.width,ratio);card.classList.toggle('compact-actions',layout.width<152);}
     if(anchor){const next=anchor.getBoundingClientRect();grid.scrollTop+=next.top-anchorTop;}
     fitReviewLabels();
     $('snapshotSize').min=$('snapshotSizeValue').min=String(layout.minPercent||1);

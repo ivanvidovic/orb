@@ -27,8 +27,9 @@
 .snapshot-note{font:400 10px/1.4 var(--sans);color:var(--graphite);margin:4px 0}
 .snapshot-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;max-height:240px;overflow:auto;overscroll-behavior:contain;align-content:start;padding:2px;margin-top:6px}
 .snapshot-card{position:relative;min-width:0;min-height:0;aspect-ratio:6/7;background:var(--paper);border:0;isolation:isolate}
-.snapshot-card.selected{outline:2px solid var(--ink);outline-offset:-2px}
-.snapshot-card.selected::after{content:'';position:absolute;inset:0;border:2px solid var(--ink);pointer-events:none;z-index:6}
+.snapshot-card.selected{outline:none}
+.snapshot-card::after{content:'';position:absolute;inset:0;box-sizing:border-box;border:1px solid transparent;pointer-events:none;z-index:6}
+.snapshot-card.selected::after{border:2px solid var(--ink)}
 :is(.snapshot-section,#snapshotReview) .snapshot-flip{position:absolute;inset:0;display:block;width:100%;height:100%;min-height:0;padding:0;border:0;line-height:0;overflow:hidden;perspective:800px;background:transparent}
 .snapshot-faces{display:block;position:absolute;inset:0;transform-style:preserve-3d;transition:transform .24s ease}
 .snapshot-card[data-side=back] .snapshot-faces{transform:rotateY(180deg)}
@@ -47,7 +48,7 @@
 .snapshot-card .snapshot-more{position:absolute;bottom:26px;left:50%;transform:translateX(-50%);z-index:3;background:var(--paper)!important;opacity:0;visibility:hidden}
 .snapshot-card:focus-within .snapshot-card-actions,.snapshot-card.actions-open .snapshot-card-actions{opacity:1;visibility:visible;pointer-events:auto}
 .snapshot-card:focus-within .snapshot-more,.snapshot-card.selected .snapshot-more{opacity:1;visibility:visible}
-@media(hover:hover) and (pointer:fine){.snapshot-card:hover:not(.selected){outline:1px solid var(--rule-mid);outline-offset:-1px}.snapshot-card:hover .snapshot-card-actions{opacity:1;visibility:visible;pointer-events:auto}.snapshot-card:hover .snapshot-more{visibility:hidden}.snapshot-card:hover .snapshot-more:focus-visible{visibility:visible}}
+@media(hover:hover) and (pointer:fine){.snapshot-card:hover:not(.selected)::after{border-color:var(--rule-mid)}.snapshot-card:hover .snapshot-card-actions{opacity:1;visibility:visible;pointer-events:auto}.snapshot-card:hover .snapshot-more{visibility:hidden}.snapshot-card:hover .snapshot-more:focus-visible{visibility:visible}}
 .snapshot-card.actions-open .snapshot-more{visibility:hidden}
 #snapshotReview{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;background:var(--paper);padding:10px;gap:8px;overflow:hidden;container-type:inline-size}
 #snapshotReview[hidden],#snapshotsBody[hidden],.snapshot-note[hidden]{display:none}
@@ -153,3 +154,6 @@ body.snapshot-reviewing #stage>.stage-reset,body.snapshot-reviewing #stage>.stag
 #snapshotReviewGrid .snapshot-card-actions,#snapshotReviewGrid .snapshot-more{bottom:auto;top:calc(var(--image-height) - 8px);transform:translate(-50%,-100%)}
 
 #snapshotReviewGrid .snapshot-art{position:absolute;inset:0;display:block;overflow:hidden;transform:scale(var(--art-scale,1));transform-origin:50% 100%}
+
+#snapshotReviewGrid .snapshot-front{top:var(--front-top,0px)}
+#snapshotReviewGrid .snapshot-back{top:var(--back-top,0px)}
