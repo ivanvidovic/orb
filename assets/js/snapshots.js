@@ -1,25 +1,26 @@
-import {reviewLayout,createCaptureDisclosure} from './snapshot-layout.js?v=91-review55';
-import {createSnapshotStore} from './snapshot-store.js?v=91-review55';
+import {reviewLayout,createCaptureDisclosure} from './snapshot-layout.js?v=91-gallery56';
+import {createSnapshotStore} from './snapshot-store.js?v=91-gallery56';
 import {downloadBlob,cleanFilename} from './design-format.js?v=91-present23';
 const $=id=>document.getElementById(id);
 const button=(text,action,label)=>{const el=document.createElement('button');el.type='button';el.textContent=text;if(label)el.setAttribute('aria-label',label);el.onclick=action;return el;};
 export function installSnapshots(api){
   const store=createSnapshotStore(),section=$('snapshotsSection'),review=$('snapshotReview');
-  let entries=[],selected=null,working=false,reviewing=false,returnFocus=null;
+  let entries=[],selected=null,working=false,reviewing=false,returnFocus=null,galleryScale=null;
   const disclosure=createCaptureDisclosure();
   const sides=new Map(),urls=new Map(),mobile=matchMedia('(max-width:820px), (pointer:coarse)');
   const message=text=>{for(const id of ['snapshotStatus','snapshotReviewStatus']){$(id).textContent=text;$(id).hidden=!text;}};
-  function url(entry,side){const key=entry.id+':'+side;if(!urls.has(key))urls.set(key,URL.createObjectURL(entry.previews[side]));return urls.get(key);}
+  function url(entry,side,large=false){const key=entry.id+':'+(large?'gallery:':'thumb:')+side;if(!urls.has(key))urls.set(key,URL.createObjectURL(large?(entry.previews.gallery?.[side]||entry.previews[side]):entry.previews[side]));return urls.get(key);}
   function collectUrls(){const ids=new Set(entries.map(e=>e.id));for(const [key,value] of urls)if(!ids.has(key.split(':')[0])){URL.revokeObjectURL(value);urls.delete(key);}}
   function setExpanded(value){$('snapshotsBody').hidden=!value;$('snapshotsToggle').setAttribute('aria-expanded',String(value));$('snapshotsToggle').firstElementChild.textContent=value?'▾':'▸';}
   function lock(value){working=value;section.setAttribute('aria-busy',String(value));review.setAttribute('aria-busy',String(value));for(const el of document.querySelectorAll('#snapshotsSection button,#snapshotReview button,#snapshotReview input,#snapshotsSection input'))el.disabled=value;}
   async function run(action){if(working)return;lock(true);message('');try{await action();}catch(error){message(error.name==='QuotaExceededError'?'Snapshot storage is full. Download or delete older snapshots and try again.':error.message||'Snapshot operation failed.');}finally{lock(false);if(reviewing)mobileMode();}}
   async function refresh(){entries=await store.list();collectUrls();if(!entries.some(e=>e.id===selected))selected=entries[0]?.id||null;render();}
   async function capture({preserve=false}={}){
-    const result=await api.workspace.captureSnapshot(api.previews);
-    if(preserve)entries=await store.list();
-    const match=preserve&&entries.find(entry=>entry.fingerprint===store.fingerprint(result.data.doc));
-    if(match)return match;
+    const result=await api.workspace.captureSnapshot(api.previews,preserve?async data=>{
+      entries=await store.list();const key=await store.fingerprintData(data);
+      return entries.find(entry=>store.fingerprint(entry.doc,entry.modelKey||null)===key);
+    }:null);
+    if(result.existing)return result.existing;
     const entry=await store.save(result.data,result.previews);
     selected=entry.id;await refresh();return entry;
   }
@@ -55,7 +56,7 @@ export function installSnapshots(api){
     const card=document.createElement('article');card.className='snapshot-card';card.dataset.snapshotId=entry.id;card.dataset.side=sides.get(entry.id)||'front';
     const flipButton=button('',()=>{selected=entry.id;if(large)flip(entry);renderSidebar();if(reviewing)renderReviewActions(); },entry.name+', '+card.dataset.side+(large?'. Click to flip':'. Select snapshot'));flipButton.className='snapshot-flip';
     const faces=document.createElement('span');faces.className='snapshot-faces';
-    for(const side of ['front','back']){const image=new Image();image.src=url(entry,side);image.alt='';image.loading='lazy';image.decoding='async';image.className='snapshot-face snapshot-'+side;faces.append(image);}
+    for(const side of ['front','back']){const image=new Image();image.src=url(entry,side,large);image.alt='';image.loading='lazy';image.decoding='async';image.className='snapshot-face snapshot-'+side;faces.append(image);}
     const sideLabel=document.createElement('span');sideLabel.className='snapshot-side-label';sideLabel.textContent=card.dataset.side==='front'?'Front':'Back';flipButton.append(faces,sideLabel);
     const title=document.createElement('span');title.className='snapshot-name';title.textContent=entry.name;title.title=entry.name;card.append(flipButton,title);
     if(!large)flipButton.setAttribute('aria-pressed',String(selected===entry.id));card.classList.toggle('selected',selected===entry.id);
@@ -72,17 +73,30 @@ export function installSnapshots(api){
   function layoutReview(){
     if(!reviewing)return;
     const grid=$('snapshotReviewGrid'),style=getComputedStyle(grid),gap=parseFloat(style.columnGap)||12;
-    const layout=reviewLayout(entries.length,grid.clientWidth-4,grid.clientHeight-4,mobile.matches,gap);
+    const layout=reviewLayout(entries.length,grid.clientWidth-4,grid.clientHeight-4,mobile.matches,gap,galleryScale);
     grid.style.setProperty('--snapshot-card-width',layout.width+'px');
-    grid.style.alignContent=layout.scroll?'flex-start':'center';
+    grid.style.gridTemplateColumns=`repeat(${layout.columns}, minmax(0, ${layout.width}px))`;
+    grid.style.alignContent='start';
+    const remainder=entries.length%layout.columns;
+    Array.from(grid.children).forEach((card,i)=>{
+      const last=remainder&&i>=entries.length-remainder;
+      card.style.transform=last?`translateX(${(layout.columns-remainder)*(layout.width+gap)/2}px)`:'';
+    });
+    if(galleryScale===null){$('snapshotSize').value=String(layout.percent);$('snapshotSizeValue').value=String(layout.percent);}
+    $('snapshotSizeReset').setAttribute('aria-label','Reset thumbnail size to auto fit');
   }
+  function setGalleryScale(value){galleryScale=Math.max(1,Math.min(100,Number(value)||1));$('snapshotSize').value=$('snapshotSizeValue').value=String(galleryScale);layoutReview();}
+  $('snapshotSizeReset').innerHTML=api.resetIcon;
+  $('snapshotSize').oninput=event=>setGalleryScale(event.target.value);
+  $('snapshotSizeValue').onchange=event=>setGalleryScale(event.target.value);
+  $('snapshotSizeReset').onclick=()=>{galleryScale=null;layoutReview();};
   const reviewObserver=new ResizeObserver(layoutReview);reviewObserver.observe($('snapshotReviewGrid'));
   function mobileMode(){const modal=reviewing&&mobile.matches;review.setAttribute('role',modal?'dialog':'region');if(modal)review.setAttribute('aria-modal','true');else review.removeAttribute('aria-modal');for(const el of [document.querySelector('header'),$('panel')])el.inert=modal;}
   function openReview(){
     if(working||!api.canReview())return;returnFocus=document.activeElement;reviewing=true;review.hidden=false;document.body.classList.add('snapshot-reviewing');api.reviewing(true);renderReview();mobileMode();$('snapshotReviewClose').focus();
   }
   function closeReview(){
-    if(!reviewing)return;reviewing=false;review.hidden=true;document.body.classList.remove('snapshot-reviewing');mobileMode();api.reviewing(false);returnFocus?.focus({preventScroll:true});
+    if(!reviewing)return;reviewing=false;review.hidden=true;$('snapshotReviewGrid').replaceChildren();for(const [key,value] of urls)if(key.includes(':gallery:')){URL.revokeObjectURL(value);urls.delete(key);}document.body.classList.remove('snapshot-reviewing');mobileMode();api.reviewing(false);returnFocus?.focus({preventScroll:true});
   }
   $('snapshotCapture').onclick=()=>run(async()=>{message('Capturing front and back…');await capture();if(disclosure.captured())setExpanded(true);message('Snapshot saved.');});
   $('snapshotsToggle').onclick=()=>{const open=$('snapshotsBody').hidden;disclosure.toggled(open);setExpanded(open);};

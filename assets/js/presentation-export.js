@@ -152,17 +152,22 @@ export function installExports(api){
     working=true;let session;
     try{
       await api.prepare?.();
-      const width=480,height=560;
+      const width=1200,height=1400;
       session=captureSession(width,height);camera.aspect=width/height;
       const {center,points}=api.framing?.()||pointsAndCenter();
       const distance=fitDistance(THREE,points,center,['front','back'].map(api.viewAngles),camera.aspect,camera.fov);
-      const previews={};
+      const previews={gallery:{}};
       for(const view of ['front','back']){
         const [az,el]=api.viewAngles(view),d=distance;
         camera.position.set(center.x+d*Math.sin(el)*Math.sin(az),center.y+d*Math.cos(el),center.z+d*Math.sin(el)*Math.cos(az));camera.lookAt(center);
         const canvas=frame(width,height,{background:'current',grid:false});
-        try{previews[view]=await new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('Could not create snapshot preview.')),'image/webp',.86));}
-        finally{canvas.width=canvas.height=1;}
+        const thumb=document.createElement('canvas');thumb.width=480;thumb.height=560;
+        const encode=(image,quality)=>new Promise((resolve,reject)=>image.toBlob(blob=>blob?resolve(blob):reject(new Error('Could not create snapshot preview.')),'image/webp',quality));
+        try{
+          previews.gallery[view]=await encode(canvas,.94);
+          const context=thumb.getContext('2d');context.imageSmoothingQuality='high';context.drawImage(canvas,0,0,480,560);
+          previews[view]=await encode(thumb,.86);
+        }finally{canvas.width=canvas.height=thumb.width=thumb.height=1;}
       }
       return previews;
     }finally{try{session?.finish();}finally{working=false;}}

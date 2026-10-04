@@ -234,10 +234,10 @@ export function installWorkspace(api){
   document.addEventListener('click',e=>{if(e.target.closest('#snapshotsSection,#snapshotReview'))return;if(e.target.closest('summary,#btnPresent,#presentSettingsButton,.toolbarMenuToggle,#btnHelp,#btnArtist,#presentChooseGraphic,#btnSave,#btnExportAll,#designSave,#designOpen'))return;if(e.target.closest('#panel,header,#colorPopover'))queueMicrotask(notify);});
   window.addEventListener('beforeunload',e=>{if(ready&&revision!==savedRevision){e.preventDefault();e.returnValue='';}});
   document.addEventListener('visibilitychange',()=>{if(document.hidden)autosave();});
-  async function captureSnapshot(previews){
+  async function captureSnapshot(previews,alreadySaved){
     if(!ready||busy||restoring||api.busy())throw new Error('Wait for the current operation to finish.');
     busy=true;clearTimeout(saveTimer);api.lock(true,'Capturing snapshot…');
-    try{const data=await packageData(false);data.doc=structuredClone(data.doc);return {data,previews:await previews()};}
+    try{const data=await packageData(false);data.doc=structuredClone(data.doc);const existing=await alreadySaved?.(data);if(existing)return {existing};return {data,previews:await previews()};}
     finally{busy=false;api.lock(false);if(revision!==savedRevision)saveTimer=setTimeout(autosave,900);}
   }
   async function restoreSavedSnapshot(data){

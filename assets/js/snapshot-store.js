@@ -1,3 +1,4 @@
+import {designFingerprint,modelIdentity} from './snapshot-identity.js?v=91-gallery56';
 // Snapshot manifests reference shared source blobs; built-in GLBs are never stored.
 export function createSnapshotStore(name='orb-snapshots-1:'+location.pathname.replace(/\/index\.html$/,'/')){
   let pending;
@@ -14,14 +15,14 @@ export function createSnapshotStore(name='orb-snapshots-1:'+location.pathname.re
   }
   async function read(store,key){const db=await database();return new Promise((resolve,reject)=>{const req=db.transaction(store).objectStore(store)[key===undefined?'getAll':'get'](key);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
   async function write(action){const db=await database();return new Promise((resolve,reject)=>{const tx=db.transaction(['snapshots','assets','counters'],'readwrite');tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('Snapshot could not be saved.'));try{action(tx.objectStore('snapshots'),tx.objectStore('assets'),tx.objectStore('counters'));}catch(error){tx.abort();reject(error);}});}
-  const fingerprint=doc=>JSON.stringify(doc);
+  const fingerprint=designFingerprint;
   return {
-    fingerprint,
+    fingerprint,fingerprintData:async data=>fingerprint(data.doc,await modelIdentity(data.model)),
     async list(){return (await read('snapshots')).sort((a,b)=>b.created-a.created);},
     async save(data,previews,{name=data.doc.name}={}){
       const id=crypto.randomUUID(),doc=structuredClone(data.doc);let modelKey=null;
-      if(data.model){const hash=await crypto.subtle.digest('SHA-256',await data.model.arrayBuffer());modelKey='model-'+Array.from(new Uint8Array(hash),v=>v.toString(16).padStart(2,'0')).join('');}
-      const entry={id,name,doc,modelKey,previews,created:Date.now(),fingerprint:fingerprint(doc)};
+      modelKey=await modelIdentity(data.model);
+      const entry={id,name,doc,modelKey,previews,created:Date.now(),fingerprint:fingerprint(doc,modelKey)};
       // Allocate the number and save the snapshot in one transaction, including across tabs.
       const base=(name?.trim()||'ORB Garment').slice(0,72),key=base.normalize('NFKC').toLowerCase();
       await write((snapshots,assets,counters)=>{
