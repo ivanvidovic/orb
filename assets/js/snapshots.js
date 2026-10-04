@@ -1,119 +1,109 @@
-import {reviewLayout,createCaptureDisclosure} from './snapshot-layout.js?v=91-gallery56';
+import {reviewLayout,mosaicLayout,createCaptureDisclosure} from './snapshot-layout.js?v=91-interface57';
+import {snapshotIcons,snapshotTip as tip,snapshotIconButton as iconButton} from './snapshot-icons.js?v=91-interface57';
 import {createSnapshotStore} from './snapshot-store.js?v=91-gallery56';
 import {downloadBlob,cleanFilename} from './design-format.js?v=91-present23';
 const $=id=>document.getElementById(id);
-const button=(text,action,label)=>{const el=document.createElement('button');el.type='button';el.textContent=text;if(label)el.setAttribute('aria-label',label);el.onclick=action;return el;};
 export function installSnapshots(api){
   const store=createSnapshotStore(),section=$('snapshotsSection'),review=$('snapshotReview');
-  let entries=[],selected=null,working=false,reviewing=false,returnFocus=null,galleryScale=null;
-  const disclosure=createCaptureDisclosure();
-  const sides=new Map(),urls=new Map(),mobile=matchMedia('(max-width:820px), (pointer:coarse)');
-  const message=text=>{for(const id of ['snapshotStatus','snapshotReviewStatus']){$(id).textContent=text;$(id).hidden=!text;}};
+  let entries=[],selected=null,working=false,reviewing=false,returnFocus=null,galleryScale=null,layoutMode='grid',statusTimer;
+  const disclosure=createCaptureDisclosure(),sides=new Map(),urls=new Map();
+  const mobile=matchMedia('(max-width:820px), (pointer:coarse)');
+  const message=(text,temporary=false)=>{clearTimeout(statusTimer);for(const id of ['snapshotStatus','snapshotReviewStatus']){$(id).textContent=text;$(id).hidden=!text;}if(temporary)statusTimer=setTimeout(()=>message(''),2500);};
   function url(entry,side,large=false){const key=entry.id+':'+(large?'gallery:':'thumb:')+side;if(!urls.has(key))urls.set(key,URL.createObjectURL(large?(entry.previews.gallery?.[side]||entry.previews[side]):entry.previews[side]));return urls.get(key);}
   function collectUrls(){const ids=new Set(entries.map(e=>e.id));for(const [key,value] of urls)if(!ids.has(key.split(':')[0])){URL.revokeObjectURL(value);urls.delete(key);}}
   function setExpanded(value){$('snapshotsBody').hidden=!value;$('snapshotsToggle').setAttribute('aria-expanded',String(value));$('snapshotsToggle').firstElementChild.textContent=value?'▾':'▸';}
-  function lock(value){working=value;section.setAttribute('aria-busy',String(value));review.setAttribute('aria-busy',String(value));for(const el of document.querySelectorAll('#snapshotsSection button,#snapshotReview button,#snapshotReview input,#snapshotsSection input'))el.disabled=value;}
+  function lock(value){working=value;section.setAttribute('aria-busy',String(value));review.setAttribute('aria-busy',String(value));for(const el of document.querySelectorAll('#snapshotsSection button,#snapshotReview button,#snapshotReview input'))el.disabled=value;}
   async function run(action){if(working)return;lock(true);message('');try{await action();}catch(error){message(error.name==='QuotaExceededError'?'Snapshot storage is full. Download or delete older snapshots and try again.':error.message||'Snapshot operation failed.');}finally{lock(false);if(reviewing)mobileMode();}}
   async function refresh(){entries=await store.list();collectUrls();if(!entries.some(e=>e.id===selected))selected=entries[0]?.id||null;render();}
   async function capture({preserve=false}={}){
-    const result=await api.workspace.captureSnapshot(api.previews,preserve?async data=>{
-      entries=await store.list();const key=await store.fingerprintData(data);
-      return entries.find(entry=>store.fingerprint(entry.doc,entry.modelKey||null)===key);
-    }:null);
+    const result=await api.workspace.captureSnapshot(api.previews,preserve?async data=>{entries=await store.list();const key=await store.fingerprintData(data);return entries.find(entry=>store.fingerprint(entry.doc,entry.modelKey||null)===key);}:null);
     if(result.existing)return result.existing;
-    const entry=await store.save(result.data,result.previews);
-    selected=entry.id;await refresh();return entry;
+    const entry=await store.save(result.data,result.previews);selected=entry.id;await refresh();return entry;
   }
-  async function open(entry){
-    const data=await store.load(entry.id);api.workspace.checkSnapshot(data);
-    // Commit the current design before replacing it. A storage failure aborts opening.
-    await capture({preserve:true});
-    await api.workspace.restoreSavedSnapshot(data);closeReview();
-    selected=entry.id;render();message('Snapshot opened. Your previous design is in the collection.');
-  }
+  async function open(entry){const data=await store.load(entry.id);api.workspace.checkSnapshot(data);await capture({preserve:true});await api.workspace.restoreSavedSnapshot(data);closeReview();selected=entry.id;render();message('Snapshot opened. Your previous design is in the collection.',true);}
   async function download(entry){const data=await store.load(entry.id);data.doc={...data.doc,name:entry.name};downloadBlob(await api.workspace.archiveData(data),cleanFilename(entry.name)+'.orb');}
-  function actions(entry){
-    const row=document.createElement('div');row.className='snapshot-actions';
-    row.append(button('Open design',()=>run(()=>open(entry))),button('↓',()=>run(()=>download(entry)),'Download '+entry.name+' as .orb'),button('Rename',()=>rename(entry,row)),button('×',()=>remove(entry,row),'Delete '+entry.name));
-    return row;
+  function allCards(){return document.querySelectorAll('#snapshotGrid .snapshot-card,#snapshotReviewGrid .snapshot-card');}
+  function syncSelected(){
+    const entry=entries.find(e=>e.id===selected),name=$('snapshotSelectedName');name.textContent=entry?.name||'';tip(name,entry?'Selected design: '+entry.name:'No snapshot selected');
+    for(const card of allCards()){const chosen=card.dataset.snapshotId===selected;card.classList.toggle('selected',chosen);card.querySelector('.snapshot-flip').setAttribute('aria-pressed',String(chosen));}
   }
-  function rename(entry,row){
-    if(working)return;row.replaceChildren();const input=document.createElement('input');input.type='text';input.maxLength=80;input.value=entry.name;input.setAttribute('aria-label','Snapshot name');
-    const save=()=>run(async()=>{const name=input.value.trim();if(!name){input.focus();return;}await store.rename(entry.id,name);await refresh();});
-    input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();save();}if(e.key==='Escape'){e.stopPropagation();render();}};
-    row.append(input,button('Save',save),button('Cancel',render));input.focus();input.select();
-  }
-  function remove(entry,row){
-    if(working)return;row.replaceChildren();const label=document.createElement('span');label.textContent='Delete snapshot?';row.append(label,button('Delete',()=>run(async()=>{await store.remove(entry.id);sides.delete(entry.id);await refresh();})),button('Cancel',render));
-  }
+  function select(entry){selected=entry.id;syncSelected();}
+  function closeActions(except=null){for(const card of allCards())if(card!==except){card.classList.remove('actions-open');card.querySelector('.snapshot-more').setAttribute('aria-expanded','false');}}
   function syncSides(){const all=entries.map(e=>sides.get(e.id)||'front');for(const el of review.querySelectorAll('[data-snapshot-side]'))el.setAttribute('aria-pressed',String(all.length>0&&all.every(side=>side===el.dataset.snapshotSide)));}
-  function flip(entry){
-    const next=(sides.get(entry.id)||'front')==='front'?'back':'front';sides.set(entry.id,next);
-    for(const card of document.querySelectorAll('[data-snapshot-id]'))if(card.dataset.snapshotId===entry.id){card.dataset.side=next;const el=card.querySelector('.snapshot-flip');el.setAttribute('aria-label',entry.name+', '+next+'. Click to show '+(next==='front'?'back':'front'));card.querySelector('.snapshot-side-label').textContent=next==='front'?'Front':'Back';}
-    syncSides();
+  function flipTip(card,entry){const side=card.dataset.side,large=card.dataset.large==='true';tip(card.querySelector('.snapshot-flip'),entry.name+', '+side,large?entry.name+' · '+side+'. Click or tap to flip; use the action icons to open or manage this design.':entry.name+' · Select this snapshot. Use its action icons to open, rename, download or delete.');}
+  function flip(entry){const next=(sides.get(entry.id)||'front')==='front'?'back':'front';sides.set(entry.id,next);for(const card of allCards())if(card.dataset.snapshotId===entry.id){card.dataset.side=next;card.querySelector('.snapshot-side-label').textContent=next==='front'?'Front':'Back';flipTip(card,entry);}syncSides();}
+  function restoreActionFocus(id,large){const grid=large?$('snapshotReviewGrid'):$('snapshotGrid');const card=Array.from(grid.children).find(c=>c.dataset.snapshotId===id);card?.querySelector('.snapshot-flip').focus({preventScroll:true});}
+  // Shared editor keeps tiny thumbnails free of cramped text fields and confirmations.
+  const dialog=document.createElement('dialog');dialog.className='workspace-dialog snapshot-edit-dialog';dialog.setAttribute('aria-labelledby','snapshotEditTitle');
+  const heading=document.createElement('div');heading.className='snapshot-edit-heading';const title=document.createElement('span');title.id='snapshotEditTitle';title.className='lbl';heading.append(title);
+  const cancel=iconButton('close','Cancel','Cancel without changing this snapshot.',()=>dialog.close());heading.append(cancel);
+  const detail=document.createElement('p');detail.className='snapshot-note';
+  const field=document.createElement('input');field.type='text';field.maxLength=80;field.setAttribute('aria-label','Snapshot name');
+  const confirm=iconButton('confirm','Save name','Save the new snapshot name.',()=>{});const row=document.createElement('div');row.className='snapshot-edit-row';row.append(field,confirm);dialog.append(heading,detail,row);document.body.append(dialog);
+  let editReturn=null,editTask=null;
+  function edit(entry,kind,large){
+    if(working)return;select(entry);closeActions();editReturn={id:entry.id,large};
+    const rename=kind==='rename';title.textContent=rename?'Rename snapshot':'Delete snapshot?';detail.textContent=rename?'':entry.name+' will be removed from this collection. Your current design stays unchanged.';detail.hidden=rename;field.hidden=!rename;field.value=entry.name;
+    confirm.innerHTML=snapshotIcons[rename?'confirm':'remove'];tip(confirm,rename?'Save name':'Delete snapshot',rename?'Save the new snapshot name.':'Permanently remove this snapshot from the collection.');
+    editTask=async()=>{if(rename){const name=field.value.trim();if(!name){field.focus();return false;}await store.rename(entry.id,name);}else{await store.remove(entry.id);sides.delete(entry.id);}await refresh();restoreActionFocus(selected,large);return true;};
+    dialog.showModal();dialog.append($('uiTooltip'));(rename?field:cancel).focus();if(rename)field.select();
   }
+  confirm.onclick=()=>{if(working)return;const task=editTask;if(!field.hidden&&!field.value.trim()){field.focus();return;}dialog.close();run(task);};
+  field.onkeydown=event=>{if(event.key==='Enter'){event.preventDefault();confirm.click();}};
+  dialog.addEventListener('close',()=>{const tooltip=$('uiTooltip');tooltip.classList.remove('show');tooltip.setAttribute('aria-hidden','true');document.body.append(tooltip);const prior=editReturn;if(prior)restoreActionFocus(prior.id,prior.large);});
   function card(entry,large){
-    const card=document.createElement('article');card.className='snapshot-card';card.dataset.snapshotId=entry.id;card.dataset.side=sides.get(entry.id)||'front';
-    const flipButton=button('',()=>{selected=entry.id;if(large)flip(entry);renderSidebar();if(reviewing)renderReviewActions(); },entry.name+', '+card.dataset.side+(large?'. Click to flip':'. Select snapshot'));flipButton.className='snapshot-flip';
+    const card=document.createElement('article');card.className='snapshot-card';card.dataset.snapshotId=entry.id;card.dataset.side=sides.get(entry.id)||'front';card.dataset.large=String(large);
+    const flipButton=document.createElement('button');flipButton.type='button';flipButton.className='snapshot-flip';
     const faces=document.createElement('span');faces.className='snapshot-faces';
     for(const side of ['front','back']){const image=new Image();image.src=url(entry,side,large);image.alt='';image.loading='lazy';image.decoding='async';image.className='snapshot-face snapshot-'+side;faces.append(image);}
-    const sideLabel=document.createElement('span');sideLabel.className='snapshot-side-label';sideLabel.textContent=card.dataset.side==='front'?'Front':'Back';flipButton.append(faces,sideLabel);
-    const title=document.createElement('span');title.className='snapshot-name';title.textContent=entry.name;title.title=entry.name;card.append(flipButton,title);
-    if(!large)flipButton.setAttribute('aria-pressed',String(selected===entry.id));card.classList.toggle('selected',selected===entry.id);
-    return card;
+    flipButton.append(faces);card.append(flipButton);
+    const caption=document.createElement('div');caption.className='snapshot-caption';const name=document.createElement('span');name.className='snapshot-name';name.textContent=entry.name;tip(name,entry.name);const sideLabel=document.createElement('span');sideLabel.className='snapshot-side-label';sideLabel.textContent=card.dataset.side==='front'?'Front':'Back';caption.append(name,sideLabel);card.append(caption);
+    const more=iconButton('more','Snapshot actions for '+entry.name,'Open, rename, download or delete this snapshot.',()=>{const expanded=!card.classList.contains('actions-open');select(entry);closeActions(card);card.classList.toggle('actions-open',expanded);more.setAttribute('aria-expanded',String(expanded));});more.classList.add('snapshot-more');more.setAttribute('aria-expanded','false');card.append(more);
+    const actions=document.createElement('div');actions.className='snapshot-card-actions';actions.setAttribute('role','group');actions.setAttribute('aria-label','Actions for '+entry.name);
+    actions.append(iconButton('open','Open '+entry.name,'Open this editable design. Altered work is backed up first.',()=>{select(entry);run(()=>open(entry));}),iconButton('rename','Rename '+entry.name,'Rename this snapshot and its download filename.',()=>edit(entry,'rename',large)),iconButton('download','Download '+entry.name,'Download this design as an editable .orb file.',()=>{select(entry);run(()=>download(entry));}),iconButton('remove','Delete '+entry.name,'Delete this snapshot. You will be asked to confirm.',()=>edit(entry,'remove',large)));card.append(actions);
+    flipButton.onclick=()=>{const wasOpen=card.classList.contains('actions-open');select(entry);closeActions();if(large&&!wasOpen)flip(entry);};flipTip(card,entry);return card;
   }
   function empty(grid){const text=document.createElement('p');text.className='snapshot-note';text.textContent='Capture a design with + to start your collection.';grid.append(text);}
-  function renderSidebar(){
-    const grid=$('snapshotGrid');grid.replaceChildren(...entries.map(entry=>card(entry,false)));if(!entries.length)empty(grid);
-    const area=$('snapshotActions'),entry=entries.find(e=>e.id===selected);area.replaceChildren();area.hidden=!entry;if(entry)area.append(actions(entry));
-  }
-  function renderReviewActions(){const area=$('snapshotReviewActions'),entry=entries.find(e=>e.id===selected);area.replaceChildren();area.hidden=!entry;if(entry){const name=document.createElement('span');name.className='snapshot-name';name.textContent=entry.name;area.append(name,actions(entry));}for(const card of review.querySelectorAll('[data-snapshot-id]'))card.classList.toggle('selected',card.dataset.snapshotId===selected);}
-  function renderReview(){const grid=$('snapshotReviewGrid');grid.replaceChildren(...entries.map(entry=>card(entry,true)));if(!entries.length)empty(grid);syncSides();renderReviewActions();layoutReview();}
-  function render(){ $('snapshotCount').textContent=$('snapshotReviewCount').textContent=String(entries.length);renderSidebar();if(reviewing)renderReview();if(working)lock(true); }
+  function renderSidebar(){const grid=$('snapshotGrid');grid.replaceChildren(...entries.map(entry=>card(entry,false)));if(!entries.length)empty(grid);}
+  function renderReview(){const grid=$('snapshotReviewGrid');grid.replaceChildren(...entries.map(entry=>card(entry,true)));if(!entries.length)empty(grid);syncSides();syncSelected();layoutReview();}
+  function render(){ $('snapshotCount').textContent=$('snapshotReviewCount').textContent=String(entries.length);renderSidebar();if(reviewing)renderReview();syncSelected();if(working)lock(true); }
   function layoutReview(){
-    if(!reviewing)return;
-    const grid=$('snapshotReviewGrid'),style=getComputedStyle(grid),gap=parseFloat(style.columnGap)||12;
-    const layout=reviewLayout(entries.length,grid.clientWidth-4,grid.clientHeight-4,mobile.matches,gap,galleryScale);
-    grid.style.setProperty('--snapshot-card-width',layout.width+'px');
-    grid.style.gridTemplateColumns=`repeat(${layout.columns}, minmax(0, ${layout.width}px))`;
-    grid.style.alignContent='start';
+    if(!reviewing)return;const grid=$('snapshotReviewGrid'),gap=parseFloat(getComputedStyle(grid).columnGap)||8;
+    if(!entries.length){grid.style.gridTemplateColumns='1fr';grid.style.gridAutoRows='auto';return;}
+    const layout=(layoutMode==='mosaic'?mosaicLayout:reviewLayout)(entries.length,grid.clientWidth-4,grid.clientHeight-4,mobile.matches,gap,galleryScale);
+    grid.dataset.layout=layoutMode;grid.style.gridTemplateColumns=`repeat(${layout.columns},minmax(0,${layout.width}px))`;grid.style.gridAutoRows=layout.tiles?layout.width+'px':'max-content';
     const remainder=entries.length%layout.columns;
-    Array.from(grid.children).forEach((card,i)=>{
-      const last=remainder&&i>=entries.length-remainder;
-      card.style.transform=last?`translateX(${(layout.columns-remainder)*(layout.width+gap)/2}px)`:'';
-    });
-    if(galleryScale===null){$('snapshotSize').value=String(layout.percent);$('snapshotSizeValue').value=String(layout.percent);}
-    $('snapshotSizeReset').setAttribute('aria-label','Reset thumbnail size to auto fit');
+    Array.from(grid.children).forEach((card,i)=>{const tile=layout.tiles?.[i];card.style.gridColumn=tile?`${tile.x} / span ${tile.w}`:'';card.style.gridRow=tile?`${tile.y} / span ${tile.h}`:'';card.style.height=tile?'100%':'';card.style.aspectRatio=tile?'auto':'6 / 7';card.style.transform=!tile&&remainder&&i>=entries.length-remainder?`translateX(${(layout.columns-remainder)*(layout.width+gap)/2}px)`:'';card.classList.toggle('compact-actions',(tile?tile.w*layout.width+(tile.w-1)*gap:layout.width)<152);});
+    $('snapshotSize').min=$('snapshotSizeValue').min=String(layout.minPercent||1);
+    $('snapshotSize').value=$('snapshotSizeValue').value=String(layout.percent);
+    if(galleryScale!==null)galleryScale=layout.percent;
   }
-  function setGalleryScale(value){galleryScale=Math.max(1,Math.min(100,Number(value)||1));$('snapshotSize').value=$('snapshotSizeValue').value=String(galleryScale);layoutReview();}
-  $('snapshotSizeReset').innerHTML=api.resetIcon;
-  $('snapshotSize').oninput=event=>setGalleryScale(event.target.value);
-  $('snapshotSizeValue').onchange=event=>setGalleryScale(event.target.value);
-  $('snapshotSizeReset').onclick=()=>{galleryScale=null;layoutReview();};
+  function setGalleryScale(value){galleryScale=Math.max(Number($('snapshotSize').min)||1,Math.min(100,Number(value)||1));$('snapshotSize').value=$('snapshotSizeValue').value=String(galleryScale);layoutReview();}
+  $('snapshotSize').oninput=event=>setGalleryScale(event.target.value);$('snapshotSizeValue').onchange=event=>setGalleryScale(event.target.value);
+  $('snapshotSizeReset').innerHTML=api.resetIcon;$('snapshotSizeReset').onclick=()=>{galleryScale=null;layoutReview();};
+  tip($('snapshotSize'),'Thumbnail size','Resize gallery tiles. 100% is the largest size that fits the viewer.');tip($('snapshotSizeValue'),'Thumbnail size percent','Enter a gallery tile size up to 100 percent. The minimum keeps card actions usable.');tip($('snapshotSizeReset'),'Auto fit','Fit the gallery to the available space and number of designs.');
   const reviewObserver=new ResizeObserver(layoutReview);reviewObserver.observe($('snapshotReviewGrid'));
   function mobileMode(){const modal=reviewing&&mobile.matches;review.setAttribute('role',modal?'dialog':'region');if(modal)review.setAttribute('aria-modal','true');else review.removeAttribute('aria-modal');for(const el of [document.querySelector('header'),$('panel')])el.inert=modal;}
-  function openReview(){
-    if(working||!api.canReview())return;returnFocus=document.activeElement;reviewing=true;review.hidden=false;document.body.classList.add('snapshot-reviewing');api.reviewing(true);renderReview();mobileMode();$('snapshotReviewClose').focus();
-  }
-  function closeReview(){
-    if(!reviewing)return;reviewing=false;review.hidden=true;$('snapshotReviewGrid').replaceChildren();for(const [key,value] of urls)if(key.includes(':gallery:')){URL.revokeObjectURL(value);urls.delete(key);}document.body.classList.remove('snapshot-reviewing');mobileMode();api.reviewing(false);returnFocus?.focus({preventScroll:true});
-  }
-  $('snapshotCapture').onclick=()=>run(async()=>{message('Capturing front and back…');await capture();if(disclosure.captured())setExpanded(true);message('Snapshot saved.');});
-  $('snapshotsToggle').onclick=()=>{const open=$('snapshotsBody').hidden;disclosure.toggled(open);setExpanded(open);};
-  setExpanded(false);
-  $('snapshotReviewOpen').onclick=openReview;$('snapshotReviewClose').onclick=()=>{if(!working)closeReview();};
-  for(const el of review.querySelectorAll('[data-snapshot-side]'))el.onclick=()=>{for(const entry of entries)sides.set(entry.id,el.dataset.snapshotSide);renderReview();};
-  // Editing a desktop control returns to the live garment before handling the input.
-  document.addEventListener('pointerdown',event=>{if(reviewing&&!working&&!event.target.closest('#snapshotReview,#snapshotsSection')&&event.target.closest('#panel,header'))closeReview();},true);
+  function openReview(){if(working||!api.canReview())return;returnFocus=document.activeElement;reviewing=true;review.hidden=false;document.body.classList.add('snapshot-reviewing');api.reviewing(true);renderReview();mobileMode();$('snapshotReviewClose').focus();}
+  function closeReview(){if(!reviewing)return;reviewing=false;review.hidden=true;$('snapshotReviewGrid').replaceChildren();for(const [key,value] of urls)if(key.includes(':gallery:')){URL.revokeObjectURL(value);urls.delete(key);}document.body.classList.remove('snapshot-reviewing');mobileMode();api.reviewing(false);returnFocus?.focus({preventScroll:true});}
+  const configure=(id,icon,label,detail,action)=>{const el=$(id);el.innerHTML=snapshotIcons[icon];el.classList.add('snapshot-icon');tip(el,label,detail);el.onclick=action;};
+  configure('snapshotCapture','capture','Capture snapshot','Save this design with front and back previews in this browser.',()=>run(async()=>{message('Capturing front and back…');await capture();if(disclosure.captured())setExpanded(true);message('Snapshot saved.',true);}));
+  configure('snapshotReviewOpen','review','Review snapshots','Review the saved designs side by side; click a shirt to flip it.',openReview);
+  configure('snapshotReviewClose','close','Close snapshot review','Return to the live garment editor. Escape also closes review.',()=>{if(!working)closeReview();});
+  $('snapshotsToggle').onclick=()=>{const expanded=$('snapshotsBody').hidden;disclosure.toggled(expanded);setExpanded(expanded);};tip($('snapshotsToggle'),'Snapshots','Expand or collapse snapshots saved in this browser.');setExpanded(false);
+  for(const mode of ['grid','mosaic']){configure('snapshotLayout'+(mode==='grid'?'Grid':'Mosaic'),mode==='grid'?'review':'mosaic',mode==='grid'?'Grid layout':'Mosaic layout',mode==='grid'?'Equal-sized tiles for comparing designs.':'Varied tile sizes with consistent gutters and complete garments.',()=>{layoutMode=mode;for(const el of review.querySelectorAll('[data-snapshot-layout]'))el.setAttribute('aria-pressed',String(el.dataset.snapshotLayout===mode));closeActions();layoutReview();});}
+  for(const el of review.querySelectorAll('[data-snapshot-side]')){const side=el.dataset.snapshotSide;tip(el,'Show all '+side+' views','Show the '+side+' of every design. Individual shirts can still be flipped.');el.onclick=()=>{for(const entry of entries)if((sides.get(entry.id)||'front')!==side)flip(entry);syncSides();};}
+  document.addEventListener('pointerdown',event=>{if(!event.target.closest('.snapshot-card'))closeActions();if(reviewing&&!working&&!event.target.closest('#snapshotReview,#snapshotsSection')&&event.target.closest('#panel,header'))closeReview();},true);
   document.addEventListener('focusin',event=>{if(reviewing&&!working&&!mobile.matches&&!event.target.closest('#snapshotReview,#snapshotsSection')&&event.target.closest('#panel,header'))closeReview();},true);
   document.addEventListener('keydown',event=>{
+    if(document.querySelector('dialog[open]'))return;
+    if(event.key==='Escape'&&document.querySelector('.snapshot-card.actions-open')){event.preventDefault();event.stopImmediatePropagation();closeActions();return;}
     if(!reviewing)return;
     if(event.key==='Escape'&&!event.target.matches('input')){event.preventDefault();event.stopImmediatePropagation();if(!working)closeReview();return;}
-    if(event.key==='Tab'&&mobile.matches){const items=Array.from(review.querySelectorAll('button:not(:disabled),input:not(:disabled)'));const first=items[0],last=items.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}}
-    if(!event.target.matches('input')&&event.key!=='Tab'&&event.key!=='Enter'&&event.key!==' ')event.stopImmediatePropagation();
+    if(event.key==='Tab'&&mobile.matches){const items=Array.from(review.querySelectorAll('button:not(:disabled),input:not(:disabled)')).filter(el=>getComputedStyle(el).visibility!=='hidden');const first=items[0],last=items.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}}
+    if(!event.target.matches('input')&&!['Tab','Enter',' '].includes(event.key))event.stopImmediatePropagation();
   },true);
   mobile.addEventListener('change',()=>{if(reviewing){mobileMode();layoutReview();}});
-  window.addEventListener('pagehide',()=>{for(const value of urls.values())URL.revokeObjectURL(value);urls.clear();});
-  window.addEventListener('pageshow',event=>{if(event.persisted)render();});
+  window.addEventListener('pagehide',()=>{for(const value of urls.values())URL.revokeObjectURL(value);urls.clear();});window.addEventListener('pageshow',event=>{if(event.persisted)render();});
   run(refresh);
 }

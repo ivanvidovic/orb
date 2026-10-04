@@ -154,8 +154,8 @@ export function installExports(api){
       await api.prepare?.();
       const width=1200,height=1400;
       session=captureSession(width,height);camera.aspect=width/height;
-      const {center,points}=api.framing?.()||pointsAndCenter();
-      const distance=fitDistance(THREE,points,center,['front','back'].map(api.viewAngles),camera.aspect,camera.fov);
+      const {center,points}=pointsAndCenter();
+      const distance=fitDistance(THREE,points,center,['front','back'].map(api.viewAngles),camera.aspect,camera.fov,1.12);
       const previews={gallery:{}};
       for(const view of ['front','back']){
         const [az,el]=api.viewAngles(view),d=distance;
