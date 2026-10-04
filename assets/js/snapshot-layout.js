@@ -28,28 +28,29 @@ export function reviewLayout(count,width,height,mobile=false,gap=12,percent=null
 export function mosaicLayout(count,width,height,mobile=false,gap=12,percent=null){
   width=Math.max(1,width);height=Math.max(1,height);
   if(count<3||width<300){const layout=reviewLayout(count,width,height,mobile,gap,percent);return {...layout,tiles:null};}
-  const columns=mobile||width<620?2:4,tiles=[];let remaining=count,row=1;
-  while(remaining){
-    const n=remaining===6?3:remaining===7?4:remaining===8?4:Math.min(5,remaining);
-    if(columns===4){
-      if(n>=3){tiles.push({x:1,y:row,w:2,h:2});
-        if(n===3)tiles.push({x:3,y:row,w:2,h:1},{x:3,y:row+1,w:2,h:1});
-        if(n===4)tiles.push({x:3,y:row,w:2,h:1},{x:3,y:row+1,w:1,h:1},{x:4,y:row+1,w:1,h:1});
-        if(n===5)tiles.push({x:3,y:row,w:1,h:1},{x:4,y:row,w:1,h:1},{x:3,y:row+1,w:1,h:1},{x:4,y:row+1,w:1,h:1});
-        row+=2;
-      }else{for(let i=0;i<n;i++)tiles.push({x:1+i*(4/n),y:row,w:4/n,h:1});row++;}
-    }else{
-      if(n===3||n===5){tiles.push({x:1,y:row,w:1,h:2},{x:2,y:row,w:1,h:1},{x:2,y:row+1,w:1,h:1});row+=2;if(n===5){tiles.push({x:1,y:row,w:1,h:1},{x:2,y:row,w:1,h:1});row++;}}
-      else{for(let i=0;i<n;i++)tiles.push({x:1+i%2,y:row+Math.floor(i/2),w:n===1?2:1,h:1});row+=Math.ceil(n/2);}
-    }
-    remaining-=n;
-  }
-  const rows=row-1,across=(width-gap*(columns-1))/columns;
-  const maxSpan=Math.max(...tiles.map(t=>t.h));
-  const largest=Math.max(1,Math.min(across,(height-gap*(maxSpan-1))/maxSpan)),minPercent=Math.min(100,Math.ceil(100*Math.min(mobile?96:90,largest)/largest));
+  // A stable size reference lets smaller units admit more columns.
+  const largest=Math.max(1,Math.min((width-gap)/2,(height-gap)/2));
+  const minPercent=Math.min(100,Math.ceil(100*Math.min(mobile?96:90,largest)/largest));
   if(percent!==null)percent=Math.max(minPercent,Math.min(100,percent));
-  const fit=(height-gap*(rows-1))/rows;
-  const unit=percent===null?Math.min(largest,Math.max(Math.min(mobile?110:150,largest),fit)):largest*Math.max(1,Math.min(100,percent))/100;
+  const requested=percent===null?Math.min(largest,Math.max(mobile?110:150,Math.sqrt(width*height/Math.max(count,1))*.7)):largest*percent/100;
+  const columns=Math.max(2,Math.min(count,8,Math.floor((width+gap)/(requested+gap))));
+  const unit=Math.min(requested,(width-gap*(columns-1))/columns),tiles=[];
+  let remaining=count,row=1;
+  while(remaining){
+    const bandCount=2*columns-3;
+    if(columns>=3&&remaining>=bandCount){
+      tiles.push({x:1,y:row,w:2,h:2});
+      for(let y=0;y<2;y++)for(let x=3;x<=columns;x++)tiles.push({x,y:row+y,w:1,h:1});
+      remaining-=bandCount;row+=2;
+    }else if(columns===2&&remaining>=3){
+      tiles.push({x:1,y:row,w:1,h:2},{x:2,y:row,w:1,h:1},{x:2,y:row+1,w:1,h:1});remaining-=3;row+=2;
+    }else{
+      const n=Math.min(columns,remaining),base=Math.floor(columns/n),extra=columns%n;let x=1;
+      for(let i=0;i<n;i++){const w=base+(i<extra?1:0);tiles.push({x,y:row,w,h:1});x+=w;}
+      remaining-=n;row++;
+    }
+  }
+  const rows=row-1;
   return {columns,width:unit,rows,tiles,minPercent,percent:percent??Math.round(100*unit/largest),scroll:unit*rows+gap*(rows-1)>height};
 }
 export function createCaptureDisclosure(){let first=true,explicitlyClosed=false;return {toggled(open){if(!open)explicitlyClosed=true;},captured(){const reveal=first&&!explicitlyClosed;first=false;return reveal;}};}

@@ -1,5 +1,5 @@
-import {reviewLayout,mosaicLayout,createCaptureDisclosure} from './snapshot-layout.js?v=91-interface57';
-import {snapshotIcons,snapshotTip as tip,snapshotIconButton as iconButton} from './snapshot-icons.js?v=91-interface57';
+import {reviewLayout,mosaicLayout,createCaptureDisclosure} from './snapshot-layout.js?v=91-layout58';
+import {snapshotIcons,snapshotTip as tip,snapshotIconButton as iconButton} from './snapshot-icons.js?v=91-layout58';
 import {createSnapshotStore} from './snapshot-store.js?v=91-gallery56';
 import {downloadBlob,cleanFilename} from './design-format.js?v=91-present23';
 const $=id=>document.getElementById(id);
@@ -67,13 +67,28 @@ export function installSnapshots(api){
   function renderSidebar(){const grid=$('snapshotGrid');grid.replaceChildren(...entries.map(entry=>card(entry,false)));if(!entries.length)empty(grid);}
   function renderReview(){const grid=$('snapshotReviewGrid');grid.replaceChildren(...entries.map(entry=>card(entry,true)));if(!entries.length)empty(grid);syncSides();syncSelected();layoutReview();}
   function render(){ $('snapshotCount').textContent=$('snapshotReviewCount').textContent=String(entries.length);renderSidebar();if(reviewing)renderReview();syncSelected();if(working)lock(true); }
+  const layoutAnimations=new Map();
+  const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
+  const laidOutCards=new WeakSet();
   function layoutReview(){
     if(!reviewing)return;const grid=$('snapshotReviewGrid'),gap=parseFloat(getComputedStyle(grid).columnGap)||8;
     if(!entries.length){grid.style.gridTemplateColumns='1fr';grid.style.gridAutoRows='auto';return;}
+    const cards=Array.from(grid.children);
+    const before=new Map(cards.map(card=>[card,laidOutCards.has(card)?card.getBoundingClientRect?.():null]));
+    for(const card of cards)laidOutCards.add(card);
+    for(const animation of layoutAnimations.values())animation.cancel();layoutAnimations.clear();
     const layout=(layoutMode==='mosaic'?mosaicLayout:reviewLayout)(entries.length,grid.clientWidth-4,grid.clientHeight-4,mobile.matches,gap,galleryScale);
     grid.dataset.layout=layoutMode;grid.style.gridTemplateColumns=`repeat(${layout.columns},minmax(0,${layout.width}px))`;grid.style.gridAutoRows=layout.tiles?layout.width+'px':'max-content';
-    const remainder=entries.length%layout.columns;
-    Array.from(grid.children).forEach((card,i)=>{const tile=layout.tiles?.[i];card.style.gridColumn=tile?`${tile.x} / span ${tile.w}`:'';card.style.gridRow=tile?`${tile.y} / span ${tile.h}`:'';card.style.height=tile?'100%':'';card.style.aspectRatio=tile?'auto':'6 / 7';card.style.transform=!tile&&remainder&&i>=entries.length-remainder?`translateX(${(layout.columns-remainder)*(layout.width+gap)/2}px)`:'';card.classList.toggle('compact-actions',(tile?tile.w*layout.width+(tile.w-1)*gap:layout.width)<152);});
+
+    Array.from(grid.children).forEach((card,i)=>{const tile=layout.tiles?.[i];card.style.gridColumn=tile?`${tile.x} / span ${tile.w}`:'';card.style.gridRow=tile?`${tile.y} / span ${tile.h}`:'';card.style.height=tile?'100%':'';card.style.aspectRatio=tile?'auto':'6 / 7';card.style.transform='';card.classList.toggle('compact-actions',(tile?tile.w*layout.width+(tile.w-1)*gap:layout.width)<152);});
+    if(!reducedMotion.matches)for(const card of cards){
+      const old=before.get(card),next=card.getBoundingClientRect?.();
+      if(!old?.width||!old.height||!next?.width||!next.height||!card.animate)continue;
+      const dx=old.left-next.left,dy=old.top-next.top,sx=old.width/next.width,sy=old.height/next.height;
+      if(Math.abs(dx)+Math.abs(dy)+Math.abs(old.width-next.width)+Math.abs(old.height-next.height)<.5)continue;
+      const animation=card.animate([{transform:`translate(${dx}px,${dy}px) scale(${sx},${sy})`},{transform:'none'}],{duration:200,easing:'cubic-bezier(.2,.7,.2,1)'});
+      layoutAnimations.set(card,animation);animation.onfinish=()=>{if(layoutAnimations.get(card)===animation)layoutAnimations.delete(card);};
+    }
     $('snapshotSize').min=$('snapshotSizeValue').min=String(layout.minPercent||1);
     $('snapshotSize').value=$('snapshotSizeValue').value=String(layout.percent);
     if(galleryScale!==null)galleryScale=layout.percent;
@@ -81,11 +96,11 @@ export function installSnapshots(api){
   function setGalleryScale(value){galleryScale=Math.max(Number($('snapshotSize').min)||1,Math.min(100,Number(value)||1));$('snapshotSize').value=$('snapshotSizeValue').value=String(galleryScale);layoutReview();}
   $('snapshotSize').oninput=event=>setGalleryScale(event.target.value);$('snapshotSizeValue').onchange=event=>setGalleryScale(event.target.value);
   $('snapshotSizeReset').innerHTML=api.resetIcon;$('snapshotSizeReset').onclick=()=>{galleryScale=null;layoutReview();};
-  tip($('snapshotSize'),'Thumbnail size','Resize gallery tiles. 100% is the largest size that fits the viewer.');tip($('snapshotSizeValue'),'Thumbnail size percent','Enter a gallery tile size up to 100 percent. The minimum keeps card actions usable.');tip($('snapshotSizeReset'),'Auto fit','Fit the gallery to the available space and number of designs.');
+  tip($('snapshotSize'),'Thumbnail size','Resize gallery tiles. 100% is the largest size that fits the viewer.');tip($('snapshotSizeValue'),'Thumbnail size percent','Enter a gallery tile size up to 100 percent. The minimum keeps card actions usable.');tip($('snapshotSizeReset'),'Reset size','Reset size — fit the gallery to the available space and number of designs.');
   const reviewObserver=new ResizeObserver(layoutReview);reviewObserver.observe($('snapshotReviewGrid'));
   function mobileMode(){const modal=reviewing&&mobile.matches;review.setAttribute('role',modal?'dialog':'region');if(modal)review.setAttribute('aria-modal','true');else review.removeAttribute('aria-modal');for(const el of [document.querySelector('header'),$('panel')])el.inert=modal;}
   function openReview(){if(working||!api.canReview())return;returnFocus=document.activeElement;reviewing=true;review.hidden=false;document.body.classList.add('snapshot-reviewing');api.reviewing(true);renderReview();mobileMode();$('snapshotReviewClose').focus();}
-  function closeReview(){if(!reviewing)return;reviewing=false;review.hidden=true;$('snapshotReviewGrid').replaceChildren();for(const [key,value] of urls)if(key.includes(':gallery:')){URL.revokeObjectURL(value);urls.delete(key);}document.body.classList.remove('snapshot-reviewing');mobileMode();api.reviewing(false);returnFocus?.focus({preventScroll:true});}
+  function closeReview(){if(!reviewing)return;for(const animation of layoutAnimations.values())animation.cancel();layoutAnimations.clear();reviewing=false;review.hidden=true;$('snapshotReviewGrid').replaceChildren();for(const [key,value] of urls)if(key.includes(':gallery:')){URL.revokeObjectURL(value);urls.delete(key);}document.body.classList.remove('snapshot-reviewing');mobileMode();api.reviewing(false);returnFocus?.focus({preventScroll:true});}
   const configure=(id,icon,label,detail,action)=>{const el=$(id);el.innerHTML=snapshotIcons[icon];el.classList.add('snapshot-icon');tip(el,label,detail);el.onclick=action;};
   configure('snapshotCapture','capture','Capture snapshot','Save this design with front and back previews in this browser.',()=>run(async()=>{message('Capturing front and back…');await capture();if(disclosure.captured())setExpanded(true);message('Snapshot saved.',true);}));
   configure('snapshotReviewOpen','review','Review snapshots','Review the saved designs side by side; click a shirt to flip it.',openReview);
