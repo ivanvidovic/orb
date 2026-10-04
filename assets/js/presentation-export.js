@@ -147,10 +147,21 @@ export function installExports(api){
     }catch(error){$('designStatus').textContent=error.message||'The image could not be saved.';}
     finally{session?.finish();working=false;api.lock(false);}
   };
+  // Cover only the live canvas while the existing renderer captures other views.
+  function holdSnapshotView(){
+    const source=renderer.domElement,held=document.createElement('canvas');
+    held.width=Math.max(1,Math.round(source.clientWidth));held.height=Math.max(1,Math.round(source.clientHeight));
+    const context=held.getContext('2d');if(!context)throw new Error('Could not prepare snapshot preview.');
+    context.drawImage(source,0,0,held.width,held.height);
+    held.setAttribute('aria-hidden','true');held.style.cssText='position:absolute;inset:0;width:100%;height:100%;pointer-events:none;';
+    const visibility=source.style.visibility;source.after(held);source.style.visibility='hidden';
+    return ()=>{source.style.visibility=visibility;held.remove();held.width=held.height=1;};
+  }
   return {async snapshotPreviews(){
     if(working||preparing||!api.current())throw new Error('The garment is not ready for a snapshot.');
-    working=true;let session;
+    working=true;let session,releaseView;
     try{
+      releaseView=holdSnapshotView();
       await api.prepare?.();
       const width=1200,height=1400;
       session=captureSession(width,height);shirtShadow.visible=false;camera.aspect=width/height;
@@ -170,7 +181,7 @@ export function installExports(api){
         }finally{canvas.width=canvas.height=thumb.width=thumb.height=1;}
       }
       return previews;
-    }finally{try{session?.finish();}finally{working=false;}}
+    }finally{try{session?.finish();}finally{releaseView?.();working=false;}}
   }};
 
 }

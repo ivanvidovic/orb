@@ -4,7 +4,7 @@ export function reviewLayout(count,width,height,mobile=false,gap=12,percent=null
   const largest=Math.max(1,Math.min(width,(height-2)*6/7)),minPercent=Math.min(100,Math.ceil(100*Math.min(mobile?96:90,largest)/largest));
   if(percent!==null){
     percent=Math.max(minPercent,Math.min(100,percent));
-    const cardWidth=Math.min(width,largest*percent/100);
+    const cardWidth=Math.max(1,Math.floor(Math.min(width,largest*percent/100)));
     const columns=Math.max(1,Math.min(count,Math.floor((width+gap)/(cardWidth+gap))));
     return {width:cardWidth,columns,percent,minPercent,scroll:Math.ceil(count/columns)*(cardWidth*7/6+2)+gap*(Math.ceil(count/columns)-1)>height};
   }
@@ -21,7 +21,7 @@ export function reviewLayout(count,width,height,mobile=false,gap=12,percent=null
     if(best<minimum)columns=Math.min(count,maxColumns);
   }
   const rows=Math.ceil(count/columns),across=(width-gap*(columns-1))/columns,fit=((height-gap*(rows-1))/rows-2)*6/7;
-  const cardWidth=Math.floor(Math.min(largest,across,Math.max(Math.min(minimum,across),fit))*100)/100;
+  const cardWidth=Math.max(1,Math.floor(Math.min(largest,across,Math.max(Math.min(minimum,across),fit))));
   return {width:cardWidth,columns,minPercent,percent:Math.round(100*cardWidth/largest),scroll:rows*(cardWidth*7/6+2)+gap*(rows-1)>height+.5};
 }
 export function createCaptureDisclosure(){let first=true,explicitlyClosed=false;return {toggled(open){if(!open)explicitlyClosed=true;},captured(){const reveal=first&&!explicitlyClosed;first=false;return reveal;}};}
