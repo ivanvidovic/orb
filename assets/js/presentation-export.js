@@ -149,13 +149,19 @@ export function installExports(api){
   };
   // Cover only the live canvas while the existing renderer captures other views.
   function holdSnapshotView(){
-    const source=renderer.domElement,held=document.createElement('canvas');
-    held.width=Math.max(1,Math.round(source.clientWidth));held.height=Math.max(1,Math.round(source.clientHeight));
+    api.draw();
+    const source=renderer.domElement,stage=source.parentElement;
+    const sourceRect=source.getBoundingClientRect(),rect=stage.getBoundingClientRect();
+    const held=document.createElement('canvas'),cue=document.createElement('div');
+    held.width=Math.max(1,Math.round(rect.width));held.height=Math.max(1,Math.round(rect.height));
     const context=held.getContext('2d');if(!context)throw new Error('Could not prepare snapshot preview.');
-    context.drawImage(source,0,0,held.width,held.height);
-    held.setAttribute('aria-hidden','true');held.style.cssText='position:absolute;inset:0;width:100%;height:100%;pointer-events:none;';
-    const visibility=source.style.visibility;source.after(held);source.style.visibility='hidden';
-    return ()=>{source.style.visibility=visibility;held.remove();held.width=held.height=1;};
+    const scaleX=source.width/sourceRect.width,scaleY=source.height/sourceRect.height;
+    context.drawImage(source,(rect.left-sourceRect.left)*scaleX,(rect.top-sourceRect.top)*scaleY,rect.width*scaleX,rect.height*scaleY,0,0,held.width,held.height);
+    held.setAttribute('aria-hidden','true');held.style.cssText='position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2;';
+    cue.className='snapshot-capture-corners';cue.setAttribute('aria-hidden','true');
+    for(let i=0;i<4;i++)cue.append(document.createElement('i'));
+    const visibility=source.style.visibility;stage.append(held,cue);source.style.visibility='hidden';
+    return ()=>{source.style.visibility=visibility;held.remove();cue.remove();held.width=held.height=1;};
   }
   return {async snapshotPreviews(){
     if(working||preparing||!api.current())throw new Error('The garment is not ready for a snapshot.');
@@ -181,7 +187,7 @@ export function installExports(api){
         }finally{canvas.width=canvas.height=thumb.width=thumb.height=1;}
       }
       return previews;
-    }finally{try{session?.finish();}finally{releaseView?.();working=false;}}
+    }finally{try{session?.finish();}finally{try{if(releaseView)await new Promise(resolve=>requestAnimationFrame(resolve));}finally{releaseView?.();working=false;}}}
   }};
 
 }

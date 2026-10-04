@@ -24,7 +24,7 @@ import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-spa
 import {sharedSurfaceProfiles,fitSurfacePlacements} from './surface-layout.js?v=83';
 import {torsoFrame,torsoDistance,previousTorsoFrame,previewDistance,previousPreviewFrame} from './garment-framing.js?v=89';
 import {installWorkspace} from './workspace.js?v=91-gallery56';
-import {installExports} from './presentation-export.js?v=91-interaction63';
+import {installExports} from './presentation-export.js?v=91-capture67';
 import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=91-present23';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
 import {installColorPicker} from './color-picker.js?v=36';
@@ -3715,6 +3715,7 @@ function installDesignHistory(){
   document.addEventListener('focusout',()=>editing=null);
   document.addEventListener('pointerup',event=>{if(!state.present&&event.target.closest?.('#panel input,header input,#colorPopover'))workspace?.notify();});
   document.addEventListener('keydown',e=>{
+    if(document.querySelector('dialog[open]'))return;
     if(!(e.ctrlKey||e.metaKey)||e.altKey||e.target.closest('input,textarea,select,[contenteditable="true"]'))return;
     if(e.key.toLowerCase()==='z'||e.key.toLowerCase()==='y'){e.preventDefault();undoArtwork(e.shiftKey||e.key.toLowerCase()==='y');}
   });
