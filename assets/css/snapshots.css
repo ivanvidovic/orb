@@ -153,7 +153,21 @@ body.snapshot-reviewing #stage>.stage-reset,body.snapshot-reviewing #stage>.stag
 #snapshotReviewGrid .snapshot-caption{top:calc(var(--image-height) + 8px);bottom:auto;height:14px}
 #snapshotReviewGrid .snapshot-card-actions,#snapshotReviewGrid .snapshot-more{bottom:auto;top:calc(var(--image-height) - 8px);transform:translate(-50%,-100%)}
 
-#snapshotReviewGrid .snapshot-art{position:absolute;inset:0;display:block;overflow:hidden;transform:scale(var(--art-scale,1));transform-origin:50% 100%}
+#snapshotReviewGrid .snapshot-art{position:absolute;inset:0 0 8px;display:block;overflow:visible;transform:scale(var(--art-scale,1));transform-origin:50% 100%}
 
 #snapshotReviewGrid .snapshot-front{top:var(--front-top,0px)}
 #snapshotReviewGrid .snapshot-back{top:var(--back-top,0px)}
+
+/* Hover belongs to the complete tile, never to its image button alone. */
+:is(.snapshot-section,#snapshotReview) .snapshot-flip:hover:not(:disabled){background:transparent;border:0}
+@media(hover:hover) and (pointer:fine){.snapshot-card:hover{background:var(--wash)}}
+.snapshot-card.actions-open{background:var(--wash)}
+.snapshot-size:not(.snapshot-spacing){grid-template-columns:auto 110px 44px}
+@container(max-width:960px){.snapshot-size:not(.snapshot-spacing){grid-template-columns:auto minmax(80px,1fr) 44px}}
+@container(max-width:680px){.snapshot-size:not(.snapshot-spacing){grid-template-columns:46px minmax(0,1fr) 44px 16px}}
+/* Small tiles disclose full-size actions without changing their dimensions. */
+#snapshotReviewGrid .tiny-actions .snapshot-more{display:grid!important;opacity:1;visibility:visible}
+#snapshotReviewGrid .tiny-actions:not(.actions-open) .snapshot-card-actions{opacity:0;visibility:hidden;pointer-events:none}
+#snapshotReviewGrid .tiny-actions.actions-open{z-index:8}
+#snapshotReviewGrid .tiny-actions.actions-open .snapshot-more{visibility:hidden}
+#snapshotReviewGrid .tiny-actions .snapshot-card-actions{max-width:none}

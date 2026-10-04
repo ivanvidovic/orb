@@ -1,4 +1,4 @@
-import {reviewLayout,fitReviewLayout,createCaptureDisclosure} from './snapshot-layout.js?v=91-grid69';
+import {reviewLayout,fitReviewLayout,createCaptureDisclosure} from './snapshot-layout.js?v=91-refine71';
 import {snapshotIcons,snapshotTip as tip,snapshotIconButton as iconButton} from './snapshot-icons.js?v=91-layout58';
 import {createSnapshotStore} from './snapshot-store.js?v=91-gallery56';
 import {downloadBlob,cleanFilename} from './design-format.js?v=91-present23';
@@ -85,10 +85,10 @@ export function installSnapshots(api){
       const bottom=trimCache.get(card.dataset.snapshotId+':'+side)||7/6;
       card.style.setProperty('--'+side+'-top',(Math.ceil(width*ratio)-width*bottom)+'px');
     }
-    card.style.setProperty('--image-height',Math.ceil(width*ratio)+'px');
+    card.style.setProperty('--image-height',(Math.ceil(width*ratio)+8)+'px');
     card.style.setProperty('--source-height',(width*7/6)+'px');
     card.style.setProperty('--art-scale',String(1-innerSpacing/100));
-    card.style.aspectRatio='auto';card.style.height=(Math.ceil(width*ratio)+26)+'px';
+    card.style.aspectRatio='auto';card.style.height=(Math.ceil(width*ratio)+34)+'px';
   }
   async function revealReview(cards,generation){
     for(const card of cards){
@@ -135,16 +135,16 @@ export function installSnapshots(api){
     if(fitAll)galleryScale=layout.percent;
     grid.style.gridTemplateColumns=`repeat(${layout.columns},minmax(0,${layout.width}px))`;grid.style.gridAutoRows='max-content';
 
-    for(const card of cards){sizeCard(card,layout.width,ratio);card.classList.toggle('compact-actions',layout.width<152);}
+    for(const card of cards){sizeCard(card,layout.width,ratio);card.classList.toggle('compact-actions',layout.width<152);card.classList.toggle('tiny-actions',layout.width<110);}
     if(anchor){const next=anchor.getBoundingClientRect();grid.scrollTop+=next.top-anchorTop;}
     fitReviewLabels();
-    $('snapshotSize').min=$('snapshotSizeValue').min=String(layout.minPercent||1);
+    $('snapshotSize').min=$('snapshotSizeValue').min=String(layout.minPercent??0);
     $('snapshotSize').value=$('snapshotSizeValue').value=String(layout.percent);
     // Keep the requested size across viewport changes and reopening review.
   }
-  function setGalleryScale(value){fitAll=false;galleryScale=Math.max(Number($('snapshotSize').min)||1,Math.min(100,Number(value)||1));$('snapshotSize').value=$('snapshotSizeValue').value=String(galleryScale);layoutReview();}
+  function setGalleryScale(value){fitAll=false;galleryScale=Math.max(0,Math.min(100,Math.round(Number(value)||0)));$('snapshotSize').value=$('snapshotSizeValue').value=String(galleryScale);layoutReview();}
   $('snapshotSize').oninput=event=>setGalleryScale(event.target.value);$('snapshotSizeValue').onchange=event=>setGalleryScale(event.target.value);
-  tip($('snapshotSize'),'Thumbnail size','Resize gallery tiles. 100% fits the collection; desktop uses at least two rows for multiple designs.');tip($('snapshotSizeValue'),'Thumbnail size percent','Enter a gallery tile size up to 100 percent. The minimum keeps card actions usable.');
+  tip($('snapshotSize'),'Image size','Small to large: 0 is one quarter of maximum tile width. 100 shows two columns on desktop or one on mobile. Scroll to see additional designs.');tip($('snapshotSizeValue'),'Image size','Enter a size from 0 (small) to 100 (large).');
   function setSpacing(value){
     innerSpacing=Math.max(0,Math.min(75,Math.round(Number(value)||0)));
     $('snapshotSpacing').value=$('snapshotSpacingValue').value=String(innerSpacing);
@@ -153,7 +153,7 @@ export function installSnapshots(api){
   }
   $('snapshotSpacing').oninput=event=>setSpacing(event.target.value);$('snapshotSpacingValue').onchange=event=>setSpacing(event.target.value);
   $('snapshotViewReset').innerHTML=api.resetIcon;$('snapshotViewReset').onclick=()=>{fitAll=true;setSpacing(10);layoutReview();$('snapshotReviewGrid').scrollTop=0;};
-  function resetTip(){tip($('snapshotViewReset'),'Fit all images','Fit every design in the viewport with a little breathing room.');}resetTip();
+  function resetTip(){tip($('snapshotViewReset'),'Fit all images','Choose the largest supported size that fits the collection. Large collections may still require scrolling at minimum size.');}resetTip();
   tip($('snapshotSpacing'),'Image spacing','Shrink garments inside fixed cells. Labels and grid positions stay in place.');tip($('snapshotSpacingValue'),'Image spacing percent','0% fills the image area; 75% leaves the garment at one quarter size.');
   const reviewObserver=new ResizeObserver(layoutReview);reviewObserver.observe($('snapshotReviewGrid'));
   function mobileMode(){const modal=reviewing&&mobile.matches;review.setAttribute('role',modal?'dialog':'region');if(modal)review.setAttribute('aria-modal','true');else review.removeAttribute('aria-modal');for(const el of [document.querySelector('header'),$('panel')])el.inert=modal;}
