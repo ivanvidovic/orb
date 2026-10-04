@@ -30,7 +30,7 @@ export function installSliderControls(defaultArtworkValue){
     number.inputMode=range.dataset.logRange!==undefined||Number(number.step)<1?'decimal':'numeric';
     const label=unitLabels[range.id]||row.querySelector('label')?.childNodes[0]?.textContent?.trim()||range.getAttribute('aria-label')||range.id;
     number.setAttribute('aria-label',label+' value');range.setAttribute('aria-label',label);
-    let reset=row.querySelector('[data-reset-art-one],[data-reset-motion],.motionResetOne,[data-slider-reset]');
+    let reset=(range.dataset.sharedReset?document.getElementById(range.dataset.sharedReset):null)||row.querySelector('[data-reset-art-one],[data-reset-motion],.motionResetOne,[data-slider-reset]');
     const defaultValue=range.getAttribute('value')??range.value;
     const getDefault=()=>range.dataset.artRange!==undefined?defaultArtworkValue(range.dataset.prop):defaultValue;
     if(!reset){
