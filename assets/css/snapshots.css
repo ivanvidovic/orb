@@ -165,12 +165,13 @@ body.snapshot-reviewing #stage>.stage-reset,body.snapshot-reviewing #stage>.stag
 .snapshot-size:not(.snapshot-spacing){grid-template-columns:auto 110px 44px}
 @container(max-width:960px){.snapshot-size:not(.snapshot-spacing){grid-template-columns:auto minmax(80px,1fr) 44px}}
 @container(max-width:680px){.snapshot-size:not(.snapshot-spacing){grid-template-columns:46px minmax(0,1fr) 44px 16px}}
-/* Small tiles disclose full-size actions without changing their dimensions. */
-#snapshotReviewGrid .tiny-actions .snapshot-more{display:grid!important;opacity:1;visibility:visible}
-#snapshotReviewGrid .tiny-actions:not(.actions-open) .snapshot-card-actions{opacity:0;visibility:hidden;pointer-events:none}
-#snapshotReviewGrid .tiny-actions.actions-open{z-index:8}
-#snapshotReviewGrid .tiny-actions.actions-open .snapshot-more{visibility:hidden}
-#snapshotReviewGrid .tiny-actions .snapshot-card-actions{max-width:none}
+/* Touch needs an explicit trigger; desktop compact tiles reveal actions on hover/focus. */
+@media(hover:none), (pointer:coarse){
+ #snapshotReviewGrid .tiny-actions .snapshot-more{display:grid!important;opacity:1;visibility:visible}
+ #snapshotReviewGrid .tiny-actions:not(.actions-open):not(:has(:focus-visible)) .snapshot-card-actions{opacity:0;visibility:hidden;pointer-events:none}
+ #snapshotReviewGrid .tiny-actions.actions-open{z-index:8}
+ #snapshotReviewGrid .tiny-actions.actions-open .snapshot-more{visibility:hidden}
+}
 
 /* Review ordering is an intact toolbar group. */
 .snapshot-order{display:flex;align-items:center;gap:3px;grid-area:1/3}
@@ -260,3 +261,8 @@ body.snapshot-reviewing #stage>.stage-reset,body.snapshot-reviewing #stage>.stag
  .snapshot-spacing{grid-area:4/1/5/4}
  .snapshot-size:not(.snapshot-spacing){grid-area:5/1/6/4}
 }
+
+/* Gentle discovery cue; acknowledgment hides the dot through the existing flow. */
+.shelf-available:not([hidden]){animation:shelf-available-breathe 2s ease-in-out infinite}
+@keyframes shelf-available-breathe{0%,100%{opacity:1}50%{opacity:.25}}
+@media(prefers-reduced-motion:reduce){.shelf-available:not([hidden]){animation:none;opacity:1}}
