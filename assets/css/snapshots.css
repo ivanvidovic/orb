@@ -267,19 +267,12 @@ body.snapshot-reviewing #stage>.stage-reset,body.snapshot-reviewing #stage>.stag
 @keyframes shelf-available-breathe{0%,100%{opacity:1}50%{opacity:.25}}
 @media(prefers-reduced-motion:reduce){.shelf-available:not([hidden]){animation:none;opacity:1}}
 
-/* Review-only color control shares the existing Fit all toolbar position. */
+/* Direct native picker; review toolbar keeps the interface theme. */
 .snapshot-view-tools{display:flex;align-items:center;gap:8px;min-width:0}
-.snapshot-background{position:relative;flex:none}
-.snapshot-background>summary{display:flex;align-items:center;justify-content:center;width:28px;height:28px;padding:3px;box-sizing:border-box;border:1px solid var(--rule-mid);cursor:pointer;list-style:none}
-.snapshot-background>summary::-webkit-details-marker{display:none}
-#snapshotBackgroundChip{display:block;width:100%;height:100%;background:var(--review-background,var(--paper));border:1px solid var(--rule)}
-.snapshot-background-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:30;min-width:180px;display:grid;gap:8px;padding:10px;background:var(--paper);color:var(--ink);border:1px solid var(--rule-mid)}
-.snapshot-background-color{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:11px}
-#snapshotBackgroundColor{width:28px;height:28px;padding:2px;border:1px solid var(--rule-mid);border-radius:0;background:var(--paper);cursor:pointer}
-#snapshotBackgroundColor::-webkit-color-swatch-wrapper{padding:0}
-#snapshotBackgroundColor::-webkit-color-swatch{border:0;border-radius:0}
-#snapshotBackgroundColor::-moz-color-swatch{border:0;border-radius:0}
-#snapshotBackgroundTheme{font-size:11px;text-align:left}
-#snapshotReview{background:var(--review-background,var(--paper))}
-#snapshotReview .snapshot-review-head{background:var(--paper);z-index:21}
-#snapshotReviewGrid{color:var(--ink)}
+.snapshot-background{position:relative;display:block;flex:none;width:28px;height:28px;padding:3px;box-sizing:border-box;border:1px solid var(--rule-mid);cursor:pointer}
+#snapshotBackgroundChip{display:block;width:100%;height:100%;background:var(--paper);border:1px solid var(--rule);box-sizing:border-box}
+#snapshotBackgroundColor{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;padding:0;border:0}
+.snapshot-background:focus-within{outline:1px solid var(--ink);outline-offset:2px}
+#snapshotReview{background:var(--paper)}
+#snapshotReview .snapshot-review-head{background:var(--paper)}
+#snapshotReviewGrid{background:var(--paper);color:var(--ink)}
