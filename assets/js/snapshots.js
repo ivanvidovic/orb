@@ -1,4 +1,4 @@
-import {reviewLayout,fitReviewLayout,createCaptureDisclosure} from './snapshot-layout.js?v=91-refine71';
+import {reviewLayout,fitReviewLayout,createCaptureDisclosure} from './snapshot-layout.js?v=0.9.7';
 import {snapshotIcons,snapshotTip as tip,snapshotIconButton as iconButton} from './snapshot-icons.js?v=91-layout58';
 import {createSnapshotStore} from './snapshot-store.js?v=0.9.4';
 import {downloadBlob,cleanFilename} from './design-format.js?v=91-present23';
@@ -170,7 +170,8 @@ export function installSnapshots(api){
     for(const card of cards)laidOutCards.add(card);
     grid.style.gap=gap+'px';
     const ratio=Math.max(...entries.flatMap(entry=>['front','back'].map(side=>trimCache.get(entry.id+':'+side)||7/6)));
-    const layout=fitAll?fitReviewLayout(entries.length,grid.clientWidth-4,grid.clientHeight-4,gap,ratio,mobile.matches):reviewLayout(entries.length,grid.clientWidth-4,grid.clientHeight-4,mobile.matches,gap,galleryScale,ratio);
+    const nativeWidth=Math.min(...cards.flatMap(card=>Array.from(card.querySelectorAll('img'),image=>image.naturalWidth||480)))/Math.max(1,window.devicePixelRatio||1);
+    const layout=fitAll?fitReviewLayout(entries.length,grid.clientWidth-4,grid.clientHeight-4,gap,ratio,mobile.matches,nativeWidth):reviewLayout(entries.length,grid.clientWidth-4,grid.clientHeight-4,mobile.matches,gap,galleryScale,ratio,nativeWidth);
     if(fitAll)galleryScale=layout.percent;
     grid.style.gridTemplateColumns=`repeat(${layout.columns},minmax(0,${layout.width}px))`;grid.style.gridAutoRows='max-content';
 
@@ -179,11 +180,14 @@ export function installSnapshots(api){
     fitReviewLabels();
     $('snapshotSize').min=$('snapshotSizeValue').min=String(layout.minPercent??0);
     $('snapshotSize').value=$('snapshotSizeValue').value=String(layout.percent);
+    const sizeDescription=layout.columns+' per row. Snap to full columns without enlarging images beyond native resolution.';
+    tip($('snapshotSize'),'Image size',sizeDescription);tip($('snapshotSizeValue'),'Image size',sizeDescription);
+    $('snapshotSize').setAttribute('aria-valuetext',layout.columns+' per row');
     // Keep the requested size across viewport changes and reopening review.
   }
   function setGalleryScale(value){fitAll=false;galleryScale=Math.max(0,Math.min(100,Math.round(Number(value)||0)));$('snapshotSize').value=$('snapshotSizeValue').value=String(galleryScale);layoutReview();}
   $('snapshotSize').oninput=event=>setGalleryScale(event.target.value);$('snapshotSizeValue').onchange=event=>setGalleryScale(event.target.value);
-  tip($('snapshotSize'),'Image size','Small to large: 0 is one quarter of maximum tile width. 100 shows two columns on desktop or one on mobile. Scroll to see additional designs.');tip($('snapshotSizeValue'),'Image size','Enter a size from 0 (small) to 100 (large).');
+  tip($('snapshotSize'),'Image size','Small to large: snap to full columns that fill the row, within native image resolution. Scroll to see additional designs.');tip($('snapshotSizeValue'),'Image size','Enter a size from 0 (small) to 100 (large).');
   function setSpacing(value){
     innerSpacing=Math.max(0,Math.min(75,Math.round(Number(value)||0)));
     $('snapshotSpacing').value=$('snapshotSpacingValue').value=String(innerSpacing);
