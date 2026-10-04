@@ -6,7 +6,7 @@ const $=id=>document.getElementById(id);
 export function installSnapshots(api){
   const store=createSnapshotStore(),section=$('snapshotsSection'),review=$('snapshotReview');
   let reviewOrder=null;
-  let entries=[],selected=null,working=false,reviewing=false,returnFocus=null,galleryScale=100,fitAll=true,innerSpacing=0,manualSide=false,statusTimer,revealGeneration=0;
+  let entries=[],selected=null,working=false,reviewing=false,returnFocus=null,galleryScale=100,fitAll=true,innerSpacing=10,reviewPreparing=false,manualSide=false,statusTimer,revealGeneration=0;
   const trimCache=new Map();
   const disclosure=createCaptureDisclosure(),sides=new Map(),urls=new Map();
   const mobile=matchMedia('(max-width:820px), (pointer:coarse)');
@@ -101,15 +101,24 @@ export function installSnapshots(api){
     card.style.aspectRatio='auto';card.style.height=(Math.ceil(width*ratio)+34)+'px';
   }
   async function revealReview(cards,generation){
-    for(const card of cards){
+    // Measure all faces before exposing a layout; limit concurrent decodes on mobile.
+    for(let start=0;start<cards.length;start+=4){
       if(generation!==revealGeneration||!reviewing)return;
-      const images=Array.from(card.querySelectorAll('img'));
-      let timer;
-      await Promise.race([Promise.all(images.map(image=>{image.loading='eager';return image.decode().catch(()=>{});})),new Promise(resolve=>{timer=setTimeout(resolve,10000);})]);
-      clearTimeout(timer);
+      await Promise.all(cards.slice(start,start+4).map(async card=>{
+        const images=Array.from(card.querySelectorAll('img'));let timer;
+        await Promise.race([Promise.all(images.map(image=>{image.loading='eager';return image.decode().catch(()=>{});})),new Promise(resolve=>{timer=setTimeout(resolve,10000);})]);
+        clearTimeout(timer);
+        if(generation!==revealGeneration||!reviewing)return;
+        images.forEach((image,i)=>{const key=card.dataset.snapshotId+':'+(i?'back':'front');const ratio=measureBottom(image,key);if(!trimCache.has(key))trimCache.set(key,ratio);});
+      }));
+    }
+    if(generation!==revealGeneration||!reviewing)return;
+    reviewPreparing=false;layoutReview();
+    // Keep the ordered arrival, using the already-finalized grid.
+    for(const card of Array.from($('snapshotReviewGrid').children)){
+      await new Promise(resolve=>requestAnimationFrame(resolve));
       if(generation!==revealGeneration||!reviewing)return;
-      images.forEach((image,i)=>measureBottom(image,card.dataset.snapshotId+':'+(i?'back':'front')));
-      layoutReview();card.classList.remove('snapshot-pending');
+      card.classList.remove('snapshot-pending');
     }
   }
   function orderedEntries(){
@@ -132,7 +141,7 @@ export function installSnapshots(api){
     if(next.every((id,i)=>id===before[i]))next.push(next.shift());
     reviewOrder=next;applyReviewOrder();
   }
-  function renderReview(){const grid=$('snapshotReviewGrid'),cards=orderedEntries().map(entry=>card(entry,true)),generation=++revealGeneration;for(const card of cards)card.classList.add('snapshot-pending');grid.replaceChildren(...cards);if(!entries.length)empty(grid);syncSides();syncSelected();layoutReview();void revealReview(cards,generation);}
+  function renderReview(){reviewPreparing=true;const grid=$('snapshotReviewGrid'),cards=orderedEntries().map(entry=>card(entry,true)),generation=++revealGeneration;for(const card of cards)card.classList.add('snapshot-pending');grid.replaceChildren(...cards);if(!entries.length)empty(grid);syncSides();syncSelected();layoutReview();void revealReview(cards,generation);}
 
   function render(){ $('snapshotDeleteAll').disabled=working||!entries.length;$('snapshotCount').textContent=$('snapshotReviewCount').textContent=String(entries.length);renderSidebar();if(reviewing)renderReview();syncSelected();if(working)lock(true); }
   const laidOutCards=new WeakSet();
@@ -149,7 +158,7 @@ export function installSnapshots(api){
     const groups=Array.from(review.querySelector('.snapshot-review-head').children);
     groups.forEach((el,i)=>el.classList.toggle('group-divider',i>0&&el.offsetTop===groups[i-1].offsetTop));
     const grid=$('snapshotReviewGrid'),gap=12;
-    if(!reviewing)return;
+    if(!reviewing||reviewPreparing)return;
     if(!entries.length){grid.style.gap=gap+'px';grid.style.gridTemplateColumns='1fr';grid.style.gridAutoRows='auto';return;}
     const cards=Array.from(grid.children);
     const before=new Map(cards.map(card=>[card,laidOutCards.has(card)?card.getBoundingClientRect?.():null]));
@@ -182,8 +191,8 @@ export function installSnapshots(api){
     for(const card of $('snapshotReviewGrid').children)card.style.setProperty('--art-scale',String(1-innerSpacing/100));
   }
   $('snapshotSpacing').oninput=event=>setSpacing(event.target.value);$('snapshotSpacingValue').onchange=event=>setSpacing(event.target.value);
-  $('snapshotViewReset').innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3H3v6m12-6h6v6M3 15v6h6m12-6v6h-6"/></svg><span>Fit all</span>';$('snapshotViewReset').onclick=()=>{reviewOrder=null;applyReviewOrder();fitAll=true;setSpacing(10);layoutReview();$('snapshotReviewGrid').scrollTop=0;};
-  function resetTip(){tip($('snapshotViewReset'),'Fit all and restore newest first','Restore newest-to-oldest order and fit the collection. Large collections may still require scrolling at minimum size.');}resetTip();
+  $('snapshotViewReset').innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3H3v6m12-6h6v6M3 15v6h6m12-6v6h-6"/></svg><span>Fit all</span>';$('snapshotViewReset').onclick=()=>{fitAll=true;setSpacing(10);layoutReview();$('snapshotReviewGrid').scrollTop=0;};
+  function resetTip(){tip($('snapshotViewReset'),'Fit all images','Fit the collection without changing its order. Large collections may still require scrolling at minimum size.');}resetTip();
   tip($('snapshotSpacing'),'Image spacing','Shrink garments inside fixed cells. Labels and grid positions stay in place.');tip($('snapshotSpacingValue'),'Image spacing percent','0% fills the image area; 75% leaves the garment at one quarter size.');
   const reviewObserver=new ResizeObserver(layoutReview);reviewObserver.observe($('snapshotReviewGrid'));
   function mobileMode(){const modal=reviewing&&mobile.matches;review.setAttribute('role',modal?'dialog':'region');if(modal)review.setAttribute('aria-modal','true');else review.removeAttribute('aria-modal');for(const el of [document.querySelector('header'),$('panel')])el.inert=modal;}
@@ -192,6 +201,8 @@ export function installSnapshots(api){
   const configure=(id,icon,label,detail,action)=>{const el=$(id);el.innerHTML=snapshotIcons[icon];el.classList.add('snapshot-icon');tip(el,label,detail);el.onclick=action;};
   configure('snapshotCapture','capture','Capture snapshot','Save this design with front and back previews in this browser.',()=>run(async()=>{const button=$('snapshotCapture');button.classList.add('capturing');button.setAttribute('aria-busy','true');try{await capture();if(disclosure.captured())setExpanded(true);}finally{button.classList.remove('capturing');button.removeAttribute('aria-busy');}}));
   configure('snapshotReviewOpen','review','Review snapshots','Review the saved designs side by side; click a shirt to flip it.',openReview);
+  $('snapshotNewest').innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 20V4m-4 4 4-4 4 4M14 5h7M14 10h5M14 15h3M14 20h1"/></svg>';
+  tip($('snapshotNewest'),'Newest first','Restore newest-to-oldest order.');$('snapshotNewest').onclick=()=>{if(working)return;reviewOrder=null;applyReviewOrder();};
   $('snapshotReverse').innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16m-4-4 4 4 4-4M17 20V4m-4 4 4-4 4 4"/></svg>';
   $('snapshotShuffle').innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h3c5 0 7 12 12 12h3m-4-4 4 4-4 4M3 18h3c2 0 4-2 5-4m2-4c1-2 3-4 5-4h3m-4-4 4 4-4 4"/></svg>';
   tip($('snapshotReverse'),'Reverse order','Reverse the current review order.');$('snapshotReverse').onclick=reverseReview;

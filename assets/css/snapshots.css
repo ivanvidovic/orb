@@ -246,3 +246,17 @@ body.snapshot-reviewing #stage>.stage-reset,body.snapshot-reviewing #stage>.stag
  .snapshot-spacing{grid-area:4/1/5/4}
  .snapshot-size:not(.snapshot-spacing){grid-area:5/1/6/4}
 }
+
+.shelf-available{display:inline-block;width:5px;height:5px;margin-left:5px;vertical-align:middle;border-radius:50%;background:var(--accent)}
+.shelf-available[hidden]{display:none}
+@container(min-width:361px) and (max-width:420px){
+ .snapshot-review-head{grid-template-columns:auto minmax(0,1fr) 32px}
+ .snapshot-review-title{grid-area:1/1/2/3}
+ #snapshotReviewClose{grid-area:1/3}
+ .snapshot-sides{grid-area:2/1}
+ .snapshot-order{grid-area:2/2/3/4}
+ #snapshotViewReset{grid-area:3/1/4/3;justify-self:start}
+ #snapshotDeleteAll{grid-area:3/3}
+ .snapshot-spacing{grid-area:4/1/5/4}
+ .snapshot-size:not(.snapshot-spacing){grid-area:5/1/6/4}
+}

@@ -12,6 +12,10 @@ export function installWorkspace(api){
   let preserveRecovery=false,storageAvailable=true,recoveryBlocked=false;
   const report=(stage,error)=>{console.warn('[ORB] '+stage,error);status(stage+': '+(error?.message||error?.name||'Unavailable')+'. Use Save to keep your work.');};
   const scope=location.pathname.replace(/\/index\.html$/,'/');
+  const shelf=$('artShelf'),shelfHint=$('shelfAvailable'),shelfSeenKey='orb-library-seen:'+scope;
+  let shelfSeen=false;try{shelfSeen=localStorage.getItem(shelfSeenKey)==='1';}catch{}
+  shelf.open=false;
+  shelf.addEventListener('toggle',()=>{if(!shelf.open)return;shelfSeen=true;shelfHint.hidden=true;try{localStorage.setItem(shelfSeenKey,'1');}catch{}});
   const dbName='orb-studio-36:'+scope;
   const status=(text)=>{
     const el=$('designStatus');
@@ -85,7 +89,7 @@ export function installWorkspace(api){
   }
   function renderShelf(){
     const visible=new Map(hostedAssets);for(const id of shelfIds)if(assets.has(id))visible.set(id,assets.get(id));
-    $('shelfCount').textContent=String(visible.size);$('shelfSearch').hidden=visible.size<7;
+    $('shelfCount').textContent=String(visible.size);shelfHint.hidden=shelfSeen||shelf.open||visible.size===0;$('shelfSearch').hidden=visible.size<7;
     for(const [grid,filter,remove] of [[$('shelfGrid'),$('shelfSearch').value,true],[$('assetGrid'),'',false]]){
       grid.replaceChildren();
       for(const [id,a] of visible){if(!a.name.toLowerCase().includes(filter.toLowerCase()))continue;
