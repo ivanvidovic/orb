@@ -36,19 +36,23 @@ export function installSnapshots(api){
   // Shared editor keeps tiny thumbnails free of cramped text fields and confirmations.
   const dialog=document.createElement('dialog');dialog.className='workspace-dialog snapshot-edit-dialog';dialog.setAttribute('aria-labelledby','snapshotEditTitle');
   const heading=document.createElement('div');heading.className='snapshot-edit-heading';const title=document.createElement('span');title.id='snapshotEditTitle';title.className='lbl';heading.append(title);
-  const cancel=iconButton('close','Cancel','Cancel without changing this snapshot.',()=>dialog.close());heading.append(cancel);
+  const cancel=document.createElement('button');cancel.type='button';cancel.textContent='Cancel';cancel.onclick=()=>dialog.close();
   const detail=document.createElement('p');detail.className='snapshot-note';
   const field=document.createElement('input');field.type='text';field.maxLength=80;field.setAttribute('aria-label','Snapshot name');
-  const confirm=iconButton('confirm','Save name','Save the new snapshot name.',()=>{});const row=document.createElement('div');row.className='snapshot-edit-row';row.append(field,confirm);dialog.append(heading,detail,row);document.body.append(dialog);
+  const confirm=document.createElement('button');confirm.type='button';confirm.textContent='Save';const row=document.createElement('div');row.className='snapshot-edit-row';row.append(cancel,confirm);dialog.append(heading,detail,field,row);document.body.append(dialog);dialog.setAttribute('aria-describedby','snapshotEditDetail');detail.id='snapshotEditDetail';
   let editReturn=null,editTask=null;
   function edit(entry,kind,large){
     if(working)return;select(entry);closeActions();editReturn={id:entry.id,large};
-    const rename=kind==='rename';title.textContent=rename?'Rename snapshot':'Delete snapshot?';detail.textContent=rename?'':entry.name+' will be removed from this collection. Your current design stays unchanged.';detail.hidden=rename;field.hidden=!rename;field.value=entry.name;
-    confirm.innerHTML=snapshotIcons[rename?'confirm':'remove'];tip(confirm,rename?'Save name':'Delete snapshot',rename?'Save the new snapshot name.':'Permanently remove this snapshot from the collection.');
+    const rename=kind==='rename';title.textContent=rename?'Rename snapshot':'Delete snapshot?';detail.textContent=rename?'':'Delete '+entry.name+' from snapshots?';detail.hidden=rename;field.hidden=!rename;field.value=entry.name;
+    confirm.textContent=rename?'Save':'Delete';confirm.setAttribute('aria-label',rename?'Save snapshot name':'Delete snapshot');
     editTask=async()=>{if(rename){const name=field.value.trim();if(!name){field.focus();return false;}await store.rename(entry.id,name);}else{await store.remove(entry.id);sides.delete(entry.id);}await refresh();restoreActionFocus(selected,large);return true;};
     dialog.showModal();dialog.append($('uiTooltip'));(rename?field:cancel).focus();if(rename)field.select();
   }
   confirm.onclick=()=>{if(working)return;const task=editTask;if(!field.hidden&&!field.value.trim()){field.focus();return;}dialog.close();run(task);};
+  let backdropPress=false;
+  const outsideDialog=event=>{const r=dialog.getBoundingClientRect();return event.target===dialog&&(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom);};
+  dialog.addEventListener('pointerdown',event=>{backdropPress=outsideDialog(event);});
+  dialog.addEventListener('click',event=>{if(backdropPress&&outsideDialog(event))dialog.close();backdropPress=false;});
   field.onkeydown=event=>{if(event.key==='Enter'){event.preventDefault();confirm.click();}};
   dialog.addEventListener('close',()=>{const tooltip=$('uiTooltip');tooltip.classList.remove('show');tooltip.setAttribute('aria-hidden','true');document.body.append(tooltip);const prior=editReturn;if(prior)restoreActionFocus(prior.id,prior.large);});
   function card(entry,large){
