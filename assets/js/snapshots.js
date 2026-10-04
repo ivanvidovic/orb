@@ -57,7 +57,7 @@ export function installSnapshots(api){
     const faces=document.createElement('span');faces.className='snapshot-faces';
     for(const side of ['front','back']){const image=new Image();image.src=url(entry,side,large);image.alt='';image.loading='lazy';image.decoding='async';image.className='snapshot-face snapshot-'+side;faces.append(image);}
     flipButton.append(faces);card.append(flipButton);
-    const caption=document.createElement('div');caption.className='snapshot-caption';const name=document.createElement('span');name.className='snapshot-name';name.textContent=entry.name;tip(name,entry.name);const sideLabel=document.createElement('span');sideLabel.className='snapshot-side-label';sideLabel.textContent=card.dataset.side==='front'?'Front':'Back';caption.append(name,sideLabel);card.append(caption);
+    const caption=document.createElement('div');caption.className='snapshot-caption';const name=document.createElement('span');name.className='snapshot-name';name.textContent=entry.name;tip(name,entry.name);name.onclick=()=>flipButton.click();const sideLabel=document.createElement('span');sideLabel.className='snapshot-side-label';sideLabel.textContent=card.dataset.side==='front'?'Front':'Back';caption.append(name,sideLabel);card.append(caption);
     const more=iconButton('more','Snapshot actions for '+entry.name,'Open, rename, download or delete this snapshot.',()=>{const expanded=!card.classList.contains('actions-open');select(entry);closeActions(card);card.classList.toggle('actions-open',expanded);more.setAttribute('aria-expanded',String(expanded));});more.classList.add('snapshot-more');more.setAttribute('aria-expanded','false');card.append(more);
     const actions=document.createElement('div');actions.className='snapshot-card-actions';actions.setAttribute('role','group');actions.setAttribute('aria-label','Actions for '+entry.name);
     actions.append(iconButton('open','Open '+entry.name,'Open this editable design. Altered work is backed up first.',()=>{select(entry);run(()=>open(entry));}),iconButton('rename','Rename '+entry.name,'Rename this snapshot and its download filename.',()=>edit(entry,'rename',large)),iconButton('download','Download '+entry.name,'Download this design as an editable .orb file.',()=>{select(entry);run(()=>download(entry));}),iconButton('remove','Delete '+entry.name,'Delete this snapshot. You will be asked to confirm.',()=>edit(entry,'remove',large)));card.append(actions);
@@ -75,12 +75,18 @@ export function installSnapshots(api){
     if(!entries.length){grid.style.gridTemplateColumns='1fr';grid.style.gridAutoRows='auto';return;}
     const cards=Array.from(grid.children);
     const before=new Map(cards.map(card=>[card,laidOutCards.has(card)?card.getBoundingClientRect?.():null]));
+    // Keep a visible design at the same viewport offset when rows reflow.
+    const viewport=grid.getBoundingClientRect?.();
+    const visible=viewport?cards.filter(card=>{const r=before.get(card);return r&&r.bottom>viewport.top&&r.top<viewport.bottom;}):[];
+    const anchor=grid.scrollTop>0?(visible.find(card=>card.dataset.snapshotId===selected)||visible[0]):null;
+    const anchorTop=anchor?before.get(anchor).top:null;
     for(const card of cards)laidOutCards.add(card);
     for(const animation of layoutAnimations.values())animation.cancel();layoutAnimations.clear();
     const layout=(layoutMode==='mosaic'?mosaicLayout:reviewLayout)(entries.length,grid.clientWidth-4,grid.clientHeight-4,mobile.matches,gap,galleryScale);
     grid.dataset.layout=layoutMode;grid.style.gridTemplateColumns=`repeat(${layout.columns},minmax(0,${layout.width}px))`;grid.style.gridAutoRows=layout.tiles?layout.width+'px':'max-content';
 
     Array.from(grid.children).forEach((card,i)=>{const tile=layout.tiles?.[i];card.style.gridColumn=tile?`${tile.x} / span ${tile.w}`:'';card.style.gridRow=tile?`${tile.y} / span ${tile.h}`:'';card.style.height=tile?'100%':'';card.style.aspectRatio=tile?'auto':'6 / 7';card.style.transform='';card.classList.toggle('compact-actions',(tile?tile.w*layout.width+(tile.w-1)*gap:layout.width)<152);});
+    if(anchor){const next=anchor.getBoundingClientRect();grid.scrollTop+=next.top-anchorTop;}
     if(!reducedMotion.matches)for(const card of cards){
       const old=before.get(card),next=card.getBoundingClientRect?.();
       if(!old?.width||!old.height||!next?.width||!next.height||!card.animate)continue;

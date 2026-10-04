@@ -1,4 +1,4 @@
-import {installSnapshots} from './snapshots.js?v=91-startup59';
+import {installSnapshots} from './snapshots.js?v=91-overlay60';
 import {configureGarmentShadow} from './shadow-quality.js?v=91-shadow47';
 import {preloadCatalog} from './catalog-preload.js?v=91-shadow47';
 import {createPresentMotion} from './present-motion.js?v=91-present46';
@@ -24,7 +24,7 @@ import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-spa
 import {sharedSurfaceProfiles,fitSurfacePlacements} from './surface-layout.js?v=83';
 import {torsoFrame,torsoDistance,previousTorsoFrame,previewDistance,previousPreviewFrame} from './garment-framing.js?v=89';
 import {installWorkspace} from './workspace.js?v=91-gallery56';
-import {installExports} from './presentation-export.js?v=91-layout58';
+import {installExports} from './presentation-export.js?v=91-overlay60';
 import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=91-present23';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
 import {installColorPicker} from './color-picker.js?v=36';

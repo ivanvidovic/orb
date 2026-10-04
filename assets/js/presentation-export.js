@@ -160,7 +160,7 @@ export function installExports(api){
       for(const view of ['front','back']){
         const [az,el]=api.viewAngles(view),d=distance;
         camera.position.set(center.x+d*Math.sin(el)*Math.sin(az),center.y+d*Math.cos(el),center.z+d*Math.sin(el)*Math.cos(az));camera.lookAt(center);
-        const canvas=frame(width,height,{background:'current',grid:false});
+        const canvas=frame(width,height,{background:'transparent',grid:false});
         const thumb=document.createElement('canvas');thumb.width=480;thumb.height=560;
         const encode=(image,quality)=>new Promise((resolve,reject)=>image.toBlob(blob=>blob?resolve(blob):reject(new Error('Could not create snapshot preview.')),'image/webp',quality));
         try{
