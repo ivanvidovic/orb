@@ -1143,3 +1143,7 @@ body.present .stage-reset,body.present .stage-help{display:none}
 #artWorkspace .art-appearance-group .emission-controls{border:0;margin:6px 0 0;padding:0;gap:4px}
 #artWorkspace .art-appearance-group>.solid-settings{border-top:1px solid var(--rule);border-bottom:0;margin:10px 0 0;padding:10px 0 0}
 
+
+/* Public release identification uses the existing help typography. */
+.helpTitleRow{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 12px}
+.helpVersion{font:400 10px/1.4 var(--sans);color:var(--graphite);white-space:nowrap}
