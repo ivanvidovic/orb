@@ -1,5 +1,5 @@
 // ORB Garment Studio v0.9.15
-import {garmentPresentation,presentationPoint} from './garment-presentation.js?v=0.9.15';
+import {garmentPresentation,presentationPoint} from './garment-presentation.js?v=0.9.24';
 // Camera-only pivots from sleeve cross-section bounds at each placement height.
 // Model coordinates, before the viewer vertical offset. Print anchors are unchanged.
 export const SLEEVE_CAMERA_PIVOTS={

@@ -73,10 +73,11 @@ void main(){
 const PROJECTOR_FIELDS=Object.keys(CREATIVE_DEFAULTS).filter(k=>k.startsWith('projector')&&!['projectorTime','projectorPaused','projectorPower','projectorMotionPhase','projectorPalettePhase'].includes(k));
 export const isCreative=id=>['runway','afterglow','projector'].includes(id);
 export function runwaySample(time,activity='standard'){
- const events=activity==='gentle'?[1.2,6.8,13.1]:activity==='active'?[.5,.68,.96,2.8,3.04,5.2,5.39,5.72,8.1,8.32,10.6,10.84,11.1,14.3,14.49,14.8,17.2,17.41,18.6]:[1.2,1.44,4.9,8.1,8.37,12.6,15.8,16.02];
- const t=((time%20)+20)%20,result=[0,0,0];
+ const events=[.5,.68,.96,2.8,3.04,5.2,5.39,5.72,8.1,8.32,10.6,10.84,11.1,14.3,14.49,14.8,17.2,17.41,18.6];
+ const clock=time*(activity==='active'?1.5:activity==='gentle'?1:1.25);
+ const t=((clock%20)+20)%20,result=[0,0,0];
  events.forEach((start,i)=>{const d=(t-start+20)%20;if(d<.48){const pulse=Math.sin(Math.PI*Math.min(1,d/.065))*Math.exp(-d*7)+Math.exp(-Math.pow((d-.10)/.07,2))*.65;result[(i*7+Math.floor(i/3))%3]+=pulse;}});
- return result.map(v=>v*(activity==='active'?1.25:1));
+ return result.map(v=>v*1.25);
 }
 export function projectorValue(x,y,t,pattern,scale){
  const u=(x-.5)/Math.max(.0001,scale),v=(y-.5)/Math.max(.0001,scale);
@@ -168,7 +169,7 @@ export function createCreativeLighting(THREE,scene,uniforms,renderer,{mobile=fal
   }}
   const time=state[mode+'Time'],gain=state.lightPower/100;
   if(mode==='runway'){
-   const pace=state.runwayActivity==='active'?1.65:state.runwayActivity==='gentle'?.65:1;
+   const pace=state.runwayActivity==='active'?2.475:state.runwayActivity==='gentle'?1.65:2.0625;
    const phase=time*pace*.42;
    stage.angle=.23;stage.penumbra=.8;stage.position.set(Math.sin(phase)*.75,1.5,1.1);
    stage.target.position.set(Math.sin(phase)*.48,.04+Math.sin(phase*.63)*.12,0);

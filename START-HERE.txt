@@ -1,9 +1,0 @@
-ORB Garment Studio v91 — complete pre-hat build
-
-This is a complete folder, not an overwrite-only update. It includes the four garment models, calibration files, scripts, fonts, vendor dependencies, ORB/Fireside artwork libraries, and the existing GitHub Pages workflow.
-
-Reconstructed from the preserved pre-hat base and the original attached v91 cumulative update. All files supplied in that v91 update are byte-for-byte unchanged. No v92 hat or patch files are included.
-
-For GitHub Pages, place the contents of this folder in your repository root, commit, and push. To preview locally, serve the folder over HTTP (for example: python -m http.server 8000), then open http://localhost:8000. Opening index.html directly as a file will not load the 3D assets correctly.
-
-Personal designs stored in your browser are not part of this code archive. Save any designs you want to keep as .orb files from the interface.

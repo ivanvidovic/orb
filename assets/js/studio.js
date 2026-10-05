@@ -1,6 +1,7 @@
-import {loadHoodieKnit,configureHoodieKnit,patchHoodieKnit} from './hoodie-knit.js?v=0.9.18';
-import {fetchGarmentAsset} from './garment-asset-cache.js?v=0.9.13';
-import {garmentPresentation,presentationPoint} from './garment-presentation.js?v=0.9.15';
+import {prepareCordMetadata,adoptCordMetadata,updateCordMotion,cordMotionState} from './cord-motion.js?v=0.9.24';
+import {restoreGarmentTopology} from './embedded-garment.js?v=0.9.24';
+import {fetchGarmentAsset} from './garment-asset-cache.js?v=0.9.24';
+import {garmentPresentation,presentationPoint} from './garment-presentation.js?v=0.9.24';
 // ORB Garment Studio v0.9.18 — desktop crewnecks and garment alignment.
 import {installSnapshots} from './snapshots.js?v=0.9.10';
 import {configureGarmentShadow} from './shadow-quality.js?v=91-shadow47';
@@ -19,11 +20,11 @@ import {quadTransform,alphaBounds,flattenTransform,collectSurfaces} from './prin
 import {createTreatmentQueue,createTreatmentProcessor} from './artwork-processing.js?v=91-history13';
 import {hasPrintTexture} from './print-texture.js?v=91-history13';
 import {focusedPanelBounds,layerCustomColor} from './artwork-detail.js?v=91-history13';
-import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=91-shadow47';
-import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE,fullSleeveCamera} from './sleeve-camera.js?v=0.9.15';
+import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=0.9.24';
+import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE,fullSleeveCamera} from './sleeve-camera.js?v=0.9.24';
 import {hasDirectory} from './folder-import.js?v=58';
 import {decodeArtworkImage,normalizeArtworkFile} from './artwork-decode.js?v=91-svg21';
-import {createCityTraffic} from './city-night.js?v=43';
+import {createCityTraffic} from './city-night.js?v=0.9.24';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=82';
 import {sharedSurfaceProfiles,fitSurfacePlacements} from './surface-layout.js?v=0.9.15';
 import {torsoFrame,torsoDistance,previousTorsoFrame,previewDistance,previousPreviewFrame} from './garment-framing.js?v=0.9.13';
@@ -185,7 +186,7 @@ const lightRotationMatrix=new THREE.Matrix4();
 const effectUniforms={uBlackLight:{value:0},uGlowSceneLevel:{value:0},uAfterRotation:{value:new THREE.Matrix3()},uAfterglow:{value:0},uAfterPhase:{value:0},uAfterFade:{value:4},uAfterSpeed:{value:1},uAfterPower:{value:1}};
 const creativeLighting=createCreativeLighting(THREE,scene,effectUniforms,renderer,{mobile:MOBILE});
 function updateCreativeLighting(dt=0){creativeLighting.update(dt,state);if(state.selfShadows&&isCreative(state.light)&&dt>0&&!state[state.light+'Paused'])shadowDirty=true;}
-let lightReferenceReady=false,shadowDirty=true,lastShadowSignature='';
+let lightReferenceReady=false,shadowDirty=true,lastShadowSignature='',cordMoving=false;
 key.castShadow=true;
 key.shadow.mapSize.set(MOBILE?1024:2048,MOBILE?1024:2048);
 Object.assign(key.shadow.camera,{left:-.72,right:.72,top:.68,bottom:-.68,near:.1,far:6});
@@ -194,7 +195,7 @@ configureGarmentShadow(key,{span:1.44,mobile:MOBILE_MEMORY});
 function updateShadowMap(){
   const c=camera.quaternion,g=garment,p=presentGarment;
   const sig=[state.selfShadows,state.light,state.lightLocked,c.x,c.y,c.z,c.w,g.position.x,g.position.z,g.rotation.y,p.visible,p.position.x,p.position.z,p.rotation.y,activeGarmentId].join('/');
-  const moving=Math.abs(uni.uWind.value)>.00001||Math.abs(uni.uTwist.value)>.00001;
+  const moving=Math.abs(uni.uWind.value)>.00001||Math.abs(uni.uTwist.value)>.00001||cordMoving;
   // Every moving scene pass needs a matching depth map, including both fade passes.
   if(state.selfShadows&&(shadowDirty||sig!==lastShadowSignature||moving)){
     const extent=presentGarment.visible?1.15:.72;
@@ -591,9 +592,7 @@ function patchFabricMaterial(mat){
     sh.fragmentShader = sh.fragmentShader.replace('#include <roughnessmap_fragment>',
       '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, clamp(uArtRough, 0.02, 1.0), clamp(kArtworkMask, 0.0, 1.0));');
   };
-  const previousCompile=mat.onBeforeCompile;
-  mat.onBeforeCompile=sh=>{previousCompile(sh);patchHoodieKnit(sh,mat,THREE);};
-  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v18-knit-'+(mat.userData.orbKnit?'hoodie':'standard');
+  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v19-embedded';
   mat.needsUpdate=true;
   return mat;
 }
@@ -725,6 +724,7 @@ function setGarment(obj, custom){
   }
 
   current=obj;
+  advanceCords(0,false);
   isCustom=!!custom;
   garment.add(obj);
 
@@ -758,17 +758,18 @@ function makeFlow(geo,garmentHalfWidth){
 function adopt(root,catalogId=null){
   root.traverse(o=>{if(o.isMesh&&o.geometry&&!o.geometry.attributes.uv)throw new Error('This model has no native UV map. Export it with UV coordinates before importing.');});
   root.updateMatrixWorld(true);
-  const box=new THREE.Box3().setFromObject(root);
+  const bounds=()=>{let reference=null;root.traverse(o=>{if(o.userData.orbStudioBounds){const b=o.userData.orbStudioBounds;reference=new THREE.Box3(new THREE.Vector3(...b.min),new THREE.Vector3(...b.max)).applyMatrix4(o.matrixWorld);}});return reference||new THREE.Box3().setFromObject(root);};
+  const box=bounds();
   const size=box.getSize(new THREE.Vector3());
   if (size.z > size.y*1.35){                        // Z-up export
     root.rotation.x=-Math.PI/2;
     root.updateMatrixWorld(true);
-    box.setFromObject(root); box.getSize(size);
+    box.copy(bounds()); box.getSize(size);
   }
   const s=TARGET_H/Math.max(1e-6,size.y);
   root.scale.multiplyScalar(s);
   root.updateMatrixWorld(true);
-  box.setFromObject(root);
+  box.copy(bounds());
   const c=box.getCenter(new THREE.Vector3());
   root.position.x-=c.x; root.position.z-=c.z; root.position.y-=(box.min.y-HEM_Y);
   root.updateMatrixWorld(true);
@@ -776,6 +777,7 @@ function adopt(root,catalogId=null){
   const out=new THREE.Group(),geometryUses=new Map(),attributeUses=new Map();
   root.traverse(o=>{if(!o.isMesh)return;const g=o.geometry;geometryUses.set(g,(geometryUses.get(g)||0)+1);
     for(const key of ['position','normal','tangent']){const a=g.attributes[key];if(a)attributeUses.set(a,(attributeUses.get(a)||0)+1);}});
+  prepareCordMetadata(root,out,THREE);
   let tris=0;
   root.traverse(o=>{
     if(!o.isMesh || !o.geometry) return;
@@ -806,7 +808,6 @@ function adopt(root,catalogId=null){
       material.userData.orbTintable=material.metalness<0.5;
       if(material.userData.orbTintable)material.color.multiply(renderedFabricColor(currentGarment().hex));
       for(const value of Object.values(material))if(value?.isTexture)value.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
-      configureHoodieKnit(material,catalogId);
       return patchFabricMaterial(material);
     });
     const mesh=new THREE.Mesh(g,Array.isArray(o.material)?materials:materials[0]);
@@ -814,6 +815,7 @@ function adopt(root,catalogId=null){
     mesh.customDepthMaterial=makeFabricDepthMaterial();
     mesh.name=o.name;
     mesh.userData.orbMeshId=meshId;
+    adoptCordMetadata(o,mesh,THREE);
     out.add(mesh);
   });
   if (out.children.length===0) throw new Error('no meshes');
@@ -878,7 +880,7 @@ async function getCatalogBytes(item){
     const stem=item.file.replace(/\.glb$/,'');
     const urls=['../garments/'+item.file,'../calibration/'+stem+'.json','../calibration/'+stem+'.bin'];
     return Promise.all(urls.map(async (path,index)=>{
-      const url=new URL(path,import.meta.url);url.searchParams.set('v',index>0&&item.type==='crewneck'?'0.9.17':item.id==='mens-crewneck'?'0.9.16':'0.9.13');
+      const url=new URL(path,import.meta.url);url.searchParams.set('v',item.type==='tee'?'0.9.13':'0.9.24');
       const response=await fetchGarmentAsset(url,{persistent:!MOBILE_MEMORY});
       if(!response.ok)throw new Error('Garment asset failed ('+response.status+'): '+path);
       if(index===0&&!MOBILE_MEMORY&&window.ORBStartup?.active){
@@ -929,22 +931,13 @@ async function prepareCatalog(item){
         await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
       }
       const gltf=await gltfLoader.parseAsync(bytes,new URL('../garments/',import.meta.url).href);
-      if(item.type==='hoodie')await loadHoodieKnit(THREE);
+      await restoreGarmentTopology(gltf,THREE);
       imported=gltf.scene;res=adopt(imported,item.id);
       await applyCalibration(res.group,item,[meta,data]);
       const extra=(await getPlacementCalibration())[item.id];
       if(!extra?.necktag)throw new Error('Additional garment placements are missing.');
       res.profiles=structuredClone({...calibratePlacements(res.group,item.type),...extra});
       applyPresentationAlignment(res,item.id);
-      if(item.type==='hoodie')res.group.traverse(mesh=>{
-        if(!mesh.isMesh)return;
-        for(const mat of Array.isArray(mesh.material)?mesh.material:[mesh.material]){
-          if(mat.normalMap&&mat.metalness<.5){
-            // The authored fleece roughness averages .93; .86 brings it near cotton's .80.
-            mat.roughness*=.86;
-          }
-        }
-      });
       disposeImported(imported,res.group);imported=null;
       res.memoryBytes=modelMemoryBytes(res.group);res.group.userData.catalogCached=true;catalogReady.set(item.id,res);return res;
     }catch(error){
@@ -980,6 +973,7 @@ async function applyCalibration(group,item,cached){
   const [meta,data]=cached|| (await getCatalogBytes(item)).slice(1);
   const meshes=[];group.traverse(o=>{if(o.isMesh)meshes.push(o);});
   for(const mesh of meshes){
+    if(mesh.userData.orbCord){mesh.geometry.attributes.aFlow.array.fill(0);mesh.geometry.attributes.aFlow.needsUpdate=true;continue;}
     const g=mesh.geometry,part=meta.parts.find(p=>p.vertices===g.attributes.position.count&&p.indices===(g.index?.count||g.attributes.position.count));
     if(!part)throw new Error('Garment calibration does not match this model.');
     if(part.printUV)g.setAttribute('orbPrintUv',new THREE.BufferAttribute(new Float32Array(data,part.printUV.offset,part.printUV.count),2));
@@ -3515,6 +3509,10 @@ function draw(){
   if(state.present)presentation.render(renderScene,vr);else renderScene();
   renderer.setScissorTest(false);
 }
+function advanceCords(dt,enabled=!REDUCED&&state.inertia.enabled&&!anchorPickId){
+  cordMoving=updateCordMotion(current,dt,{enabled,yaw:presentSpin-state.az,time:uni.uTime.value,wind:uni.uWind.value,twist:uni.uTwist.value,flowPower:uni.uTwistFlowPower.value,halfWidth:current?.userData.halfWidth||.3,dir:uni.uDir.value},THREE);
+  if(cordMoving)shadowDirty=true;
+}
 function tick(){
   requestAnimationFrame(tick);
   const dt=Math.min(0.05,clock.getDelta());
@@ -3546,6 +3544,7 @@ function tick(){
   uni.uWind.value+=(WIND_LEVELS[state.wind]-uni.uWind.value)*0.05;
   updateFabricInertia(dt);
   if(anchorPickId){uni.uWind.value=0;uni.uTwist.value=0;}
+  advanceCords(dt);
   draw();
 }
 
