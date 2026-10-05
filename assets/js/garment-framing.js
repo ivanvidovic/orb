@@ -1,4 +1,4 @@
-// ORB Garment Studio v0.9.12
+// ORB Garment Studio v0.9.13
 // Fixed proportions from Ivan's sizing sheet. Presentation alignment is applied separately from these camera frames.
 // Camera transforms match a common back-view baseline; the hood is extra visible height.
 const FRAMES={"mens-tee":{"scale":1,"center":[0,0.026000000000000023,0]},"womens-tee":{"scale":0.9580303974400939,"center":[0,0.03776334886213303,0]},"mens-hoodie":{"scale":1.1787769939826684,"center":[0,0.01378148369126463,0]},"womens-hoodie":{"scale":1.0316779763631354,"center":[0,0.01247881490170094,0]},"mens-crewneck":{"scale":1,"center":[0,0.026000000000000023,0]},"womens-crewneck":{"scale":1.0316779763631354,"center":[0,0.01247881490170094,0]}};
