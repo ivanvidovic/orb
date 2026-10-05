@@ -1,1 +1,51 @@
-{"parts": [{"vertices": 613313, "indices": 3633384, "printUV": {"offset": 0, "count": 1226626}}, {"vertices": 59766, "indices": 298416, "motionAnchor": {"offset": 4906504, "count": 179298}, "boundVertices": 59766}, {"vertices": 598, "indices": 2610, "motionAnchor": {"offset": 5623696, "count": 1794}, "boundVertices": 598}, {"vertices": 3612, "indices": 19056, "motionAnchor": {"offset": 5630872, "count": 10836}, "boundVertices": 2356}], "body": 0, "printUV": "isometric-panel-metres", "source": "orb-tee-women-03.glb"}
+{
+  "parts": [
+    {
+      "vertices": 236398,
+      "indices": 1380684,
+      "printUV": {
+        "offset": 0,
+        "count": 472796
+      },
+      "printIsland": {
+        "offset": 2658896,
+        "count": 236398
+      }
+    },
+    {
+      "vertices": 59766,
+      "indices": 298416,
+      "motionAnchor": {
+        "offset": 1891184,
+        "count": 179298
+      },
+      "boundVertices": 59766
+    },
+    {
+      "vertices": 598,
+      "indices": 2610,
+      "motionAnchor": {
+        "offset": 2608376,
+        "count": 1794
+      },
+      "boundVertices": 598
+    },
+    {
+      "vertices": 3612,
+      "indices": 19056,
+      "motionAnchor": {
+        "offset": 2615552,
+        "count": 10836
+      },
+      "boundVertices": 2356
+    }
+  ],
+  "body": 0,
+  "printUV": "isometric-panel-metres",
+  "source": "orb-tee-women-03.glb",
+  "presentationStudy": "women-tee-relaxed-v1",
+  "notes": "Original print UV calibration retained; motion anchors transported through the same deformation as cloth.",
+  "optimization": "desktop-file-size-v1",
+  "integrationVersion": "0.9.12",
+  "islands": "Retained source panel IDs for saved artwork compatibility"
+}

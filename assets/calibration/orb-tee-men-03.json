@@ -1,1 +1,49 @@
-{"parts": [{"vertices": 227369, "indices": 1332000, "printUV": {"offset": 0, "count": 454738}}, {"vertices": 67994, "indices": 340224, "motionAnchor": {"offset": 1818952, "count": 203982}, "boundVertices": 67994}, {"vertices": 582, "indices": 2538, "motionAnchor": {"offset": 2634880, "count": 1746}, "boundVertices": 582}, {"vertices": 3784, "indices": 19992, "motionAnchor": {"offset": 2641864, "count": 11352}, "boundVertices": 2348}], "body": 0, "printUV": "isometric-panel-metres", "source": "orb-tee-men-03.glb"}
+{
+  "parts": [
+    {
+      "vertices": 126617,
+      "indices": 732600,
+      "printUV": {
+        "offset": 0,
+        "count": 253234
+      },
+      "printIsland": {
+        "offset": 1881256,
+        "count": 126617
+      }
+    },
+    {
+      "vertices": 67994,
+      "indices": 340224,
+      "motionAnchor": {
+        "offset": 1012936,
+        "count": 203982
+      },
+      "boundVertices": 67994
+    },
+    {
+      "vertices": 582,
+      "indices": 2538,
+      "motionAnchor": {
+        "offset": 1828864,
+        "count": 1746
+      },
+      "boundVertices": 582
+    },
+    {
+      "vertices": 3784,
+      "indices": 19992,
+      "motionAnchor": {
+        "offset": 1835848,
+        "count": 11352
+      },
+      "boundVertices": 2348
+    }
+  ],
+  "body": 0,
+  "printUV": "isometric-panel-metres",
+  "source": "orb-tee-men-03.glb",
+  "optimization": "desktop-file-size-v1",
+  "integrationVersion": "0.9.12",
+  "islands": "Retained source panel IDs for saved artwork compatibility"
+}

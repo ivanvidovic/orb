@@ -1,0 +1,88 @@
+{
+  "parts": [
+    {
+      "vertices": 60497,
+      "indices": 336954,
+      "role": "cloth",
+      "printUV": {
+        "offset": 0,
+        "count": 120994
+      },
+      "printIsland": {
+        "offset": 1854136,
+        "count": 60497
+      }
+    },
+    {
+      "vertices": 114180,
+      "indices": 513810,
+      "role": "stitches",
+      "motionAnchor": {
+        "offset": 483976,
+        "count": 342540
+      },
+      "boundVertices": 114180
+    }
+  ],
+  "body": 0,
+  "printUV": "oriented-isometric-panel-metres",
+  "source": "orb-crewneck-women-03.glb",
+  "reviewVersion": 3,
+  "normalization": {
+    "targetHeight": 0.74,
+    "hemY": -0.024
+  },
+  "panelScales": [
+    {
+      "panel": 1,
+      "u_metres_per_uv": 1.7609782416951518,
+      "v_metres_per_uv": 1.4628446694348767
+    },
+    {
+      "panel": 2,
+      "u_metres_per_uv": 1.7704955080435985,
+      "v_metres_per_uv": 1.4654709530379817
+    },
+    {
+      "panel": 3,
+      "u_metres_per_uv": 1.5304813729774545,
+      "v_metres_per_uv": 1.507180655065102
+    },
+    {
+      "panel": 4,
+      "u_metres_per_uv": 1.5295239304529644,
+      "v_metres_per_uv": 1.5091421584349034
+    },
+    {
+      "panel": 5,
+      "u_metres_per_uv": 1.556946534960111,
+      "v_metres_per_uv": 1.3615771232178455
+    },
+    {
+      "panel": 6,
+      "u_metres_per_uv": 1.541932551620821,
+      "v_metres_per_uv": 1.3642567942846813
+    },
+    {
+      "panel": 7,
+      "u_metres_per_uv": 1.6051091281006076,
+      "v_metres_per_uv": 1.4637898208595983
+    },
+    {
+      "panel": 8,
+      "u_metres_per_uv": 1.5992933548246702,
+      "v_metres_per_uv": 1.466406299138135
+    },
+    {
+      "panel": 9,
+      "u_metres_per_uv": 1.5342518242462488,
+      "v_metres_per_uv": 1.5038682236260426
+    },
+    {
+      "panel": 10,
+      "u_metres_per_uv": 1.535938921721833,
+      "v_metres_per_uv": 1.506393845345647
+    }
+  ],
+  "integrationVersion": "0.9.12"
+}

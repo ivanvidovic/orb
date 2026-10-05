@@ -1,22 +1,24 @@
+// ORB Garment Studio v0.9.12
+const crewneckOutline='M108 49 Q150 77 192 49 L220 70 Q237 115 247 175 L274 277 L235 289 L205 195 L211 298 Q150 309 89 298 L95 195 L65 289 L26 277 L53 175 Q63 115 80 70 Z';
 const teeOutline='M107 49 Q150 77 193 49 L223 62 L286 102 L260 153 L216 132 L216 294 Q150 306 84 294 L84 132 L40 153 L14 102 L77 62 Z';
 const hoodieOutline='M108 78 Q99 37 124 16 Q150 0 176 16 Q201 37 192 78 L220 87 Q237 127 247 175 L274 277 L235 289 L205 195 L211 298 Q150 309 89 298 L95 195 L65 289 L26 277 L53 175 Q63 127 80 87 Z';
 function figure(kind,view,inside){
-  const hoodie=kind==='hoodie';
+  const hoodie=kind==='hoodie',crewneck=kind==='crewneck',longSleeve=hoodie||crewneck;
   const cuffs='M89 285 Q150 296 211 285 M29 264 L69 277 M231 277 L270 264';
   // The rear hood shows its center seam, never the face opening or front folds.
-  const detail=hoodie?(view==='Back'?`<path d="M150 10 Q146 44 150 83 ${cuffs}"/>`:`<path d="M108 78 Q150 114 192 78 M124 16 Q102 48 143 89 M176 16 Q198 48 157 89 ${cuffs}"/>`)
+  const detail=crewneck?`<path d="M108 49 Q150 ${view==='Front'?100:80} 192 49 M108 57 Q150 ${view==='Front'?108:88} 192 57 ${cuffs}"/>`:hoodie?(view==='Back'?`<path d="M150 10 Q146 44 150 83 ${cuffs}"/>`:`<path d="M108 78 Q150 114 192 78 M124 16 Q102 48 143 89 M176 16 Q198 48 157 89 ${cuffs}"/>`)
     :view==='Front'?'<path d="M107 49 Q150 112 193 49 M107 57 Q150 119 193 57 M84 280 Q150 292 216 280 M20 112 L45 143 M255 143 L280 112"/>'
     :'<path d="M107 49 Q150 80 193 49 M84 280 Q150 292 216 280 M20 112 L45 143 M255 143 L280 112"/>';
   const pocket=hoodie&&view==='Front'&&!inside?'<path d="M114 216 L103 234 L104 266 Q150 274 196 266 L197 234 L186 216 Z M114 216 L119 238 M186 216 L181 238"/>':'';
   const tag=inside?`<rect x="137" y="${hoodie?100:75}" width="26" height="29" rx="2" class="tag-outline"/>`:'';
-  return `<svg viewBox="0 0 300 320" aria-hidden="true"><path class="garment-outline" d="${hoodie?hoodieOutline:teeOutline}"/><g class="garment-seams">${detail}${pocket}${tag}</g></svg>`;
+  return `<svg viewBox="0 0 300 320" aria-hidden="true"><path class="garment-outline" d="${hoodie?hoodieOutline:crewneck?crewneckOutline:teeOutline}"/><g class="garment-seams">${detail}${pocket}${tag}</g></svg>`;
 }
 export function placementPins(kind,side){
-  const hoodie=kind==='hoodie';
+  const hoodie=kind==='hoodie',crewneck=kind==='crewneck',longSleeve=hoodie||crewneck;
   if(side==='inside')return [['necktag',150,hoodie?116:90],...(hoodie?[['hoodrightinside',119,49],['hoodleftinside',181,49]]:[])];
   // Back-view left/right are mirrored relative to the front view (wearer's sides).
   if(side==='back')return [['backneck',150,hoodie?104:90],['leftblade',105,140],['rightblade',195,140],['back',150,196],['lowerback',150,266]];
-  return [['centerchest',150,110],['rightchest',109,146],['chest',191,146],['front',150,188],['rightshoulder',hoodie?74:49,hoodie?156:126],['leftshoulder',hoodie?226:251,hoodie?156:126],['righthem',110,274],['lefthem',190,274],...(hoodie?[['pocket',150,239],['hoodright',119,49],['hoodleft',181,49],['rightwrist',55,247],['leftwrist',245,247]]:[])];
+  return [['centerchest',150,110],['rightchest',109,146],['chest',191,146],['front',150,188],['rightshoulder',longSleeve?74:49,longSleeve?156:126],['leftshoulder',longSleeve?226:251,longSleeve?156:126],['righthem',110,274],['lefthem',190,274],...(hoodie?[['pocket',150,239],['hoodright',119,49],['hoodleft',181,49]]:[]),...(longSleeve?[['rightwrist',55,247],['leftwrist',245,247]]:[])];
 }
 export function renderPlacementDiagram(container,{kind,side,available,meta,counts,suggested}){
   const inside=side==='inside',title=inside?'Inside':side==='back'?'Back':'Front';

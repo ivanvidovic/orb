@@ -1,0 +1,88 @@
+{
+  "parts": [
+    {
+      "vertices": 72117,
+      "indices": 400548,
+      "role": "cloth",
+      "printUV": {
+        "offset": 0,
+        "count": 144234
+      },
+      "printIsland": {
+        "offset": 2024616,
+        "count": 72117
+      }
+    },
+    {
+      "vertices": 120640,
+      "indices": 542880,
+      "role": "stitches",
+      "motionAnchor": {
+        "offset": 576936,
+        "count": 361920
+      },
+      "boundVertices": 120640
+    }
+  ],
+  "body": 0,
+  "printUV": "oriented-isometric-panel-metres",
+  "source": "orb-crewneck-men-03.glb",
+  "reviewVersion": 3,
+  "normalization": {
+    "targetHeight": 0.74,
+    "hemY": -0.024
+  },
+  "panelScales": [
+    {
+      "panel": 1,
+      "u_metres_per_uv": 1.2713230485522722,
+      "v_metres_per_uv": 1.3731316969694694
+    },
+    {
+      "panel": 2,
+      "u_metres_per_uv": 1.3238373623187316,
+      "v_metres_per_uv": 1.3687469034299853
+    },
+    {
+      "panel": 3,
+      "u_metres_per_uv": 1.418232853418194,
+      "v_metres_per_uv": 1.406939129792963
+    },
+    {
+      "panel": 4,
+      "u_metres_per_uv": 1.4166994059305655,
+      "v_metres_per_uv": 1.407390510885075
+    },
+    {
+      "panel": 5,
+      "u_metres_per_uv": 1.4352545152880436,
+      "v_metres_per_uv": 1.4135802295733344
+    },
+    {
+      "panel": 6,
+      "u_metres_per_uv": 1.4375469047343132,
+      "v_metres_per_uv": 1.4144309089299218
+    },
+    {
+      "panel": 7,
+      "u_metres_per_uv": 1.1390839449943388,
+      "v_metres_per_uv": 1.3739893005971626
+    },
+    {
+      "panel": 8,
+      "u_metres_per_uv": 1.1346414273287793,
+      "v_metres_per_uv": 1.3778156120669807
+    },
+    {
+      "panel": 9,
+      "u_metres_per_uv": 1.289289633571857,
+      "v_metres_per_uv": 1.3278451529943402
+    },
+    {
+      "panel": 10,
+      "u_metres_per_uv": 1.29789509352391,
+      "v_metres_per_uv": 1.3223257823287629
+    }
+  ],
+  "integrationVersion": "0.9.12"
+}

@@ -1,3 +1,5 @@
+// ORB Garment Studio v0.9.12
+import {garmentPresentation,presentationPoint} from './garment-presentation.js?v=0.9.12';
 // Camera-only pivots from sleeve cross-section bounds at each placement height.
 // Model coordinates, before the viewer vertical offset. Print anchors are unchanged.
 export const SLEEVE_CAMERA_PIVOTS={
@@ -95,16 +97,75 @@ export const SLEEVE_CAMERA_CLEARANCE={
   }
 };
 
+// Apply the same display alignment used by geometry and placement cameras.
+const CREWNECK_PIVOTS={
+  "mens-crewneck": {
+    "leftshoulder": [
+      0.22491109371185303,
+      0.52,
+      0.004858782049268484
+    ],
+    "leftwrist": [
+      0.2540709972381592,
+      0.14,
+      0.018838672898709774
+    ],
+    "rightshoulder": [
+      -0.222629114985466,
+      0.52,
+      0.008705840446054935
+    ],
+    "rightwrist": [
+      -0.25184211134910583,
+      0.14,
+      0.026803836226463318
+    ]
+  },
+  "womens-crewneck": {
+    "leftshoulder": [
+      0.21684551239013672,
+      0.52,
+      -0.009280241094529629
+    ],
+    "leftwrist": [
+      0.24166923761367798,
+      0.14,
+      0.0446481853723526
+    ],
+    "rightshoulder": [
+      -0.21467293053865433,
+      0.52,
+      -0.0042495871894061565
+    ],
+    "rightwrist": [
+      -0.24333781003952026,
+      0.14,
+      0.05907149985432625
+    ]
+  }
+};
+Object.assign(SLEEVE_CAMERA_PIVOTS,CREWNECK_PIVOTS);
+for(const [id,pivots] of Object.entries(SLEEVE_CAMERA_PIVOTS)){
+ const scale=garmentPresentation(id)?.scale||1;
+ if(id.endsWith('crewneck'))SLEEVE_CAMERA_CLEARANCE[id]={leftshoulder:.105,rightshoulder:.105,leftwrist:.09,rightwrist:.09};
+ for(const slot of Object.keys(pivots)){
+  pivots[slot]=presentationPoint(id,pivots[slot]);
+  if(SLEEVE_CAMERA_CLEARANCE[id]?.[slot])SLEEVE_CAMERA_CLEARANCE[id][slot]*=scale;
+ }
+}
+
 // Full-sleeve inspection uses the calibrated interior pivots, with margins
 // beyond the upper-arm and wrist print anchors to include shoulder and cuff.
 export function fullSleeveCamera(garmentId,side,profiles,fov=35,aspect=1){
   if(!['left','right'].includes(side))return null;
   const pivots=SLEEVE_CAMERA_PIVOTS[garmentId],a=pivots?.[side+'shoulder'],b=pivots?.[side+'wrist'];
   if(!a||!b||!profiles?.[side+'wrist'])return null;
-  const height=Math.abs(a[1]-b[1])+.15;
-  const width=.21;
+  const crewneck=garmentId.endsWith('crewneck');
+  const ends=crewneck?[-.024,.68].map(y=>presentationPoint(garmentId,[0,y,0])[1]):null;
+  const height=ends?ends[1]-ends[0]:Math.abs(a[1]-b[1])+.15;
+  const width=.21*(garmentPresentation(garmentId)?.scale||1);
   const tan=Math.tan(fov*Math.PI/360);
   const distance=Math.max(height,width/Math.max(.25,aspect))*.56/tan;
-  return {point:[(a[0]+b[0])/2,(a[1]+b[1])/2-.34,(a[2]+b[2])/2],
+  return {point:[(a[0]+b[0])/2,(ends?(ends[0]+ends[1])/2:(a[1]+b[1])/2)-.34,(a[2]+b[2])/2],
     angles:[side==='left'?Math.PI/2-.25:-Math.PI/2+.25,Math.PI/2],distance};
 }

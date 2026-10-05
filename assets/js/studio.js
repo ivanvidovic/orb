@@ -1,3 +1,5 @@
+import {garmentPresentation,presentationPoint} from './garment-presentation.js?v=0.9.12';
+// ORB Garment Studio v0.9.12 — desktop crewnecks and garment alignment.
 import {installSnapshots} from './snapshots.js?v=0.9.10';
 import {configureGarmentShadow} from './shadow-quality.js?v=91-shadow47';
 import {preloadCatalog} from './catalog-preload.js?v=91-shadow47';
@@ -16,17 +18,17 @@ import {createTreatmentQueue,createTreatmentProcessor} from './artwork-processin
 import {hasPrintTexture} from './print-texture.js?v=91-history13';
 import {focusedPanelBounds,layerCustomColor} from './artwork-detail.js?v=91-history13';
 import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=91-shadow47';
-import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE,fullSleeveCamera} from './sleeve-camera.js?v=91-camera';
+import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE,fullSleeveCamera} from './sleeve-camera.js?v=0.9.12';
 import {hasDirectory} from './folder-import.js?v=58';
 import {decodeArtworkImage,normalizeArtworkFile} from './artwork-decode.js?v=91-svg21';
 import {createCityTraffic} from './city-night.js?v=43';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=82';
 import {sharedSurfaceProfiles,fitSurfacePlacements} from './surface-layout.js?v=83';
-import {torsoFrame,torsoDistance,previousTorsoFrame,previewDistance,previousPreviewFrame} from './garment-framing.js?v=89';
+import {torsoFrame,torsoDistance,previousTorsoFrame,previewDistance,previousPreviewFrame} from './garment-framing.js?v=0.9.12';
 import {installWorkspace} from './workspace.js?v=0.9.5';
 import {installExports} from './presentation-export.js?v=91-capture67';
 import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=91-present23';
-import {renderPlacementDiagram} from './placement-diagrams.js?v=40';
+import {renderPlacementDiagram} from './placement-diagrams.js?v=0.9.12';
 import {installColorPicker} from './color-picker.js?v=36';
 import {installSliderControls,rangeDisplayValue,RESET_ICON} from './controls.js?v=91-controls65';
 import {installColorActions} from './color-actions.js?v=34';
@@ -102,8 +104,8 @@ Object.assign(ART_META,{
   backneck:{label:'Back neck',side:'Back',view:'back',w:.065,scale:100,code:'N',detail:true},
   leftblade:{label:'Left shoulder blade',side:'Back',view:'back',w:.095,scale:100,code:'O',detail:true},
   rightblade:{label:'Right shoulder blade',side:'Back',view:'back',w:.095,scale:100,code:'P',detail:true},
-  leftwrist:{label:'Left wrist',side:'Sleeve',view:'left',w:.05,scale:100,code:'Q',hoodie:true,detail:true},
-  rightwrist:{label:'Right wrist',side:'Sleeve',view:'right',w:.05,scale:100,code:'R',hoodie:true,detail:true},
+  leftwrist:{label:'Left wrist',side:'Sleeve',view:'left',w:.05,scale:100,code:'Q',longSleeve:true,detail:true},
+  rightwrist:{label:'Right wrist',side:'Sleeve',view:'right',w:.05,scale:100,code:'R',longSleeve:true,detail:true},
   lefthem:{label:'Left front hem',side:'Front',view:'front',w:.065,scale:100,code:'S',detail:true},
   righthem:{label:'Right front hem',side:'Front',view:'front',w:.065,scale:100,code:'T',detail:true},
   centerchest:{label:'Center chest',side:'Front',view:'front',w:.12,scale:100,code:'U',detail:true}
@@ -822,9 +824,11 @@ const GARMENT_CATALOG=[
   {id:'womens-tee',label:"Women's T-Shirt",file:'orb-tee-women-03.glb',type:'tee',distance:1.60},
   {id:'mens-hoodie',label:"Men's Hoodie",file:'orb-hoodie-men-basic-01.glb',type:'hoodie',distance:1.51},
   {id:'womens-hoodie',label:"Women's Hoodie",file:'orb-hoodie-women-02.glb',type:'hoodie',distance:1.59},
+  {id:'mens-crewneck',label:"Men's Crewneck",file:'orb-crewneck-men-03.glb',type:'crewneck',distance:1.55},
+  {id:'womens-crewneck',label:"Women's Crewneck",file:'orb-crewneck-women-03.glb',type:'crewneck',distance:1.59},
 ];
 const gltfLoader=new GLTFLoader();
-// Draco remains available for user uploads. The four supplied GLBs are uncompressed.
+// Draco remains available for user uploads. The six supplied GLBs are uncompressed.
 try{
   const {DRACOLoader}=await import('three/addons/loaders/DRACOLoader.js');
   const decoder=new DRACOLoader();
@@ -839,7 +843,7 @@ let retryModel=null;
 if(MOBILE_MEMORY){
   document.getElementById('garmentButtons').style.display='none';
   document.querySelector('.garmentChooser>.lbl').hidden=true;
-  for(const option of garmentSelect.options)if(option.value!=='mens-tee')option.remove();
+  for(const option of [...garmentSelect.options])if(option.value!=='mens-tee')option.remove();
 }
 function modelBusy(value){
   modelLoading=value;
@@ -867,9 +871,9 @@ async function getCatalogBytes(item){
   if(catalogBytes.has(item.id))return catalogBytes.get(item.id);
   const task=(async()=>{
     const stem=item.file.replace(/\.glb$/,'');
-    const urls=['../garments/'+(MOBILE_MEMORY?'mobile/':'')+item.file,'../calibration/'+stem+'.json','../calibration/'+stem+'.bin'];
+    const urls=['../garments/'+item.file,'../calibration/'+stem+'.json','../calibration/'+stem+'.bin'];
     return Promise.all(urls.map(async (path,index)=>{
-      const url=new URL(path,import.meta.url);url.searchParams.set('v',index===0&&MOBILE_MEMORY?'43':index===0&&item.id==='womens-tee'?'35':'18');
+      const url=new URL(path,import.meta.url);url.searchParams.set('v','0.9.12');
       const response=await fetch(url);
       if(!response.ok)throw new Error('Garment asset failed ('+response.status+'): '+path);
       if(index===0&&!MOBILE_MEMORY&&window.ORBStartup?.active){
@@ -899,7 +903,7 @@ function trimCatalogCache(){
 let placementCalibrationPromise=null,surfaceCalibration=null;
 function getPlacementCalibration(){
   // Pocket charts are separate from the front body; the front canvas must not remap them.
-  if(!placementCalibrationPromise)placementCalibrationPromise=Promise.all(['placements-91-pocket.json','surface-layout-91-pocket.json'].map(async file=>{
+  if(!placementCalibrationPromise)placementCalibrationPromise=Promise.all(['placements-0.9.12.json','surface-layout-0.9.12.json'].map(async file=>{
     const response=await fetch(new URL('../calibration/'+file,import.meta.url));
     if(!response.ok)throw new Error('Placement calibration could not load.');return response.json();
   })).then(([profiles,layout])=>{surfaceCalibration=layout;return Object.fromEntries(Object.entries(profiles).map(([id,native])=>[id,sharedSurfaceProfiles(native,layout,id)]));})
@@ -924,7 +928,8 @@ async function prepareCatalog(item){
       await applyCalibration(res.group,item,[meta,data]);
       const extra=(await getPlacementCalibration())[item.id];
       if(!extra?.necktag)throw new Error('Additional garment placements are missing.');
-      res.profiles={...calibratePlacements(res.group,item.type),...extra};
+      res.profiles=structuredClone({...calibratePlacements(res.group,item.type),...extra});
+      applyPresentationAlignment(res,item.id);
       if(item.type==='hoodie')res.group.traverse(mesh=>{
         if(!mesh.isMesh)return;
         for(const mat of Array.isArray(mesh.material)?mesh.material:[mesh.material]){
@@ -972,9 +977,29 @@ async function applyCalibration(group,item,cached){
     const g=mesh.geometry,part=meta.parts.find(p=>p.vertices===g.attributes.position.count&&p.indices===(g.index?.count||g.attributes.position.count));
     if(!part)throw new Error('Garment calibration does not match this model.');
     if(part.printUV)g.setAttribute('orbPrintUv',new THREE.BufferAttribute(new Float32Array(data,part.printUV.offset,part.printUV.count),2));
+    if(part.printIsland)g.setAttribute('aPrintIsland',new THREE.BufferAttribute(new Float32Array(data,part.printIsland.offset,part.printIsland.count),1));
     if(part.motionAnchor)g.setAttribute('aMotionAnchor',new THREE.BufferAttribute(new Float32Array(data,part.motionAnchor.offset,part.motionAnchor.count),3));
     makeFlow(g,group.userData.halfWidth);
   }
+}
+
+// Keep geometry, stitch motion anchors and inspection cameras in the same space.
+function applyPresentationAlignment(res,id){
+  const alignment=garmentPresentation(id);if(!alignment)return;
+  const group=res.group,seen=new Set();group.userData.halfWidth*=alignment.scale;
+  group.traverse(mesh=>{
+    if(!mesh.isMesh)return;
+    const g=mesh.geometry;
+    for(const attribute of [g.attributes.position,g.attributes.aMotionAnchor]){
+      if(!attribute||seen.has(attribute))continue;seen.add(attribute);
+      for(let i=0;i<attribute.count;i++)attribute.setXYZ(i,...presentationPoint(id,[attribute.getX(i),attribute.getY(i),attribute.getZ(i)]));
+      attribute.needsUpdate=true;
+    }
+    g.computeBoundingBox();g.computeBoundingSphere();makeFlow(g,group.userData.halfWidth);
+    for(const mat of Array.isArray(mesh.material)?mesh.material:[mesh.material])mat.userData.orbFlowHalfWidth=group.userData.halfWidth;
+  });
+  const alignProfile=q=>{if(q.point)q.point=presentationPoint(id,q.point);if(q.full)alignProfile(q.full);if(q.legacy)alignProfile(q.legacy);};
+  Object.values(res.profiles).forEach(alignProfile);res.size.multiplyScalar(alignment.scale);
 }
 
 function calibratePlacements(group,kind){
@@ -1988,7 +2013,7 @@ function syncCameraUi(){
   toggle.textContent=state.view==='neck'?'Neck tag':'Detail';
   document.querySelectorAll('[data-detail-view]').forEach(b=>{
     b.setAttribute('aria-pressed',String(b.dataset.detailView===state.view));
-    if(b.dataset.detailView.startsWith('placement:')){const slot=b.dataset.detailView.slice(10);b.hidden=!!ART_META[slot]?.hoodie&&!UV_PROFILES[slot];b.disabled=isCustom||!UV_PROFILES[slot];}
+    if(b.dataset.detailView.startsWith('placement:')){const slot=b.dataset.detailView.slice(10);b.hidden=!!(ART_META[slot]?.hoodie||ART_META[slot]?.longSleeve)&&!UV_PROFILES[slot];b.disabled=isCustom||!UV_PROFILES[slot];}
     if(b.dataset.detailView.startsWith('sleeve:')){b.hidden=!detailCamera(b.dataset.detailView);b.disabled=b.hidden;}
     if(b.dataset.detailView==='neck'){b.hidden=b.disabled=isCustom||!UV_PROFILES.necktag;b.title=b.disabled?'Neck tag view is available on the built-in garments':'';}
   });
@@ -3112,7 +3137,7 @@ let placementMode='front',placementSuggested='front';
 const placementSide=slot=>ART_META[slot]?.side==='Inside'?'inside':ART_META[slot]?.side==='Back'?'back':'front';
 function renderPlacements(){
   const kind=GARMENT_CATALOG.find(g=>g.id===activeGarmentId)?.type||'tee';
-  const available=isCustom?ART_KEYS.filter(k=>!ART_META[k].hoodie||kind==='hoodie'):Object.keys(UV_PROFILES);
+  const available=isCustom?ART_KEYS.filter(k=>(!ART_META[k].hoodie||kind==='hoodie')&&(!ART_META[k].longSleeve||['hoodie','crewneck'].includes(kind))):Object.keys(UV_PROFILES);
   renderPlacementDiagram(placementDialog.querySelector('.placement-options'),{
     kind,side:placementMode,available,meta:ART_META,suggested:placementSuggested,
     counts:Object.fromEntries(available.map(slot=>[slot,artLayers.filter(layer=>layer.slot===slot).length]))
