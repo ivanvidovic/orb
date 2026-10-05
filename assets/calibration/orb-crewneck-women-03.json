@@ -25,7 +25,7 @@
     }
   ],
   "body": 0,
-  "printUV": "oriented-isometric-panels-with-smooth-chest-correction",
+  "printUV": "oriented-panels-with-intrinsic-surface-patches",
   "source": "orb-crewneck-women-03.glb",
   "reviewVersion": 3,
   "normalization": {
@@ -84,5 +84,5 @@
       "v_metres_per_uv": 1.506393845345647
     }
   ],
-  "integrationVersion": "0.9.15"
+  "integrationVersion": "0.9.17"
 }

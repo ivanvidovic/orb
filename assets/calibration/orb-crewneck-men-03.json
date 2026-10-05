@@ -25,7 +25,7 @@
     }
   ],
   "body": 0,
-  "printUV": "oriented-isometric-panels-with-smooth-chest-and-necktag-correction",
+  "printUV": "oriented-panels-with-intrinsic-surface-patches",
   "source": "orb-crewneck-men-03.glb",
   "reviewVersion": 3,
   "normalization": {
@@ -84,5 +84,5 @@
       "v_metres_per_uv": 1.3223257823287629
     }
   ],
-  "integrationVersion": "0.9.16"
+  "integrationVersion": "0.9.17"
 }

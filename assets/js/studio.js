@@ -1,6 +1,6 @@
 import {fetchGarmentAsset} from './garment-asset-cache.js?v=0.9.13';
 import {garmentPresentation,presentationPoint} from './garment-presentation.js?v=0.9.15';
-// ORB Garment Studio v0.9.16 — desktop crewnecks and garment alignment.
+// ORB Garment Studio v0.9.17 — desktop crewnecks and garment alignment.
 import {installSnapshots} from './snapshots.js?v=0.9.10';
 import {configureGarmentShadow} from './shadow-quality.js?v=91-shadow47';
 import {preloadCatalog} from './catalog-preload.js?v=91-shadow47';
@@ -874,7 +874,7 @@ async function getCatalogBytes(item){
     const stem=item.file.replace(/\.glb$/,'');
     const urls=['../garments/'+item.file,'../calibration/'+stem+'.json','../calibration/'+stem+'.bin'];
     return Promise.all(urls.map(async (path,index)=>{
-      const url=new URL(path,import.meta.url);url.searchParams.set('v',item.id==='mens-crewneck'?'0.9.16':index>0&&item.type==='crewneck'?'0.9.15':'0.9.13');
+      const url=new URL(path,import.meta.url);url.searchParams.set('v',index>0&&item.type==='crewneck'?'0.9.17':item.id==='mens-crewneck'?'0.9.16':'0.9.13');
       const response=await fetchGarmentAsset(url,{persistent:!MOBILE_MEMORY});
       if(!response.ok)throw new Error('Garment asset failed ('+response.status+'): '+path);
       if(index===0&&!MOBILE_MEMORY&&window.ORBStartup?.active){
@@ -904,7 +904,7 @@ function trimCatalogCache(){
 let placementCalibrationPromise=null,surfaceCalibration=null;
 function getPlacementCalibration(){
   // Pocket charts are separate from the front body; the front canvas must not remap them.
-  if(!placementCalibrationPromise)placementCalibrationPromise=Promise.all(['placements-0.9.16.json','surface-layout-0.9.16.json'].map(async file=>{
+  if(!placementCalibrationPromise)placementCalibrationPromise=Promise.all(['placements-0.9.17.json','surface-layout-0.9.17.json'].map(async file=>{
     const response=await fetch(new URL('../calibration/'+file,import.meta.url));
     if(!response.ok)throw new Error('Placement calibration could not load.');return response.json();
   })).then(([profiles,layout])=>{surfaceCalibration=layout;return Object.fromEntries(Object.entries(profiles).map(([id,native])=>[id,sharedSurfaceProfiles(native,layout,id)]));})
