@@ -1,7 +1,8 @@
+// v0.9.15: optional chart-axis compensation retains shared surface registration.
 // One similarity transform per body surface. Named placements are insertion
 // points in the reference canvas, never independent seam-following transforms.
 export function mapSurfacePoint(referenceOrigin,mapping,point){
-  return point.map((v,i)=>mapping.origin[i]+(v-referenceOrigin[i])*mapping.scale);
+  return point.map((v,i)=>mapping.origin[i]+(v-referenceOrigin[i])*mapping.scale*(mapping.stretch?.[i]??1));
 }
 
 export function sharedSurfaceProfiles(profiles,calibration,garmentId){
@@ -16,7 +17,7 @@ export function sharedSurfaceProfiles(profiles,calibration,garmentId){
       if(!camera)throw new Error('Missing surface camera calibration.');
       result[slot]={...native,...camera,
         origin:mapSurfacePoint(surface.origin,mapping,reference.origin),
-        basis:[...reference.basis],
+        basis:reference.basis.map((v,i)=>v*(mapping.stretch?.[i<2?0:1]??1)),
         printScale:reference.printScale*mapping.scale,
         offsetScale:reference.offsetScale.map(v=>v*mapping.scale)
       };
