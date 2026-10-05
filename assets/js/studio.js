@@ -1,6 +1,6 @@
 import {fetchGarmentAsset} from './garment-asset-cache.js?v=0.9.13';
-import {garmentPresentation,presentationPoint} from './garment-presentation.js?v=0.9.13';
-// ORB Garment Studio v0.9.13 — desktop crewnecks and garment alignment.
+import {garmentPresentation,presentationPoint} from './garment-presentation.js?v=0.9.14';
+// ORB Garment Studio v0.9.14 — desktop crewnecks and garment alignment.
 import {installSnapshots} from './snapshots.js?v=0.9.10';
 import {configureGarmentShadow} from './shadow-quality.js?v=91-shadow47';
 import {preloadCatalog} from './catalog-preload.js?v=91-shadow47';
@@ -19,7 +19,7 @@ import {createTreatmentQueue,createTreatmentProcessor} from './artwork-processin
 import {hasPrintTexture} from './print-texture.js?v=91-history13';
 import {focusedPanelBounds,layerCustomColor} from './artwork-detail.js?v=91-history13';
 import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=91-shadow47';
-import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE,fullSleeveCamera} from './sleeve-camera.js?v=0.9.13';
+import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE,fullSleeveCamera} from './sleeve-camera.js?v=0.9.14';
 import {hasDirectory} from './folder-import.js?v=58';
 import {decodeArtworkImage,normalizeArtworkFile} from './artwork-decode.js?v=91-svg21';
 import {createCityTraffic} from './city-night.js?v=43';
@@ -904,7 +904,7 @@ function trimCatalogCache(){
 let placementCalibrationPromise=null,surfaceCalibration=null;
 function getPlacementCalibration(){
   // Pocket charts are separate from the front body; the front canvas must not remap them.
-  if(!placementCalibrationPromise)placementCalibrationPromise=Promise.all(['placements-0.9.12.json','surface-layout-0.9.12.json'].map(async file=>{
+  if(!placementCalibrationPromise)placementCalibrationPromise=Promise.all(['placements-0.9.14.json','surface-layout-0.9.14.json'].map(async file=>{
     const response=await fetch(new URL('../calibration/'+file,import.meta.url));
     if(!response.ok)throw new Error('Placement calibration could not load.');return response.json();
   })).then(([profiles,layout])=>{surfaceCalibration=layout;return Object.fromEntries(Object.entries(profiles).map(([id,native])=>[id,sharedSurfaceProfiles(native,layout,id)]));})
@@ -3449,6 +3449,11 @@ function draw(){
     );
   }
 
+  // Match the studio pool to the closer men's hoodie presentation frame.
+  const poolFrame=activeGarmentId==='mens-hoodie'?torsoFrame(activeGarmentId):null;
+  const poolScale=poolFrame?1/poolFrame.scale:1;
+  const poolY=poolFrame?poolFrame.center[1]+(-.455-.026)*poolScale:-.455;
+  for(const pool of [shirtShadow,presentShadow]){pool.position.y=poolY;pool.scale.setScalar(poolScale);}
   shirtShadow.position.x=garment.position.x;
   shirtShadow.position.z=garment.position.z;
 
