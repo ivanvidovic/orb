@@ -1,6 +1,7 @@
+import {loadHoodieKnit,configureHoodieKnit,patchHoodieKnit} from './hoodie-knit.js?v=0.9.18';
 import {fetchGarmentAsset} from './garment-asset-cache.js?v=0.9.13';
 import {garmentPresentation,presentationPoint} from './garment-presentation.js?v=0.9.15';
-// ORB Garment Studio v0.9.17 — desktop crewnecks and garment alignment.
+// ORB Garment Studio v0.9.18 — desktop crewnecks and garment alignment.
 import {installSnapshots} from './snapshots.js?v=0.9.10';
 import {configureGarmentShadow} from './shadow-quality.js?v=91-shadow47';
 import {preloadCatalog} from './catalog-preload.js?v=91-shadow47';
@@ -590,7 +591,9 @@ function patchFabricMaterial(mat){
     sh.fragmentShader = sh.fragmentShader.replace('#include <roughnessmap_fragment>',
       '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, clamp(uArtRough, 0.02, 1.0), clamp(kArtworkMask, 0.0, 1.0));');
   };
-  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v91-art44';
+  const previousCompile=mat.onBeforeCompile;
+  mat.onBeforeCompile=sh=>{previousCompile(sh);patchHoodieKnit(sh,mat,THREE);};
+  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v18-knit-'+(mat.userData.orbKnit?'hoodie':'standard');
   mat.needsUpdate=true;
   return mat;
 }
@@ -752,7 +755,7 @@ function makeFlow(geo,garmentHalfWidth){
   geo.setAttribute('aFlow', new THREE.BufferAttribute(fl,1));
 }
 
-function adopt(root){
+function adopt(root,catalogId=null){
   root.traverse(o=>{if(o.isMesh&&o.geometry&&!o.geometry.attributes.uv)throw new Error('This model has no native UV map. Export it with UV coordinates before importing.');});
   root.updateMatrixWorld(true);
   const box=new THREE.Box3().setFromObject(root);
@@ -803,6 +806,7 @@ function adopt(root){
       material.userData.orbTintable=material.metalness<0.5;
       if(material.userData.orbTintable)material.color.multiply(renderedFabricColor(currentGarment().hex));
       for(const value of Object.values(material))if(value?.isTexture)value.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+      configureHoodieKnit(material,catalogId);
       return patchFabricMaterial(material);
     });
     const mesh=new THREE.Mesh(g,Array.isArray(o.material)?materials:materials[0]);
@@ -925,7 +929,8 @@ async function prepareCatalog(item){
         await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
       }
       const gltf=await gltfLoader.parseAsync(bytes,new URL('../garments/',import.meta.url).href);
-      imported=gltf.scene;res=adopt(imported);
+      if(item.type==='hoodie')await loadHoodieKnit(THREE);
+      imported=gltf.scene;res=adopt(imported,item.id);
       await applyCalibration(res.group,item,[meta,data]);
       const extra=(await getPlacementCalibration())[item.id];
       if(!extra?.necktag)throw new Error('Additional garment placements are missing.');
