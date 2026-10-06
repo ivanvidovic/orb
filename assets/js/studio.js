@@ -1,7 +1,7 @@
-import {prepareCordMetadata,adoptCordMetadata,updateCordMotion,cordMotionState} from './cord-motion.js?v=0.9.24';
-import {restoreGarmentTopology} from './embedded-garment.js?v=0.9.24';
-import {fetchGarmentAsset} from './garment-asset-cache.js?v=0.9.24';
-import {garmentPresentation,presentationPoint} from './garment-presentation.js?v=0.9.24';
+import {prepareCordMetadata,adoptCordMetadata,updateCordMotion,cordMotionState} from './cord-motion.js?v=0.9.25';
+import {restoreGarmentTopology} from './embedded-garment.js?v=0.9.25';
+import {fetchGarmentAsset} from './garment-asset-cache.js?v=0.9.25';
+import {garmentPresentation,presentationPoint} from './garment-presentation.js?v=0.9.25';
 // ORB Garment Studio v0.9.18 — desktop crewnecks and garment alignment.
 import {installSnapshots} from './snapshots.js?v=0.9.10';
 import {configureGarmentShadow} from './shadow-quality.js?v=91-shadow47';
@@ -20,11 +20,11 @@ import {quadTransform,alphaBounds,flattenTransform,collectSurfaces} from './prin
 import {createTreatmentQueue,createTreatmentProcessor} from './artwork-processing.js?v=91-history13';
 import {hasPrintTexture} from './print-texture.js?v=91-history13';
 import {focusedPanelBounds,layerCustomColor} from './artwork-detail.js?v=91-history13';
-import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=0.9.24';
-import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE,fullSleeveCamera} from './sleeve-camera.js?v=0.9.24';
+import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=0.9.25';
+import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE,fullSleeveCamera} from './sleeve-camera.js?v=0.9.25';
 import {hasDirectory} from './folder-import.js?v=58';
 import {decodeArtworkImage,normalizeArtworkFile} from './artwork-decode.js?v=91-svg21';
-import {createCityTraffic} from './city-night.js?v=0.9.24';
+import {createCityTraffic} from './city-night.js?v=0.9.25';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=82';
 import {sharedSurfaceProfiles,fitSurfacePlacements} from './surface-layout.js?v=0.9.15';
 import {torsoFrame,torsoDistance,previousTorsoFrame,previewDistance,previousPreviewFrame} from './garment-framing.js?v=0.9.13';
@@ -880,7 +880,7 @@ async function getCatalogBytes(item){
     const stem=item.file.replace(/\.glb$/,'');
     const urls=['../garments/'+item.file,'../calibration/'+stem+'.json','../calibration/'+stem+'.bin'];
     return Promise.all(urls.map(async (path,index)=>{
-      const url=new URL(path,import.meta.url);url.searchParams.set('v',item.type==='tee'?'0.9.13':'0.9.24');
+      const url=new URL(path,import.meta.url);url.searchParams.set('v',item.type==='tee'?'0.9.13':'0.9.25');
       const response=await fetchGarmentAsset(url,{persistent:!MOBILE_MEMORY});
       if(!response.ok)throw new Error('Garment asset failed ('+response.status+'): '+path);
       if(index===0&&!MOBILE_MEMORY&&window.ORBStartup?.active){
@@ -995,9 +995,24 @@ function applyPresentationAlignment(res,id){
       for(let i=0;i<attribute.count;i++)attribute.setXYZ(i,...presentationPoint(id,[attribute.getX(i),attribute.getY(i),attribute.getZ(i)]));
       attribute.needsUpdate=true;
     }
-    g.computeBoundingBox();g.computeBoundingSphere();makeFlow(g,group.userData.halfWidth);
+    const cord=mesh.userData.orbCord;
+    if(cord){
+      cord.points=cord.points.map(point=>presentationPoint(id,point));
+      cord.radius*=alignment.scale;
+    }
+    g.computeBoundingBox();g.computeBoundingSphere();
+    if(!cord)makeFlow(g,group.userData.halfWidth);
     for(const mat of Array.isArray(mesh.material)?mesh.material:[mesh.material])mat.userData.orbFlowHalfWidth=group.userData.halfWidth;
   });
+  // Cord simulation and its collision field must share the transformed geometry space.
+  const field=group.userData.orbCordCollider;
+  if(field){
+    field.xmin=presentationPoint(id,[field.xmin,0,0])[0];
+    field.xmax=presentationPoint(id,[field.xmax,0,0])[0];
+    field.ymin=presentationPoint(id,[0,field.ymin,0])[1];
+    field.ymax=presentationPoint(id,[0,field.ymax,0])[1];
+    field.front=field.front.map(z=>z<-1?z:presentationPoint(id,[0,0,z])[2]);
+  }
   const alignProfile=q=>{if(q.point)q.point=presentationPoint(id,q.point);if(q.full)alignProfile(q.full);if(q.legacy)alignProfile(q.legacy);};
   Object.values(res.profiles).forEach(alignProfile);res.size.multiplyScalar(alignment.scale);
 }
