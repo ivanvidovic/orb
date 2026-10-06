@@ -4,7 +4,7 @@ export function installColorPicker({onReset=()=>{}}={}){
   const panel=document.createElement('section');
   panel.id='colorPopover';panel.hidden=true;panel.setAttribute('role','dialog');
   panel.setAttribute('aria-label','Choose color');
-  panel.innerHTML=`<div class="color-pop-head"><strong id="colorPopoverTitle">Color</strong><button type="button" id="colorReset" class="slider-reset" aria-label="Reset color" title="Reset color">${RESET_ICON}</button><button type="button" id="colorDone">Done</button></div>
+  panel.innerHTML=`<div class="color-pop-head"><strong id="colorPopoverTitle">Color</strong><button type="button" id="colorSample" class="color-sample" data-sample-target="garmentCustom" aria-label="Sample color" title="Sample color"></button><button type="button" id="colorReset" class="slider-reset" aria-label="Reset color" title="Reset color">${RESET_ICON}</button><button type="button" id="colorDone">Done</button></div>
     <div id="colorSV" tabindex="0" role="slider" aria-label="Saturation and brightness" aria-valuemin="0" aria-valuemax="100"><span id="colorCursor"></span></div>
     <label class="color-hue-label" for="colorHue">Hue</label><input id="colorHue" type="range" min="0" max="360" value="0" aria-label="Hue">
     <div class="color-hex-row"><span id="colorPreview"></span><label for="colorHex">Hex</label><input id="colorHex" type="text" maxlength="7" spellcheck="false" autocapitalize="characters" inputmode="text" value="#FFFFFF"></div><div class="recent-colors"><span>Session colors</span><div id="recentColorSwatches" aria-label="Recent colors"></div></div>`;
@@ -66,7 +66,7 @@ export function installColorPicker({onReset=()=>{}}={}){
   function open(input,source=input){
     if(input.disabled)return;
     if(target===input&&!panel.hidden)return;
-    close();target=input;anchor=source;changed=false;h=0;read(input.value);
+    close();panel.querySelector('#colorSample').dataset.sampleTarget=input.id;target=input;anchor=source;changed=false;h=0;read(input.value);
     panel.querySelector('#colorPopoverTitle').textContent=input.getAttribute('aria-label')||'Color';
     input.setAttribute('aria-controls',panel.id);input.setAttribute('aria-expanded','true');
     panel.hidden=false;sync();position();field.focus({preventScroll:true});

@@ -1,7 +1,9 @@
-import {prepareCordMetadata,adoptCordMetadata,updateCordMotion,cordMotionState} from './cord-motion.js?v=0.9.31';
-import {restoreGarmentTopology} from './embedded-garment.js?v=0.9.31';
-import {fetchGarmentAsset} from './garment-asset-cache.js?v=0.9.31';
-import {garmentPresentation,presentationPoint} from './garment-presentation.js?v=0.9.31';
+import {colorName} from './color-name.js?v=0.9.40';
+import {CAMO_LIBRARY,createCamo,normalizeCamoScales} from './camo.js?v=0.9.40';
+import {prepareCordMetadata,adoptCordMetadata,updateCordMotion,cordMotionState} from './cord-motion.js?v=0.9.40';
+import {restoreGarmentTopology} from './embedded-garment.js?v=0.9.40';
+import {fetchGarmentAsset} from './garment-asset-cache.js?v=0.9.40';
+import {garmentPresentation,presentationPoint} from './garment-presentation.js?v=0.9.40';
 // ORB Garment Studio v0.9.18 — desktop crewnecks and garment alignment.
 import {installSnapshots} from './snapshots.js?v=0.9.10';
 import {configureGarmentShadow} from './shadow-quality.js?v=91-shadow47';
@@ -20,19 +22,19 @@ import {quadTransform,alphaBounds,flattenTransform,collectSurfaces} from './prin
 import {createTreatmentQueue,createTreatmentProcessor} from './artwork-processing.js?v=91-history13';
 import {hasPrintTexture} from './print-texture.js?v=91-history13';
 import {focusedPanelBounds,layerCustomColor} from './artwork-detail.js?v=91-history13';
-import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=0.9.31';
-import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE,fullSleeveCamera} from './sleeve-camera.js?v=0.9.31';
+import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=0.9.40';
+import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE,fullSleeveCamera} from './sleeve-camera.js?v=0.9.40';
 import {hasDirectory} from './folder-import.js?v=58';
 import {decodeArtworkImage,normalizeArtworkFile} from './artwork-decode.js?v=91-svg21';
-import {createCityTraffic} from './city-night.js?v=0.9.31';
+import {createCityTraffic} from './city-night.js?v=0.9.40';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=82';
 import {sharedSurfaceProfiles,fitSurfacePlacements} from './surface-layout.js?v=0.9.15';
 import {torsoFrame,torsoDistance,previousTorsoFrame,previewDistance,previousPreviewFrame} from './garment-framing.js?v=0.9.13';
-import {installWorkspace} from './workspace.js?v=0.9.5';
+import {installWorkspace} from './workspace.js?v=0.9.40';
 import {installExports} from './presentation-export.js?v=91-capture67';
-import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=91-present23';
+import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=0.9.40';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=0.9.12';
-import {installColorPicker} from './color-picker.js?v=36';
+import {installColorPicker} from './color-picker.js?v=0.9.40';
 import {installSliderControls,rangeDisplayValue,RESET_ICON} from './controls.js?v=91-controls65';
 import {installColorActions} from './color-actions.js?v=34';
 let colorPicker=null,colorActions=null,workspace=null;
@@ -515,16 +517,20 @@ function makeFabricDepthMaterial(){
   depth.customProgramCacheKey=()=> 'orb-motion-depth-16';
   return depth;
 }
+const camo=createCamo(THREE,renderer);
 function patchFabricMaterial(mat){
   mat.userData.orbFabric=true;
   mat.onBeforeCompile=sh=>{
-    Object.assign(sh.uniforms, uni);
+    Object.assign(sh.uniforms, uni, camo.uniforms);
     sh.uniforms.uFlowHalfWidth={value:mat.userData.orbFlowHalfWidth||.3};
     const artwork=getArtworkMap(mat.userData.orbMeshId||1);
     sh.uniforms.uArtwork=artwork.map;sh.uniforms.uHasArtwork=artwork.has;
     sh.uniforms.uArtworkEffects=artwork.effects;sh.uniforms.uHasEffects=artwork.hasEffects;
     sh.uniforms.uSpillGlow=artwork.spillGlow;sh.uniforms.uSpillUV=artwork.spillUV;
     Object.assign(sh.uniforms,effectUniforms);
+    sh.uniforms.uCamoFabric={value:mat.userData.orbCamoFabric?1:0};
+    sh.uniforms.uCamoUvScale={value:mat.userData.orbCamoUvScale||1};
+    sh.uniforms.uCamoCleanMap={value:mat.orbCleanFabricMap||mat.map};
     sh.uniforms.uFabricReactive={value:mat.userData.orbTintable?1:0};
     sh.uniforms.uLightEnvRotation=lightEnvironmentRotation;sh.uniforms.uLightEnvPower=lightEnvironmentPower;
     const environmentChunk=THREE.ShaderChunk.envmap_physical_pars_fragment
@@ -581,18 +587,26 @@ function patchFabricMaterial(mat){
            objectTangent = normalize(objectTangent - objectNormal*dot(objectTangent,objectNormal));
          #endif
        }`);
-    sh.vertexShader='varying vec3 vChargePosition;\n'+sh.vertexShader;
+    sh.vertexShader='attribute vec2 orbCamoUv; varying vec2 vCamoUv; varying vec3 vChargePosition;\n'+sh.vertexShader;
     sh.vertexShader = sh.vertexShader.replace('#include <begin_vertex>',
-      '#include <begin_vertex>\n transformed += gDisp; vChargePosition=transformed;');
-    sh.fragmentShader = FRAG_HEAD + '\n' + sh.fragmentShader;
+      '#include <begin_vertex>\n transformed += gDisp; vChargePosition=transformed; vCamoUv=orbCamoUv;');
+    sh.fragmentShader = 'varying vec2 vCamoUv; uniform sampler2D uCamoMap,uCamoCleanMap; uniform float uCamoEnabled,uCamoRepeat,uCamoAspect,uCamoFabric,uCamoUvScale;\n' + FRAG_HEAD + '\n' + sh.fragmentShader;
     sh.fragmentShader=sh.fragmentShader.replace('#include <normal_fragment_maps>','kEffectNormal=normal;\n#include <normal_fragment_maps>');
     sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>',
-      '#include <map_fragment>\n' + FRAG_PRINT);
+      `#include <map_fragment>
+#ifdef USE_MAP
+ if(uCamoEnabled>.5 && uCamoFabric>.5){
+  vec3 pattern=texture2D(uCamoMap,vCamoUv*uCamoUvScale*uCamoRepeat*vec2(1.,uCamoAspect)).rgb;
+  // Neutral cotton color detail remains at its original UV frequency.
+  diffuseColor.rgb=pattern*(texture2D(uCamoCleanMap,vMapUv).rgb/vec3(.535,.535,.522));
+ }
+#endif
+` + FRAG_PRINT);
     sh.fragmentShader=sh.fragmentShader.replace('#include <aomap_fragment>','#include <aomap_fragment>\n'+FRAG_EMISSION);
     sh.fragmentShader = sh.fragmentShader.replace('#include <roughnessmap_fragment>',
       '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, clamp(uArtRough, 0.02, 1.0), clamp(kArtworkMask, 0.0, 1.0));');
   };
-  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v19-embedded';
+  mat.customProgramCacheKey=()=> 'orb-native-panel-stack-v38-camo';
   mat.needsUpdate=true;
   return mat;
 }
@@ -625,6 +639,7 @@ function clonePresentMaterial(src){
   m.onBeforeCompile=src.onBeforeCompile;
   m.customProgramCacheKey=src.customProgramCacheKey;
   m.userData={...src.userData};
+  m.orbCleanFabricMap=src.orbCleanFabricMap||null;
 
   // Only the presentation copy fades. Geometry remains shared with the
   // original shirt, so this is still a lightweight clone.
@@ -792,6 +807,7 @@ function adopt(root,catalogId=null){
     g.setAttribute('aMotionAnchor',g.attributes.position);
     makeFlow(g,size.x*s/2);
     ensurePrintIslands(g);
+    g.setAttribute('orbCamoUv',g.attributes.uv3||g.attributes.uv2||g.attributes.uv);
     tris += (g.index ? g.index.count : g.attributes.position.count)/3;
 
     // Keep the GLB material, including its original normal map and UV mapping.
@@ -802,6 +818,10 @@ function adopt(root,catalogId=null){
       const material=source&&(source.isMeshStandardMaterial||source.isMeshPhysicalMaterial)
         ?source.clone():new THREE.MeshStandardMaterial({color:currentGarment().hex,roughness:0.96});
       material.side=THREE.DoubleSide;
+      material.orbCleanFabricMap=source?.orbCleanFabricMap||null;
+      material.userData.orbCamoFabric=!!catalogId&&/Standard Cotton|Cotton Neck Rib/.test(source?.name||'');
+      // UV2 represents .264m before display normalization; keep the approved tee size.
+      material.userData.orbCamoUvScale=s*(garmentPresentation(catalogId)?.scale||1)/(TARGET_H/.6766895651817322*.97);
       material.userData.orbMeshId=meshId;material.userData.orbFlowHalfWidth=size.x*s/2;
       // Keep every authored map and material group. Garment tint remains user-controlled.
       material.userData.orbBaseColor=material.color.toArray();
@@ -880,7 +900,7 @@ async function getCatalogBytes(item){
     const stem=item.file.replace(/\.glb$/,'');
     const urls=['../garments/'+item.file,'../calibration/'+stem+'.json','../calibration/'+stem+'.bin'];
     return Promise.all(urls.map(async (path,index)=>{
-      const url=new URL(path,import.meta.url);url.searchParams.set('v',item.type==='tee'?'0.9.13':'0.9.31');
+      const url=new URL(path,import.meta.url);url.searchParams.set('v','0.9.40');
       const response=await fetchGarmentAsset(url,{persistent:!MOBILE_MEMORY});
       if(!response.ok)throw new Error('Garment asset failed ('+response.status+'): '+path);
       if(index===0&&!MOBILE_MEMORY&&window.ORBStartup?.active){
@@ -932,6 +952,14 @@ async function prepareCatalog(item){
       }
       const gltf=await gltfLoader.parseAsync(bytes,new URL('../garments/',import.meta.url).href);
       await restoreGarmentTopology(gltf,THREE);
+      const cleanTasks=[];
+      gltf.scene.traverse(o=>{if(o.isMesh)for(const m of Array.isArray(o.material)?o.material:[o.material]){
+        const index=m.userData.orbCleanFabricTexture;
+        if(Number.isInteger(index))cleanTasks.push(gltf.parser.getDependency('texture',index).then(texture=>{
+          texture.colorSpace=THREE.SRGBColorSpace;texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());m.orbCleanFabricMap=texture;
+        }));
+      }});
+      await Promise.all(cleanTasks);
       imported=gltf.scene;res=adopt(imported,item.id);
       await applyCalibration(res.group,item,[meta,data]);
       const extra=(await getPlacementCalibration())[item.id];
@@ -1151,14 +1179,16 @@ const THEMES={
   dark:{bg:BRAND.dark.paper},
 };
 const systemColorScheme=matchMedia('(prefers-color-scheme: dark)');
-const state={ presentation:defaultPresentation(), ...CREATIVE_DEFAULTS,runwayPaused:REDUCED,afterglowPaused:REDUCED,projectorPaused:REDUCED,themeMode:'system', theme:'light', blank:0, garmentCustom:'#D8D8D8', artGlossiness:50, matchFabricToTheme:false, bg:THEMES.light.bg, dotGrid:true, gridType:'square', gridColor:BRAND.light.grid, gridColorCustom:false, gridStroke:0.5, gridScale:35, gridCharSize:45, light:'studio', lightPower:100, blackLightPower:100, regularLightPower:100, nightLightPower:100, nightTraffic:'subtle', nightPaused:REDUCED, lightLocked:true, nightGreen:NIGHT_DEFAULTS.green, nightMagenta:NIGHT_DEFAULTS.magenta, selfShadows:true, wind:1, view:'angle',
+const state={ presentation:defaultPresentation(), ...CREATIVE_DEFAULTS,runwayPaused:REDUCED,afterglowPaused:REDUCED,projectorPaused:REDUCED,themeMode:'system', theme:'light', blank:0, camoId:null, camoLastId:'army', camoScale:100,camoScales:{},camoScaleVersion:1, garmentCustom:'#FFFFFF', artGlossiness:50, matchFabricToTheme:false, bg:THEMES.light.bg, dotGrid:true, gridType:'square', gridColor:BRAND.light.grid, gridColorCustom:false, gridStroke:0.5, gridScale:35, gridCharSize:45, light:'studio', lightPower:100, blackLightPower:100, regularLightPower:100, nightLightPower:100, nightTraffic:'subtle', nightPaused:REDUCED, lightLocked:true, nightGreen:NIGHT_DEFAULTS.green, nightMagenta:NIGHT_DEFAULTS.magenta, selfShadows:true, wind:1, view:'angle',
   inertia:{enabled:true,strength:15,ramp:100,settle:0.5,elasticity:60,overshoot:70,release:70,sensitivity:50,bias:25,sleeve:100,arc:100},
   focus:new THREE.Vector3(0,.02,0),focusTarget:new THREE.Vector3(0,.02,0),az:0.62, el:1.30, r:1.55, taz:0.62, tel:1.30, tr:1.55, present:false };
 const WIND_LEVELS=[0,0.011,0.024];
 
+function camoActive(){return CAMO_LIBRARY.some(p=>p.id===state.camoId)&&/^(mens|womens)-(tee|crewneck|hoodie)$/.test(activeGarmentId);}
 function currentGarment(){
+  if(camoActive())return {name:CAMO_LIBRARY.find(p=>p.id===state.camoId).name,hex:'#FFFFFF',dark:false};
   return state.blank==='custom'
-    ? { name:'Custom', hex:state.garmentCustom, dark:(new THREE.Color(state.garmentCustom).r*0.299 + new THREE.Color(state.garmentCustom).g*0.587 + new THREE.Color(state.garmentCustom).b*0.114) < 0.48 }
+    ? { name:colorName(state.garmentCustom), hex:state.garmentCustom, dark:(new THREE.Color(state.garmentCustom).r*0.299 + new THREE.Color(state.garmentCustom).g*0.587 + new THREE.Color(state.garmentCustom).b*0.114) < 0.48 }
     : GARMENTS[state.blank];
 }
 function inkHex(entry,mode=entry?.mode){
@@ -1308,18 +1338,30 @@ function renderedFabricColor(hex){
 }
 function syncFabricColors(){
   const color=renderedFabricColor(currentGarment().hex);
+  const trims=camoActive()?CAMO_LIBRARY.find(p=>p.id===state.camoId)?.trims:null;
   const sync=root=>{
     if(!root)return;
     root.traverse(o=>{
       if(!o.isMesh)return;
       const mats=Array.isArray(o.material)?o.material:[o.material];
-      mats.forEach(m=>{if(m?.userData.orbTintable&&m.color)m.color.fromArray(m.userData.orbBaseColor).multiply(color);});
+      mats.forEach(m=>{
+        if(!m?.userData.orbTintable||!m.color)return;
+        m.color.fromArray(m.userData.orbBaseColor).multiply(color);
+        if(!trims)return;
+        // Solid trim colors; keep the braided map, normals and metallic hardware intact.
+        if(/Braided Cotton Drawcord/.test(m.name))m.color.copy(renderedFabricColor(trims.cord));
+        else if(/Matching.*Thread/i.test(m.name))m.color.copy(renderedFabricColor(trims.thread));
+      });
     });
   };
   sync(current);
   if(presentCloneActive)sync(presentGarment);
 }
 function applyLook(){
+  camo.uniforms.uCamoEnabled.value=camoActive()&&camo.uniforms.uCamoMap.value?1:0;
+  camo.uniforms.uCamoRepeat.value=.264/((CAMO_LIBRARY.find(p=>p.id===state.camoId)?.tileWidth||.60)*state.camoScale/100);
+  camo.uniforms.uCamoAspect.value=camo.uniforms.uCamoMap.value?.userData.camoAspect||1;
+  syncCamoUi();
   const g=currentGarment();
   syncFabricColors();
   // Only unfixed Single ink layers follow the garment. Repaint their panels
@@ -1668,60 +1710,60 @@ function setView(v){
 
 const sw=document.getElementById('swatches');
 function useManualFabricColor(){
+  ++camoRequest;document.getElementById('camoStatus').textContent='';
+  state.camoId=null;
   state.matchFabricToTheme=false;
   document.getElementById('matchFabricToTheme').checked=false;
 }
 function syncGarmentSwatches(){
-  for(const button of sw.querySelectorAll('button[data-blank]'))button.setAttribute('aria-checked',String(state.blank===Number(button.dataset.blank)));
-  const custom=sw.querySelector('.custom');if(custom)custom.setAttribute('aria-checked',String(state.blank==='custom'));
+  for(const button of sw.querySelectorAll('button[data-blank]'))button.setAttribute('aria-checked',String(!camoActive()&&state.blank===Number(button.dataset.blank)));
+  const custom=sw.querySelector('.custom');if(custom)custom.setAttribute('aria-checked',String(!camoActive()&&state.blank==='custom'));
 }
+const SOLID_PALETTE=[
+ {name:'Ecru',hex:'#E1DCD2',blank:1},{name:'Greige',hex:'#ADA79D',blank:2},
+ {name:'Graphite',hex:'#60615E',blank:3},{name:'Faded Black',hex:'#252628',blank:4},
+ {name:'Navy',hex:'#293747'},{name:'Olive',hex:'#65684D'},{name:'Sand',hex:'#C4B392'},
+ {name:'Burgundy',hex:'#693B46'},{name:'Brown',hex:'#705443'}
+];
+let camoRequest=0;
 function renderGarmentSwatches(){
-  sw.innerHTML='';
-  GARMENTS.forEach((g,i)=>{
-    const b=document.createElement('button');
-    b.className='sw'; b.type='button'; b.role='radio';b.dataset.blank=String(i);
-    b.setAttribute('aria-checked',String(state.blank===i));
-    b.setAttribute('aria-label',g.name);
-    b.dataset.tip=`Set the shirt color to ${g.name}.`;
-    b.innerHTML=`<i style="background:${g.hex}"></i>`;
-    b.onclick=()=>{
-      useManualFabricColor();
-      state.blank=i;
-      syncGarmentSwatches();
-      applyLook();
-    };
-    sw.appendChild(b);
-  });
-
-  const custom=document.createElement('label');
-  custom.className='sw custom';
-  custom.role='radio';
-  custom.setAttribute('aria-checked',String(state.blank==='custom'));
-  custom.setAttribute('aria-label','Custom garment colour');
-  custom.dataset.tip='Choose a custom garment color.';
-  custom.innerHTML=`<i style="background:${state.garmentCustom}"></i><span class="pickerGlyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m19 3 2 2-8.5 8.5-3-3z"></path><path d="m8.8 11.2-4.3 4.3v4h4l4.3-4.3"></path></svg></span><input id="garmentCustom" type="color" value="${state.garmentCustom}" aria-label="Custom garment color">`;
-  const picker=custom.querySelector('input');
-  const activateCustom=()=>{
-    useManualFabricColor();
-    state.blank='custom';
-    state.garmentCustom=picker.value;
-    syncGarmentSwatches();
-    applyLook();
-  };
-  picker.addEventListener('input',()=>{
-    useManualFabricColor();
-    state.blank='custom';
-    state.garmentCustom=picker.value;
-    syncGarmentSwatches();
-    custom.querySelector('i').style.background=picker.value;
-    applyLook();
-  });
-  picker.addEventListener('change',activateCustom);
-  custom.addEventListener('click',activateCustom);
-  sw.appendChild(custom);
-  sw.insertAdjacentHTML('beforeend','<button type="button" class="color-sample" data-sample-target="garmentCustom" aria-label="Sample fabric color" title="Sample fabric color"></button><button type="button" class="slider-reset" data-reset-color="garmentCustom" aria-label="Reset fabric color" title="Reset fabric color"></button>');
+ sw.innerHTML=`<label class="sw custom" title="Custom Color"><i></i><span class="pickerGlyph" aria-hidden="true">+</span><input id="garmentCustom" type="color" value="${state.garmentCustom}" aria-label="Custom fabric color"></label>`;
+ const picker=document.getElementById('garmentCustom');
+ const applyCustom=()=>{useManualFabricColor();state.blank='custom';state.garmentCustom=picker.value;syncGarmentSwatches();applyLook();workspace?.notify();};
+ picker.addEventListener('input',applyCustom);picker.addEventListener('change',applyCustom);
+ sw.querySelector('.custom').addEventListener('click',applyCustom);
+ for(const item of SOLID_PALETTE){
+  const b=document.createElement('button');b.type='button';b.className='sw';b.dataset.solid=item.hex;b.title=item.name;b.setAttribute('aria-label',item.name);b.innerHTML=`<i style="background:${item.hex}"></i>`;
+  b.onclick=()=>{useManualFabricColor();state.blank=item.blank??'custom';if(item.blank===undefined)state.garmentCustom=item.hex;syncGarmentSwatches();applyLook();workspace?.notify();};sw.appendChild(b);
+ }
 }
 renderGarmentSwatches();
+function syncCamoUi(){
+ const supported=/^(mens|womens)-(tee|crewneck|hoodie)$/.test(activeGarmentId),active=camoActive();
+ document.querySelectorAll('[data-camo]').forEach(b=>{b.disabled=!supported;b.setAttribute('aria-pressed',String(active&&b.dataset.camo===state.camoId));});
+ document.getElementById('camoScaleRow').hidden=!active;
+ const hex=state.blank==='custom'?state.garmentCustom:GARMENTS[state.blank].hex;
+ const picker=document.getElementById('garmentCustom');picker.value=state.garmentCustom;sw.querySelector('.custom i').style.background=state.garmentCustom;
+ document.querySelectorAll('[data-solid]').forEach(b=>b.setAttribute('aria-pressed',String(!active&&b.dataset.solid.toLowerCase()===hex.toLowerCase())));
+ const preset=SOLID_PALETTE.some(p=>p.hex.toLowerCase()===hex.toLowerCase());
+ sw.querySelector('.custom').setAttribute('aria-checked',String(!active&&state.blank==='custom'&&!preset));
+ document.getElementById('camoScale').value=state.camoScale;
+ const number=document.getElementById('camoScaleValue');if(number)number.value=state.camoScale;
+}
+async function selectCamo(id){
+ if(!/^(mens|womens)-(tee|crewneck|hoodie)$/.test(activeGarmentId))return;
+ const request=++camoRequest,status=document.getElementById('camoStatus');status.textContent='';
+ try{const texture=await camo.load(id);if(request!==camoRequest)return;
+  camo.uniforms.uCamoMap.value=texture;state.camoId=id;state.camoLastId=id;state.camoScale=state.camoScales[id]??CAMO_LIBRARY.find(p=>p.id===id).defaultScale;state.matchFabricToTheme=false;
+  document.getElementById('matchFabricToTheme').checked=false;syncGarmentSwatches();applyLook();workspace?.notify();status.textContent='';
+ }catch(e){if(request===camoRequest)status.textContent=e.message;}
+}
+for(const item of CAMO_LIBRARY){
+ const b=document.createElement('button');b.type='button';b.className='sw';b.dataset.camo=item.id;b.title=item.name;b.setAttribute('aria-label',item.name);
+ b.innerHTML=`<i style="background:url(assets/camo/${item.file}) center/cover"></i>`;b.onclick=()=>selectCamo(item.id);sw.appendChild(b);
+}
+document.getElementById('camoScale').oninput=e=>{state.camoScale=Number(e.target.value);if(state.camoId)state.camoScales[state.camoId]=state.camoScale;applyLook();workspace?.notify();};
+document.getElementById('camoScaleReset').onclick=()=>{state.camoScale=CAMO_LIBRARY.find(p=>p.id===state.camoId)?.defaultScale||100;if(state.camoId)state.camoScales[state.camoId]=state.camoScale;applyLook();workspace?.notify();};
 
 /* ============================ utilitarian tooltips ============================ */
 const uiTooltip=document.getElementById('uiTooltip');
@@ -2047,8 +2089,9 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!detailMenu.hidden)
 document.addEventListener('focusin',e=>{if(!detailMenu.hidden&&!detailMenu.contains(e.target)&&e.target!==detailToggle)closeDetailMenu();});
 window.addEventListener('resize',positionDetailMenu);window.addEventListener('scroll',positionDetailMenu,true);
 function syncFabricToTheme(){
+  state.camoId=null;
   const next=GARMENTS.findIndex(g=>g.name===(state.theme==='dark'?'Washed Black':'Chalk'));
-  if(next<0||state.blank===next)return;
+  if(next<0||state.blank===next){syncGarmentSwatches();applyLook();return;}
   // This option changes fabric only. Preserve any still-automatic ink color
   // before changing the cloth underneath it.
   for(const layer of artLayers){
@@ -2683,7 +2726,7 @@ async function undoArtwork(redo=false){
   historyRestoring=true;setWorkspaceLock(true,redo?'Redoing…':'Undoing…');
   try{
     await restoreSnapshotGarment(next.snapshot,next.snapshot.modelFile);
-    restoreDesignState(next.snapshot,false);from.pop();to.push({snapshot:currentSnapshot,key});
+    await restoreDesignState(next.snapshot,false);from.pop();to.push({snapshot:currentSnapshot,key});
     workspace?.notify();artStatus('');
   }catch(error){artStatus(error.message||'This edit could not be restored.');}
   finally{historyRestoring=false;setWorkspaceLock(false);syncArtworkUi();}
@@ -3624,7 +3667,7 @@ function resetStudioColor(id,keepOpen=false){
   }else if(id==='presentBg'||id==='presentGraphicColor'){
     setStudioInput(id,id==='presentBg'?'#181818':'#ffffff','change');
   }else if(id==='garmentCustom'){
-    useManualFabricColor();state.blank=0;state.garmentCustom='#D8D8D8';
+    useManualFabricColor();state.blank='custom';state.garmentCustom='#FFFFFF';
     document.getElementById(id).value=state.garmentCustom;document.querySelector('#swatches .custom i').style.background=state.garmentCustom;
     syncGarmentSwatches();applyLook();
   }else if(id==='gridColor'){
@@ -3693,7 +3736,7 @@ function legacySolidInvert(source){
   }
   return corners/Math.max(1,count)>127;
 }
-function restoreDesignState(snapshot,restoreCamera=true){
+async function restoreDesignState(snapshot,restoreCamera=true){
   colorPicker?.close();colorActions?.cancel();cancelAnchorPick();finishArtworkRename(false);
   artLayers=snapshot.layers.map(e=>({...e,placement:{...e.placement},anchor:e.anchor?structuredClone(e.anchor):null}));
   for(const layer of artLayers)if(layer.solidInvert===undefined){
@@ -3704,7 +3747,11 @@ function restoreDesignState(snapshot,restoreCamera=true){
   activeArtId=artLayers.some(e=>e.id===snapshot.active)?snapshot.active:null;
   if(artEntry())activeArtSlot=artEntry().slot;
   nextArtId=Math.max(nextArtId,...artLayers.map(e=>(Number(e.id.replace(/^art-/,''))||0)+1));
-  Object.assign(state,{presentation:defaultPresentation(),...CREATIVE_DEFAULTS,runwayPaused:REDUCED,afterglowPaused:REDUCED,projectorPaused:REDUCED,nightLightPower:100,nightTraffic:'subtle',nightPaused:REDUCED},structuredClone(pick(snapshot.settings,SETTING_FIELDS)));
+  Object.assign(state,{camoId:null,camoLastId:'army',camoScale:100,camoScales:{},camoScaleVersion:0,presentation:defaultPresentation(),...CREATIVE_DEFAULTS,runwayPaused:REDUCED,afterglowPaused:REDUCED,projectorPaused:REDUCED,nightLightPower:100,nightTraffic:'subtle',nightPaused:REDUCED},structuredClone(pick(snapshot.settings,SETTING_FIELDS)));
+  normalizeCamoScales(state);
+  ++camoRequest;
+  if(state.camoId)state.camoScales[state.camoId]=state.camoScale;
+  if(state.camoId)camo.uniforms.uCamoMap.value=await camo.load(state.camoId);
   if(state.light==='night')state.lightPower=state.nightLightPower;
   document.getElementById('designName').value=snapshot.name||'Untitled design';
   regularBackdrop=snapshot.regularBackdrop?{...snapshot.regularBackdrop}:state.light==='uv'?{bg:THEMES.light.bg,gridColor:BRAND.light.grid,gridColorCustom:false}:null;
@@ -3779,11 +3826,11 @@ workspace=installWorkspace({
   clearHistory:()=>{artHistory.length=0;artFuture.length=0;syncArtworkUi();},
   async restore(snapshot,model){
     historyRestoring=true;
-    try{await restoreSnapshotGarment(snapshot,model);restoreDesignState(snapshot);await settleArtworkTreatment();}finally{historyRestoring=false;}
+    try{await restoreSnapshotGarment(snapshot,model);await restoreDesignState(snapshot);await settleArtworkTreatment();}finally{historyRestoring=false;}
   },
-  newDesign:()=>{
+  newDesign:async()=>{
     const snapshot=designSnapshot();snapshot.layers=[];snapshot.active=null;snapshot.name='Untitled design';snapshot.settings=structuredClone(defaultDesignSettings);snapshot.regularBackdrop=null;
-    recordArtUndo();restoreDesignState(snapshot,false);setView('angle');
+    recordArtUndo();await restoreDesignState(snapshot,false);setView('angle');
   },
   presentationAsset:entry=>presentation.setGraphic(entry),
   presentationRestored:()=>presentation.sync(),
