@@ -1,7 +1,7 @@
-import {prepareCordMetadata,adoptCordMetadata,updateCordMotion,cordMotionState} from './cord-motion.js?v=0.9.27';
-import {restoreGarmentTopology} from './embedded-garment.js?v=0.9.27';
-import {fetchGarmentAsset} from './garment-asset-cache.js?v=0.9.27';
-import {garmentPresentation,presentationPoint} from './garment-presentation.js?v=0.9.27';
+import {prepareCordMetadata,adoptCordMetadata,updateCordMotion,cordMotionState} from './cord-motion.js?v=0.9.31';
+import {restoreGarmentTopology} from './embedded-garment.js?v=0.9.31';
+import {fetchGarmentAsset} from './garment-asset-cache.js?v=0.9.31';
+import {garmentPresentation,presentationPoint} from './garment-presentation.js?v=0.9.31';
 // ORB Garment Studio v0.9.18 — desktop crewnecks and garment alignment.
 import {installSnapshots} from './snapshots.js?v=0.9.10';
 import {configureGarmentShadow} from './shadow-quality.js?v=91-shadow47';
@@ -20,11 +20,11 @@ import {quadTransform,alphaBounds,flattenTransform,collectSurfaces} from './prin
 import {createTreatmentQueue,createTreatmentProcessor} from './artwork-processing.js?v=91-history13';
 import {hasPrintTexture} from './print-texture.js?v=91-history13';
 import {focusedPanelBounds,layerCustomColor} from './artwork-detail.js?v=91-history13';
-import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=0.9.27';
-import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE,fullSleeveCamera} from './sleeve-camera.js?v=0.9.27';
+import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=0.9.31';
+import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE,fullSleeveCamera} from './sleeve-camera.js?v=0.9.31';
 import {hasDirectory} from './folder-import.js?v=58';
 import {decodeArtworkImage,normalizeArtworkFile} from './artwork-decode.js?v=91-svg21';
-import {createCityTraffic} from './city-night.js?v=0.9.27';
+import {createCityTraffic} from './city-night.js?v=0.9.31';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=82';
 import {sharedSurfaceProfiles,fitSurfacePlacements} from './surface-layout.js?v=0.9.15';
 import {torsoFrame,torsoDistance,previousTorsoFrame,previewDistance,previousPreviewFrame} from './garment-framing.js?v=0.9.13';
@@ -880,7 +880,7 @@ async function getCatalogBytes(item){
     const stem=item.file.replace(/\.glb$/,'');
     const urls=['../garments/'+item.file,'../calibration/'+stem+'.json','../calibration/'+stem+'.bin'];
     return Promise.all(urls.map(async (path,index)=>{
-      const url=new URL(path,import.meta.url);url.searchParams.set('v',item.type==='tee'?'0.9.13':'0.9.27');
+      const url=new URL(path,import.meta.url);url.searchParams.set('v',item.type==='tee'?'0.9.13':'0.9.31');
       const response=await fetchGarmentAsset(url,{persistent:!MOBILE_MEMORY});
       if(!response.ok)throw new Error('Garment asset failed ('+response.status+'): '+path);
       if(index===0&&!MOBILE_MEMORY&&window.ORBStartup?.active){
