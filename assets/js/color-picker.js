@@ -4,13 +4,16 @@ export function installColorPicker({onReset=()=>{}}={}){
   const panel=document.createElement('section');
   panel.id='colorPopover';panel.hidden=true;panel.setAttribute('role','dialog');
   panel.setAttribute('aria-label','Choose color');
-  panel.innerHTML=`<div class="color-pop-head"><strong id="colorPopoverTitle">Color</strong><button type="button" id="colorSample" class="color-sample" data-sample-target="garmentCustom" aria-label="Sample color" title="Sample color"></button><button type="button" id="colorReset" class="slider-reset" aria-label="Reset color" title="Reset color">${RESET_ICON}</button><button type="button" id="colorDone">Done</button></div>
+  const copyIcon='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="1"/><path d="M16 8V4H4v12h4"/></svg>',checkIcon='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>';
+  panel.innerHTML=`<div class="color-pop-head"><strong id="colorPopoverTitle">Color</strong><button type="button" id="colorDone" class="slider-reset" aria-label="Close color picker" title="Close color picker"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
     <div id="colorSV" tabindex="0" role="slider" aria-label="Saturation and brightness" aria-valuemin="0" aria-valuemax="100"><span id="colorCursor"></span></div>
     <label class="color-hue-label" for="colorHue">Hue</label><input id="colorHue" type="range" min="0" max="360" value="0" aria-label="Hue">
-    <div class="color-hex-row"><span id="colorPreview"></span><label for="colorHex">Hex</label><input id="colorHex" type="text" maxlength="7" spellcheck="false" autocapitalize="characters" inputmode="text" value="#FFFFFF"></div><div class="recent-colors"><span>Session colors</span><div id="recentColorSwatches" aria-label="Recent colors"></div></div>`;
+    <div class="color-hex-row"><span id="colorPreview"></span><div class="color-hex-field"><input id="colorHex" aria-label="Hex color" type="text" maxlength="7" spellcheck="false" autocapitalize="characters" inputmode="text" value="#FFFFFF"><button type="button" id="colorCopy" class="slider-reset" aria-label="Copy hex color" title="Copy hex color">${copyIcon}</button></div><div class="color-value-tools"><button type="button" id="colorSample" class="color-sample" data-sample-target="garmentCustom" aria-label="Sample color" title="Sample color"></button><button type="button" id="colorReset" class="slider-reset" aria-label="Reset color" title="Reset color">${RESET_ICON}</button></div></div><div class="recent-colors"><span>Recent Colors</span><div id="recentColorSwatches" aria-label="Recent colors"></div></div>`;
   document.body.append(panel);
   const field=panel.querySelector('#colorSV'),cursor=panel.querySelector('#colorCursor');
   const hue=panel.querySelector('#colorHue'),hex=panel.querySelector('#colorHex'),preview=panel.querySelector('#colorPreview');
+  const copy=panel.querySelector('#colorCopy');let copyTimer;
+  copy.onclick=async()=>{const color=value();try{if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(color);}else{const temp=document.createElement('textarea');temp.value=color;temp.style.position='fixed';temp.style.opacity='0';panel.append(temp);temp.select();const ok=document.execCommand('copy');temp.remove();if(!ok)throw Error('Copy unavailable');}copy.innerHTML=checkIcon;copy.title='Copied '+color;copy.setAttribute('aria-label','Copied '+color);}catch{copy.title='Could not copy; select the hex value to copy manually';copy.setAttribute('aria-label',copy.title);hex.focus();hex.select();}clearTimeout(copyTimer);copyTimer=setTimeout(()=>{copy.innerHTML=copyIcon;copy.title='Copy hex color';copy.setAttribute('aria-label','Copy hex color');},1400);};
   let target=null,anchor=null,h=0,s=0,v=1,changed=false;
   const memoryKey='orb-colors:'+location.pathname;let recent=[];
   try{const saved=JSON.parse(sessionStorage.getItem(memoryKey)||'[]');if(Array.isArray(saved))recent=saved.filter(c=>/^#[0-9a-f]{6}$/i.test(c)).slice(0,12);}catch{}
@@ -23,7 +26,7 @@ export function installColorPicker({onReset=()=>{}}={}){
   function drawRecent(){
     const row=panel.querySelector('#recentColorSwatches');row.replaceChildren();
     if(!recent.length){const hint=document.createElement('small');hint.textContent='Applied colors appear here';row.append(hint);}
-    for(const color of recent){const b=document.createElement('button');b.type='button';b.style.background=color;b.title=color;b.setAttribute('aria-label','Use '+color);b.dataset.sampleColor=color;
+    for(const color of recent.slice(0,8)){const b=document.createElement('button');b.type='button';b.style.background=color;b.title=color;b.setAttribute('aria-label','Use '+color);b.dataset.sampleColor=color;
       b.onclick=()=>{if(!target)return;read(color);sync(true);target.dispatchEvent(new Event('change',{bubbles:true}));changed=false;};row.append(b);}
   }
   document.addEventListener('change',event=>{if(event.target.matches('input[type="color"]'))remember(event.target.value);});
@@ -67,17 +70,17 @@ export function installColorPicker({onReset=()=>{}}={}){
     if(input.disabled)return;
     if(target===input&&!panel.hidden)return;
     close();panel.querySelector('#colorSample').dataset.sampleTarget=input.id;target=input;anchor=source;changed=false;h=0;read(input.value);
-    panel.querySelector('#colorPopoverTitle').textContent=input.getAttribute('aria-label')||'Color';
+    panel.querySelector('#colorPopoverTitle').textContent=({inkCustom:'Solid Color',tintCustom:'Tint Color'})[input.id]||input.getAttribute('aria-label')||'Color';
     input.setAttribute('aria-controls',panel.id);input.setAttribute('aria-expanded','true');
-    panel.hidden=false;sync();position();field.focus({preventScroll:true});
+    panel.hidden=false;panel.dispatchEvent(new Event('coloropen'));sync();position();field.focus({preventScroll:true});
   }
   document.addEventListener('click',event=>{
     if(event.target.closest('[data-sample-target],[data-reset-color],[data-reset-group]'))return;
     const input=event.target.closest('input[type="color"]')||event.target.closest('label')?.querySelector('input[type="color"]');
-    if(!input)return;event.preventDefault();open(input);
+    if(!input||input.dataset.nativeColor)return;event.preventDefault();open(input);
   },true);
   document.addEventListener('keydown',event=>{
-    if(event.target.matches('input[type="color"]')&&['Enter',' '].includes(event.key)){event.preventDefault();open(event.target);}
+    if(event.target.matches('input[type="color"]')&&!event.target.dataset.nativeColor&&['Enter',' '].includes(event.key)){event.preventDefault();open(event.target);}
     else if(event.key==='Escape'&&!panel.hidden){event.preventDefault();event.stopPropagation();close(true);}
   },true);
   document.addEventListener('pointerdown',event=>{

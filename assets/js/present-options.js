@@ -1,5 +1,5 @@
-export const PRESENT_LIGHTS=['studio','softbox','day','night','uv','runway','afterglow','projector'];
-export const PRESENT_NAMES=['Studio','Softbox','Day','Night','UV','Runway','Afterglow','Projector'];
+export const PRESENT_LIGHTS=['softbox','studio','day','night','uv','runway','afterglow','projector'];
+export const PRESENT_NAMES=['Neutral','Studio','Day','Night','UV','Runway','Afterglow','Projector'];
 export function defaultPresentation(){return {cycle:false,order:[...PRESENT_LIGHTS],selected:[],hold:10,fade:3,background:false,bg:'#181818',graphic:null,graphicName:'',graphicMode:'original',graphicColor:'#ffffff',opacity:20,size:65,x:50,y:50,camera:'current',rotate:true,speed:100};}
 export function validPresentation(p){
  const color=v=>typeof v==='string'&&/^#[a-f\d]{6}$/i.test(v);

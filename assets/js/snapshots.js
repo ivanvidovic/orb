@@ -1,7 +1,7 @@
 import {reviewLayout,fitReviewLayout,createCaptureDisclosure} from './snapshot-layout.js?v=0.9.7';
 import {snapshotIcons,snapshotTip as tip,snapshotIconButton as iconButton} from './snapshot-icons.js?v=91-layout58';
-import {createSnapshotStore} from './snapshot-store.js?v=0.9.4';
-import {downloadBlob,cleanFilename} from './design-format.js?v=91-present23';
+import {createSnapshotStore} from './snapshot-store.js?v=0.9.51';
+import {downloadBlob,cleanFilename} from './design-format.js?v=0.9.51';
 const $=id=>document.getElementById(id);
 export function installSnapshots(api){
   const store=createSnapshotStore(),section=$('snapshotsSection'),review=$('snapshotReview');
@@ -43,12 +43,11 @@ export function installSnapshots(api){
   function lock(value){working=value;section.setAttribute('aria-busy',String(value));review.setAttribute('aria-busy',String(value));for(const el of document.querySelectorAll('#snapshotsSection button,#snapshotReview button,#snapshotReview input'))el.disabled=value;$('snapshotDeleteAll').disabled=value||!entries.length;}
   async function run(action){if(working)return;lock(true);message('');try{await action();}catch(error){message(error.name==='QuotaExceededError'?'Snapshot storage is full. Download or delete older snapshots and try again.':error.message||'Snapshot operation failed.');}finally{lock(false);if(reviewing)mobileMode();}}
   async function refresh(){entries=await store.list();collectUrls();if(selected!==null&&!entries.some(e=>e.id===selected))selected=null;render();}
-  async function capture({preserve=false}={}){
-    const result=await api.workspace.captureSnapshot(api.previews,preserve?async data=>{entries=await store.list();const key=await store.fingerprintData(data);return entries.find(entry=>store.fingerprint(entry.doc,entry.modelKey||null)===key);}:null);
-    if(result.existing)return result.existing;
+  async function capture(){
+    const result=await api.workspace.captureSnapshot(api.previews);
     const entry=await store.save(result.data,result.previews);selected=entry.id;await refresh();return entry;
   }
-  async function open(entry){const data=await store.load(entry.id);api.workspace.checkSnapshot(data);await capture({preserve:true});await api.workspace.restoreSavedSnapshot(data);closeReview();selected=entry.id;render();message('Snapshot opened. Your previous design is in the collection.',true);}
+  async function open(entry){const data=await store.load(entry.id);api.workspace.checkSnapshot(data);await api.workspace.restoreSavedSnapshot(data);closeReview();selected=entry.id;render();message('Snapshot opened.',true);}
   async function download(entry){const data=await store.load(entry.id);data.doc={...data.doc,name:entry.name};downloadBlob(await api.workspace.archiveData(data),cleanFilename(entry.name)+'.orb');}
   function allCards(){return document.querySelectorAll('#snapshotGrid .snapshot-card,#snapshotReviewGrid .snapshot-card');}
   function syncSelected(){
@@ -101,7 +100,7 @@ export function installSnapshots(api){
     const caption=document.createElement('div');caption.className='snapshot-caption';const name=document.createElement('span');name.className='snapshot-name';name.textContent=entry.name;if(!large)tip(name,entry.name);name.onclick=()=>flipButton.click();const sideLabel=document.createElement('span');sideLabel.className='snapshot-side-label';sideLabel.textContent=card.dataset.side==='front'?'Front':'Back';caption.append(name,sideLabel);card.append(caption);
     const more=iconButton('more','Snapshot actions for '+entry.name,'Open, rename, download or delete this snapshot.',()=>{const expanded=!card.classList.contains('actions-open');select(entry);closeActions(card);card.classList.toggle('actions-open',expanded);more.setAttribute('aria-expanded',String(expanded));});more.classList.add('snapshot-more');more.setAttribute('aria-expanded','false');card.append(more);
     const actions=document.createElement('div');actions.className='snapshot-card-actions';actions.setAttribute('role','group');actions.setAttribute('aria-label','Actions for '+entry.name);
-    actions.append(iconButton('open','Open '+entry.name,'Open this editable design. Altered work is backed up first.',()=>{select(entry);run(()=>open(entry));}),iconButton('rename','Rename '+entry.name,'Rename this snapshot and its download filename.',()=>edit(entry,'rename',large)),iconButton('download','Download '+entry.name,'Download this design as an editable .orb file.',()=>{select(entry);run(()=>download(entry));}),iconButton('remove','Delete '+entry.name,'Delete this snapshot. You will be asked to confirm.',()=>edit(entry,'remove',large)));card.append(actions);
+    actions.append(iconButton('open','Open '+entry.name,'Open this editable design without adding a snapshot.',()=>{select(entry);run(()=>open(entry));}),iconButton('rename','Rename '+entry.name,'Rename this snapshot and its download filename.',()=>edit(entry,'rename',large)),iconButton('download','Download '+entry.name,'Download this design as an editable .orb file.',()=>{select(entry);run(()=>download(entry));}),iconButton('remove','Delete '+entry.name,'Delete this snapshot. You will be asked to confirm.',()=>edit(entry,'remove',large)));card.append(actions);
     flipButton.onclick=()=>{const wasOpen=card.classList.contains('actions-open');select(entry);closeActions();if(large&&!wasOpen)flip(entry);};flipTip(card,entry);return card;
   }
   function empty(grid){const text=document.createElement('p');text.className='snapshot-note';text.textContent='Capture a design with + to start your collection.';grid.append(text);}

@@ -7,6 +7,12 @@ export function withPrintProfile(bytes){
   const section=30+input.getUint32(26),length=input.getUint32(section),end=section+4+length;
   const block=new Uint8Array(12+PROFILE.length+(PROFILE.length%2)),view=new DataView(block.buffer);
   block.set([56,66,73,77]);view.setUint16(4,1039);view.setUint32(8,PROFILE.length);block.set(PROFILE,12);
-  const out=new Uint8Array(bytes.length+block.length);out.set(bytes.subarray(0,end));out.set(block,end);out.set(bytes.subarray(end),end+block.length);
-  new DataView(out.buffer).setUint32(section,length+block.length);return out;
+  const size=bytes.length+block.length;
+  // Reuse spare capacity in the PSD writer buffer when available.
+  const reusable=bytes.byteOffset+size<=bytes.buffer.byteLength;
+  const out=reusable?new Uint8Array(bytes.buffer,bytes.byteOffset,size):new Uint8Array(size);
+  if(reusable)out.copyWithin(end+block.length,end,bytes.length);
+  else{out.set(bytes.subarray(0,end));out.set(bytes.subarray(end),end+block.length);}
+  out.set(block,end);
+  new DataView(out.buffer,out.byteOffset,out.byteLength).setUint32(section,length+block.length);return out;
 }

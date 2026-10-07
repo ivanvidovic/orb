@@ -1,0 +1,11 @@
+{
+  "baselineMedianMs": 2583.449999999255,
+  "optimizedMedianMs": 806.1500000003725,
+  "ratio": 3.204676549026932,
+  "reductionPercent": 68.79560277920591,
+  "baselineDrawCalls": 40,
+  "optimizedDrawCalls": 8,
+  "shadowMapsBefore": 9,
+  "shadowMapsAfter": 1,
+  "scope": "Men tee; 360x440; software WebGL; forced shadow update each frame; four warmed measured frames"
+}

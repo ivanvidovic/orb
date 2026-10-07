@@ -988,7 +988,7 @@ body.present .stage-reset,body.present .stage-help{display:none}
 .export-grid-option{padding-left:116px;margin-top:8px}
 .export-grid-option[hidden]{display:none}
 .export-grid-option label:has(input:disabled),.export-sheet-option label:has(input:disabled){color:var(--graphite);opacity:.65}
-.export-sheet-option{border-top:1px solid var(--rule);padding-top:12px}
+.export-sheet-option{padding:0}
 .export-sheet-option p{margin:3px 0 0 22px;font-size:10px}
 @media(max-width:480px){.export-grid-option{padding-left:0}}
 
@@ -1148,3 +1148,54 @@ body.present .stage-reset,body.present .stage-help{display:none}
 /* Public release identification uses the existing help typography. */
 .helpTitleRow{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 12px}
 .helpVersion{font:400 10px/1.4 var(--sans);color:var(--graphite);white-space:nowrap}
+
+/* Compact design palette and linked lockups. */
+.palette-bar{display:flex;align-items:center;gap:5px;margin:10px 0;min-width:0}.palette-bar select{min-width:65px;max-width:125px;flex:1;font-size:11px}.palette-bar button{padding:4px 7px;font-size:11px}.palette-chips{display:flex;gap:3px;flex-wrap:wrap}.palette-chips button{width:18px;height:18px;padding:0;border:1px solid var(--rule-mid);border-radius:3px}.design-tools-dialog{width:320px;max-height:80vh;padding:16px;overflow:auto}.design-tools-dialog>*{margin:0 0 10px}.design-tools-dialog>button{display:block;width:100%;text-align:left;padding:8px}.design-tools-head,.design-tools-actions,.palette-slot-edit,.design-tools-dialog>label{display:flex;align-items:center;justify-content:space-between;gap:8px}.design-tools-dialog input:not([type=color]){min-width:0;width:100%;padding:6px}.design-tools-dialog>label input{width:100px}.palette-slot-edit input[type=color]{flex:0 0 36px;width:36px;height:30px}.lockup-heading{display:flex;gap:4px;align-items:center;padding:6px 0;border-bottom:1px solid var(--rule)}.lockup-heading button{font-size:11px;padding:3px 5px}.lockup-heading button:last-child{flex:1;text-align:left}.linked-layer{border-left:2px solid var(--rule-mid);padding-left:4px}.link-select{width:14px;height:14px;flex-shrink:0}.link-select[hidden]{display:none}
+
+.export-camera-heading{display:flex;align-items:center;justify-content:space-between;font-size:11px}.export-camera-heading label{display:flex;align-items:center;gap:5px}#exportSnapshots{display:grid;grid-template-columns:1fr 1fr;gap:6px;max-height:220px;overflow:auto}#exportSnapshots[hidden]{display:none}#exportSnapshots label{display:flex;align-items:center;gap:6px;padding:5px;border:1px solid var(--rule);font-size:11px;min-width:0}#exportSnapshots img{width:32px;height:38px;object-fit:contain}#exportSnapshots span{overflow-wrap:anywhere}
+#panel #artWorkspace .art-slot:has(.link-select:not([hidden])){grid-template-columns:16px 18px 32px minmax(0,1fr) 28px 28px}
+
+#panel .palette-chips button{min-height:18px;height:18px;min-width:18px;width:18px;padding:0;align-self:center}.palette-chips{align-items:center}
+#panel .lockup-heading{padding:2px 0}#panel .lockup-heading button{min-height:24px;height:24px;padding:2px 4px}
+
+#panel .lockup-heading{gap:3px}#panel .lockup-heading button:nth-child(2){flex:1;text-align:left}#panel .lockup-heading button:last-child{flex:0;text-align:center}#panel .lockup-heading button[aria-pressed=true]:nth-child(2){font-weight:600;background:var(--wash)}.lockup-eye svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.5}.group-hidden>.art-slot{opacity:.45}.lockup-controls{padding:8px 6px 10px;background:var(--wash);border-bottom:1px solid var(--rule)}.lockup-controls[hidden]{display:none}.organize-color-chip{width:24px;height:24px;min-width:24px;padding:0}.palette-slot-edit>input{flex:1}.palette-slot-edit>button:last-child{flex:0 0 24px}#panel .palette-bar{gap:4px}#panel .palette-bar select{max-width:112px}#panel .palette-bar>button{padding:3px 5px}
+
+/* Reuse the artwork control layout for linked transforms. */
+#panel .lockup-controls .art-control{margin:4px 0}
+#artWorkspace .art-appearance-group{margin-top:6px;padding-top:6px}
+#artWorkspace .art-appearance-group .art-modes{margin:4px 0}
+#artWorkspace .art-appearance-group .emission-controls{margin:4px 0 0}
+#artWorkspace .art-appearance-group>.solid-settings{margin-top:6px;padding-top:6px}
+.picker-palette{display:flex;align-items:center;gap:6px;margin-top:10px}.picker-palette[hidden]{display:none}.picker-palette select{min-width:0;max-width:120px}.picker-palette .palette-chips{flex-wrap:wrap}.picker-palette button[aria-pressed=true]{outline:1px solid var(--ink);outline-offset:2px}
+
+/* Compact picker: saved palette first, manual color controls next. */
+#colorPopover .color-pop-head{gap:6px;margin-bottom:8px}
+#colorPopover .picker-palette{margin:0 0 10px;gap:6px;flex-wrap:wrap}
+#colorPopover .picker-palette select{font:inherit;max-width:130px}
+#colorPopover .palette-chips,#recentColorSwatches{gap:6px}
+#colorPopover .palette-chips button,#recentColorSwatches button{box-sizing:border-box;width:24px;min-width:24px;height:24px;min-height:24px;padding:0;border:1px solid var(--rule-mid);border-radius:0}
+#recentColorSwatches{flex-wrap:nowrap;margin-top:6px}
+#colorPopover .recent-colors{margin-top:8px;padding-top:8px}
+#colorPopover .color-hex-row{gap:6px}
+.color-link-status{display:block;font-size:10px;margin-top:4px;color:var(--graphite)}.color-link-status[hidden]{display:none}
+#panel .lockup-heading .lockup-name-input{display:block;flex:1;min-width:0;width:0;font:inherit;padding:3px 5px;order:0}
+#panel .lockup-heading:has(.lockup-name-input)>.lockup-name-input{order:1}
+#panel .lockup-heading:has(.lockup-name-input)>button:nth-child(3){order:2}
+#panel .lockup-heading:has(.lockup-name-input)>button:nth-child(4){order:3;flex:0}
+#panel .lockup-heading button[hidden]{display:none}
+
+/* Color picker header, palette and value tools follow the existing controls. */
+#colorPopover .picker-palette{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
+#colorPopover .picker-palette select{box-sizing:border-box;width:100%;max-width:none;min-height:28px;padding:4px 22px 4px 6px;border:1px solid var(--rule);border-radius:0;background-color:transparent;color:var(--ink);font:inherit;font-size:12px;appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--ink) 50%),linear-gradient(135deg,var(--ink) 50%,transparent 50%);background-position:calc(100% - 11px) 50%,calc(100% - 7px) 50%;background-size:4px 4px;background-repeat:no-repeat}
+#colorPopover .picker-palette[hidden]{display:none}
+.color-hex-field{display:flex;align-items:center;min-width:0;flex:1;border:1px solid var(--rule-mid)}
+#colorPopover #colorHex{border:0;padding:6px 4px;font-size:13px;flex:1;width:0}
+#colorPopover #colorCopy{margin-right:2px!important}
+.color-value-tools{display:flex;align-items:center;gap:2px;flex:none}
+#colorPopover .color-value-tools #colorSample{box-sizing:border-box;width:24px;height:28px;min-width:24px;min-height:28px;padding:3px;border:0;background:transparent}
+#colorPopover .color-value-tools #colorSample svg{width:16px;height:16px}
+
+#exportDialog .export-views.export-choice-buttons{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;justify-content:stretch}
+#exportDialog .export-views.export-choice-buttons label{display:block;white-space:normal}
+#exportDialog .export-views.export-choice-buttons label[hidden]{display:none}
+#exportDialog .export-views.export-choice-buttons span{border-radius:0;min-height:32px;box-sizing:border-box;display:flex;align-items:center;justify-content:center}

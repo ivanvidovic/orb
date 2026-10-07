@@ -1,40 +1,42 @@
-import {colorName} from './color-name.js?v=0.9.40';
-import {CAMO_LIBRARY,createCamo,normalizeCamoScales} from './camo.js?v=0.9.40';
-import {prepareCordMetadata,adoptCordMetadata,updateCordMotion,cordMotionState} from './cord-motion.js?v=0.9.40';
-import {restoreGarmentTopology} from './embedded-garment.js?v=0.9.40';
-import {fetchGarmentAsset} from './garment-asset-cache.js?v=0.9.40';
-import {garmentPresentation,presentationPoint} from './garment-presentation.js?v=0.9.40';
+import {defaultPaletteBook,applyPalette,installDesignTools,effectiveVisibility} from './design-tools.js?v=0.9.51';
+let designTools=null;
+import {colorName} from './color-name.js?v=0.9.51';
+import {CAMO_LIBRARY,createCamo,normalizeCamoScales} from './camo.js?v=0.9.51';
+import {prepareCordMetadata,adoptCordMetadata,updateCordMotion,cordMotionState} from './cord-motion.js?v=0.9.51';
+import {restoreGarmentTopology} from './embedded-garment.js?v=0.9.51';
+import {fetchGarmentAsset} from './garment-asset-cache.js?v=0.9.51';
+import {garmentPresentation,presentationPoint} from './garment-presentation.js?v=0.9.51';
 // ORB Garment Studio v0.9.18 — desktop crewnecks and garment alignment.
-import {installSnapshots} from './snapshots.js?v=0.9.10';
+import {installSnapshots} from './snapshots.js?v=0.9.51';
 import {configureGarmentShadow} from './shadow-quality.js?v=91-shadow47';
 import {preloadCatalog} from './catalog-preload.js?v=91-shadow47';
 import {createPresentMotion} from './present-motion.js?v=91-present46';
 import {installMobileInteraction} from './mobile-interaction.js?v=91-art44';
 import {MOBILE_MEMORY,RENDER_BUDGET,artworkAtlasSize} from './render-budget.js?v=0.9.13';
 import {viewportSize,installViewport} from './mobile-viewport.js?v=91-opt43';
-import {defaultPresentation} from './present-options.js?v=91-style26';
-import {installPresentation} from './present-settings.js?v=91-opt43';
+import {defaultPresentation} from './present-options.js?v=0.9.51';
+import {installPresentation} from './present-settings.js?v=0.9.51';
 let presentation=null,presentRenderLight=null;
 import {setupProjectorControls,syncProjectorButtons} from './projector-controls.js?v=91-controls65';
 import {installMappedRanges} from './mapped-ranges.js?v=91-history13';
 import {treatmentKey} from './artwork-treatment.js?v=91-history13';
-import {quadTransform,alphaBounds,flattenTransform,collectSurfaces} from './print-layout.js?v=86';
+import {quadTransform,alphaBounds,flattenTransform,collectSurfaces} from './print-layout.js?v=0.9.51';
 import {createTreatmentQueue,createTreatmentProcessor} from './artwork-processing.js?v=91-history13';
 import {hasPrintTexture} from './print-texture.js?v=91-history13';
 import {focusedPanelBounds,layerCustomColor} from './artwork-detail.js?v=91-history13';
-import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=0.9.40';
-import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE,fullSleeveCamera} from './sleeve-camera.js?v=0.9.40';
+import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=0.9.51';
+import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE,fullSleeveCamera} from './sleeve-camera.js?v=0.9.51';
 import {hasDirectory} from './folder-import.js?v=58';
 import {decodeArtworkImage,normalizeArtworkFile} from './artwork-decode.js?v=91-svg21';
-import {createCityTraffic} from './city-night.js?v=0.9.40';
+import {createCityTraffic} from './city-night.js?v=0.9.51';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=82';
 import {sharedSurfaceProfiles,fitSurfacePlacements} from './surface-layout.js?v=0.9.15';
 import {torsoFrame,torsoDistance,previousTorsoFrame,previewDistance,previousPreviewFrame} from './garment-framing.js?v=0.9.13';
-import {installWorkspace} from './workspace.js?v=0.9.40';
-import {installExports} from './presentation-export.js?v=91-capture67';
-import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=0.9.40';
+import {installWorkspace} from './workspace.js?v=0.9.51';
+import {installExports} from './presentation-export.js?v=0.9.51';
+import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=0.9.51';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=0.9.12';
-import {installColorPicker} from './color-picker.js?v=0.9.40';
+import {installColorPicker} from './color-picker.js?v=0.9.51';
 import {installSliderControls,rangeDisplayValue,RESET_ICON} from './controls.js?v=91-controls65';
 import {installColorActions} from './color-actions.js?v=34';
 let colorPicker=null,colorActions=null,workspace=null;
@@ -177,6 +179,8 @@ function makeEnvironment(kind,colors=NIGHT_DEFAULTS){
 }
 const environments={softbox:makeEnvironment('softbox'),studio:makeEnvironment('studio'),day:makeEnvironment('day'),night:makeEnvironment('night'),uv:makeEnvironment('uv')};
 scene.environment=environments.studio;
+let reviewLighting=false;
+
 const lightRig=new THREE.Group();scene.add(lightRig);
 const cityTraffic=createCityTraffic(THREE,scene);
 function updateCityTraffic(dt=0){cityTraffic.update(dt,{enabled:state.light==='night',mode:state.nightTraffic,paused:state.nightPaused,power:state.lightPower});}
@@ -194,6 +198,20 @@ key.shadow.mapSize.set(MOBILE?1024:2048,MOBILE?1024:2048);
 Object.assign(key.shadow.camera,{left:-.72,right:.72,top:.68,bottom:-.68,near:.1,far:6});
 key.shadow.camera.updateProjectionMatrix();
 configureGarmentShadow(key,{span:1.44,mobile:MOBILE_MEMORY});
+// Neutral keeps the historical softbox ID for saved designs.
+// One filtered shadow map replaces the nine-map area-light approximation.
+function setNeutralShadowBudget(neutral){
+  const size=neutral?1024:(MOBILE?1024:2048);
+  if(key.shadow.mapSize.x!==size){
+    key.shadow.map?.dispose();key.shadow.map=null;
+    key.shadow.mapSize.set(size,size);
+    renderer.shadowMap.needsUpdate=true;shadowDirty=true;
+  }
+  // The existing soft-PCF filter is sufficient at this footprint; retain the
+  // same filter and shader layout as Studio instead of adding light samples.
+  key.shadow.radius=1;
+  configureGarmentShadow(key,{span:key.shadow.camera.right-key.shadow.camera.left,mobile:MOBILE_MEMORY});
+}
 function updateShadowMap(){
   const c=camera.quaternion,g=garment,p=presentGarment;
   const sig=[state.selfShadows,state.light,state.lightLocked,c.x,c.y,c.z,c.w,g.position.x,g.position.z,g.rotation.y,p.visible,p.position.x,p.position.z,p.rotation.y,activeGarmentId].join('/');
@@ -210,11 +228,11 @@ const LIGHT_PRESETS={
   runway:{label:'Runway',description:'Moving overhead light, fast passing highlights and irregular camera flashes. Pause to hold a moment.',exposure:1,hemi:.035,hemiSky:'#bfcce3',hemiGround:'#25252d',key:.20,keyColor:'#fff5e9',keyPos:[-1,2,1],fill:.06,fillColor:'#e0e9ff',fillPos:[1,.5,1],rim:.3,rimColor:'#ffffff',rimPos:[0,1,-2]},
   afterglow:{label:'Afterglow',description:'A circling light charges Glow in the dark artwork, leaving a fading trail. Enable Glow on a layer.',exposure:1,hemi:.008,hemiSky:'#a2acc3',hemiGround:'#161820',key:.025,keyColor:'#c5d4ee',keyPos:[-1,2,1],fill:.008,fillColor:'#ced8f0',fillPos:[1,.5,1],rim:.065,rimColor:'#9aaada',rimPos:[0,1,-2]},
   projector:{label:'Projector',description:'Patterns and color palettes projected onto fabric. Self-shadows block projection behind folds.',exposure:1,hemi:.018,hemiSky:'#c2cede',hemiGround:'#20252d',key:.075,keyColor:'#c4d2e8',keyPos:[-1,2,1],fill:.02,fillColor:'#c5d1ed',fillPos:[1,.5,1],rim:.16,rimColor:'#acbfdf',rimPos:[0,1,-2]},
-  softbox:{label:'Softbox',description:'Even neutral light with gentle highlights and filled shadows for reviewing artwork.',
-    exposure:.98,hemi:.42,hemiSky:'#ffffff',hemiGround:'#dedede',
-    key:1.25,keyColor:'#ffffff',keyPos:[-1.65,1.85,1.35],
-    fill:.42,fillColor:'#ffffff',fillPos:[1.65,1.85,1.35],
-    rim:.60,rimColor:'#ffffff',rimPos:[0,1.6,-1.8]},
+  softbox:{label:'Neutral',description:'Broad, soft illumination with gentle shadows for reviewing fabric colors and artwork.',
+    exposure:1,hemi:.15,hemiSky:'#ffffff',hemiGround:'#b8b8b8',
+    key:1.28,keyColor:'#ffffff',keyPos:[-.8,1.1,2.4],
+    fill:.86,fillColor:'#ffffff',fillPos:[1.5,.5,2.4],
+    rim:.24,rimColor:'#ffffff',rimPos:[.5,1.5,-1.8]},
   studio:{label:'Studio',description:'Soft neutral studio light for judging fabric and print.',
     exposure:.98,hemi:.32,hemiSky:'#ffffff',hemiGround:'#c2bdb6',
     key:2.05,keyColor:'#fff5e9',keyPos:[-1.65,1.85,1.35],
@@ -258,7 +276,7 @@ function renderLightingPreset(updateEffects=true){
   syncFabricColors();
   const p=LIGHT_PRESETS[state.light]||LIGHT_PRESETS.studio,power=state.lightPower/100*(state.light==='uv'?8:1);
   renderer.toneMappingExposure=p.exposure;scene.environment=environments[state.light]||environments.studio;
-  lightEnvironmentPower.value=power*(isCreative(state.light)?.025:state.light==='softbox'?.55:state.light==='studio'?.55:state.light==='day'?.65:state.light==='night'?.1125:.45);
+  lightEnvironmentPower.value=power*(isCreative(state.light)?.025:state.light==='softbox'?.2:state.light==='studio'?.55:state.light==='day'?.65:state.light==='night'?.1125:.45);
   effectUniforms.uBlackLight.value=state.light==='uv'?power:0;
   effectUniforms.uGlowSceneLevel.value=power*(.16*p.key+.12*p.fill+.08*p.rim+.75*p.hemi)+.20*lightEnvironmentPower.value;
   if(updateEffects){updateCityTraffic();updateCreativeLighting();}
@@ -267,6 +285,7 @@ function renderLightingPreset(updateEffects=true){
   key.color.set(p.keyColor);key.intensity=p.key*power;key.position.set(...p.keyPos);
   fil.color.set(p.fillColor);fil.intensity=p.fill*power;fil.position.set(...p.fillPos);
   rim.color.set(p.rimColor);rim.intensity=p.rim*power;rim.position.set(...p.rimPos);
+  setNeutralShadowBudget(state.light==='softbox');
 }
 function applyLightingPreset(){
   if(state.projectorPattern==='caustics')state.projectorPattern='neuro-noise';
@@ -301,7 +320,8 @@ function applyLightingPreset(){
 }
 function updateLightLock(){
   if(!lightReferenceReady){lightReference.copy(camera.quaternion);lightReferenceReady=true;}
-  if(state.lightLocked){
+  if(reviewLighting||(state.light==='softbox'&&state.lightLocked)){lightRig.quaternion.copy(camera.quaternion);}
+  else if(state.lightLocked){
     lightRig.quaternion.copy(camera.quaternion).multiply(lightInverse.copy(lightReference).invert());
   }
   lightRotationMatrix.makeRotationFromQuaternion(lightInverse.copy(lightRig.quaternion).invert());
@@ -595,6 +615,7 @@ function patchFabricMaterial(mat){
     sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>',
       `#include <map_fragment>
 #ifdef USE_MAP
+ if(uCamoEnabled<.5 && uCamoFabric>.5)diffuseColor.rgb/=vec3(.535,.535,.522);
  if(uCamoEnabled>.5 && uCamoFabric>.5){
   vec3 pattern=texture2D(uCamoMap,vCamoUv*uCamoUvScale*uCamoRepeat*vec2(1.,uCamoAspect)).rgb;
   // Neutral cotton color detail remains at its original UV frequency.
@@ -900,7 +921,7 @@ async function getCatalogBytes(item){
     const stem=item.file.replace(/\.glb$/,'');
     const urls=['../garments/'+item.file,'../calibration/'+stem+'.json','../calibration/'+stem+'.bin'];
     return Promise.all(urls.map(async (path,index)=>{
-      const url=new URL(path,import.meta.url);url.searchParams.set('v','0.9.40');
+      const url=new URL(path,import.meta.url);url.searchParams.set('v','0.9.51');
       const response=await fetchGarmentAsset(url,{persistent:!MOBILE_MEMORY});
       if(!response.ok)throw new Error('Garment asset failed ('+response.status+'): '+path);
       if(index===0&&!MOBILE_MEMORY&&window.ORBStartup?.active){
@@ -1179,7 +1200,7 @@ const THEMES={
   dark:{bg:BRAND.dark.paper},
 };
 const systemColorScheme=matchMedia('(prefers-color-scheme: dark)');
-const state={ presentation:defaultPresentation(), ...CREATIVE_DEFAULTS,runwayPaused:REDUCED,afterglowPaused:REDUCED,projectorPaused:REDUCED,themeMode:'system', theme:'light', blank:0, camoId:null, camoLastId:'army', camoScale:100,camoScales:{},camoScaleVersion:1, garmentCustom:'#FFFFFF', artGlossiness:50, matchFabricToTheme:false, bg:THEMES.light.bg, dotGrid:true, gridType:'square', gridColor:BRAND.light.grid, gridColorCustom:false, gridStroke:0.5, gridScale:35, gridCharSize:45, light:'studio', lightPower:100, blackLightPower:100, regularLightPower:100, nightLightPower:100, nightTraffic:'subtle', nightPaused:REDUCED, lightLocked:true, nightGreen:NIGHT_DEFAULTS.green, nightMagenta:NIGHT_DEFAULTS.magenta, selfShadows:true, wind:1, view:'angle',
+const state={paletteBook:defaultPaletteBook(),lockupGroups:[], presentation:defaultPresentation(), ...CREATIVE_DEFAULTS,runwayPaused:REDUCED,afterglowPaused:REDUCED,projectorPaused:REDUCED,themeMode:'system', theme:'light', blank:0, camoId:null, camoLastId:'army', camoScale:100,camoScales:{},camoScaleVersion:1, garmentCustom:'#FFFFFF', artGlossiness:50, matchFabricToTheme:false, bg:THEMES.light.bg, dotGrid:true, gridType:'square', gridColor:BRAND.light.grid, gridColorCustom:false, gridStroke:0.5, gridScale:35, gridCharSize:45, light:'softbox', lightPower:100, blackLightPower:100, regularLightPower:100, nightLightPower:100, nightTraffic:'subtle', nightPaused:REDUCED, lightLocked:true, nightGreen:NIGHT_DEFAULTS.green, nightMagenta:NIGHT_DEFAULTS.magenta, selfShadows:true, wind:1, view:'angle',
   inertia:{enabled:true,strength:15,ramp:100,settle:0.5,elasticity:60,overshoot:70,release:70,sensitivity:50,bias:25,sleeve:100,arc:100},
   focus:new THREE.Vector3(0,.02,0),focusTarget:new THREE.Vector3(0,.02,0),az:0.62, el:1.30, r:1.55, taz:0.62, tel:1.30, tr:1.55, present:false };
 const WIND_LEVELS=[0,0.011,0.024];
@@ -1712,7 +1733,7 @@ const sw=document.getElementById('swatches');
 function useManualFabricColor(){
   ++camoRequest;document.getElementById('camoStatus').textContent='';
   state.camoId=null;
-  state.matchFabricToTheme=false;
+  state.matchFabricToTheme=false;try{localStorage.setItem('orb-match-fabric-theme','false');}catch{}
   document.getElementById('matchFabricToTheme').checked=false;
 }
 function syncGarmentSwatches(){
@@ -1754,7 +1775,7 @@ async function selectCamo(id){
  if(!/^(mens|womens)-(tee|crewneck|hoodie)$/.test(activeGarmentId))return;
  const request=++camoRequest,status=document.getElementById('camoStatus');status.textContent='';
  try{const texture=await camo.load(id);if(request!==camoRequest)return;
-  camo.uniforms.uCamoMap.value=texture;state.camoId=id;state.camoLastId=id;state.camoScale=state.camoScales[id]??CAMO_LIBRARY.find(p=>p.id===id).defaultScale;state.matchFabricToTheme=false;
+  camo.uniforms.uCamoMap.value=texture;state.camoId=id;state.camoLastId=id;state.camoScale=state.camoScales[id]??CAMO_LIBRARY.find(p=>p.id===id).defaultScale;state.matchFabricToTheme=false;try{localStorage.setItem('orb-match-fabric-theme','false');}catch{}
   document.getElementById('matchFabricToTheme').checked=false;syncGarmentSwatches();applyLook();workspace?.notify();status.textContent='';
  }catch(e){if(request===camoRequest)status.textContent=e.message;}
 }
@@ -1955,7 +1976,7 @@ function syncInkUi(){
   for(const [mode,id] of [['tint','tintCustom'],['ink','inkCustom']]){
     const input=document.getElementById(id),swatch=document.querySelector(`[data-art-color="${mode}"]`);
     input.disabled=disabled;swatch.disabled=disabled;
-    const color=inkHex(entry,mode);input.value=color;swatch.style.setProperty('--swatch',color);swatch.dataset.sampleColor=color;
+    const color=inkHex(entry,mode);input.value=color;swatch.style.setProperty('--swatch',color);swatch.dataset.sampleColor=color;swatch.title=entry?.paletteSlot?'Linked to '+(state.paletteBook.slots.find(s=>s.id===entry.paletteSlot)?.name||'palette color'):'Choose '+mode+' color';
   }
   document.getElementById('solidSettings').hidden=!entry||entry.mode!=='ink';
   for(const [id,key,fallback] of [['solidCutoff','solidCutoff',12],['solidSoftness','solidSoftness',65],['solidSpread','solidSpread',0],['solidEdgeSoftness','solidEdgeSoftness',0]]){
@@ -1998,7 +2019,7 @@ function setCustomArtworkInk(value,mode){
   const prop=mode==='tint'?'tintCustom':'inkCustom';
   if(entry[prop]?.toLowerCase()===value.toLowerCase())return;
   if(inkEditingEntry!==entry){recordArtUndo();inkEditingEntry=entry;}
-  entry[prop]=value.toUpperCase();requestArtworkRender(entry);syncInkUi();
+  delete entry.paletteSlot;entry[prop]=value.toUpperCase();requestArtworkRender(entry);syncInkUi();
 }
 for(const [id,mode] of [['inkCustom','ink'],['tintCustom','tint']]){
   const input=document.getElementById(id);
@@ -2101,11 +2122,11 @@ function syncFabricToTheme(){
 }
 function setColorMode(mode){
   if(!['light','system','dark'].includes(mode))return;
-  state.themeMode=mode;applyTheme(true);
+  state.themeMode=mode;try{localStorage.setItem('orb-ui-theme',mode);}catch{}applyTheme(true);
   if(state.matchFabricToTheme)syncFabricToTheme();
 }
 document.getElementById('matchFabricToTheme').addEventListener('change',event=>{
-  state.matchFabricToTheme=event.target.checked;
+  state.matchFabricToTheme=event.target.checked;try{localStorage.setItem('orb-match-fabric-theme',String(state.matchFabricToTheme));}catch{}
   if(state.matchFabricToTheme)syncFabricToTheme();
 });
 document.querySelectorAll('[data-theme-mode]').forEach(button=>{
@@ -2383,7 +2404,7 @@ function artworkSource(layer){
   return cached.textures.get(key);
 }
 async function printLayouts(){
-  const available=artLayers.filter(l=>layerProfile(l));
+  const available=artLayers.filter(l=>effectiveVisibility(l,state.lockupGroups)&&layerProfile(l));
   for(const l of available)artworkSource(l);
   await settleArtworkTreatment();
   const priority=['front','back','leftshoulder','rightshoulder','necktag','hoodleft','hoodright','hoodleftinside','hoodrightinside',...ART_KEYS];
@@ -2399,7 +2420,7 @@ async function printLayouts(){
     const matrix=flattenTransform(quadTransform(layer,q,image,meta,{fullLength,custom:isCustom,offset:placementOffsets(layer,q)}),basis);
     const tex=image.texture.image,w=image.width,h=image.height,pad=image.padding||0,crop=image.crop||{fullWidth:w,fullHeight:h,offsetX:0,offsetY:0};
     const data=tex.data||tex.getContext('2d',{willReadFrequently:true}).getImageData(0,0,w,h).data;
-    descriptors.push({id:layer.id,surface:chart,surfaceName,kind,visible:layer.visible,slot:layer.slot,matrix,
+    descriptors.push({id:layer.id,groupId:layer.groupId,groupName:state.lockupGroups.find(g=>g.id===layer.groupId)?.name,surface:chart,surfaceName,kind,visible:layer.visible,slot:layer.slot,matrix,
       bounds:alphaBounds(data,w,h,image.coverageOnly?1:4),crop:[crop.offsetX/crop.fullWidth,crop.offsetY/crop.fullHeight,(w-2*pad)/crop.fullWidth,(h-2*pad)/crop.fullHeight],pad:[pad/w,pad/h]});
   }
   return {surfaces:collectSurfaces(descriptors),garment:activeGarmentId};
@@ -2498,8 +2519,8 @@ function updateArtworkQuad(map,layer,index,total){
     map.quads.set(layer.id,mesh);
   }
   if(mesh.parent!==scene)scene.add(mesh);
-  mesh.visible=layer.visible;mesh.renderOrder=total-index;
-  if(!layer.visible)return;
+  mesh.visible=effectiveVisibility(layer,state.lockupGroups);mesh.renderOrder=total-index;
+  if(!effectiveVisibility(layer,state.lockupGroups))return;
   const image=artworkSource(layer);if(!image){mesh.visible=false;return;}
   const A=layer.placement,meta=ART_META[layer.slot],aspect=image.height/image.width;
   // Full sleeve fits length, with proportional width. Its outer panel clips overflow.
@@ -2522,7 +2543,7 @@ function updateArtworkQuad(map,layer,index,total){
   uniforms.uEffects.value.set(layer.glow?(layer.emission??100)/400:0,layer.uvReactive?(layer.emission??100)/400:0);
 }
 function prepareEffectMap(map,layers){
-  const enabled=layers.some(l=>l.visible&&(l.glow||l.uvReactive));
+  const enabled=layers.some(l=>effectiveVisibility(l,state.lockupGroups)&&(l.glow||l.uvReactive));
   map.hasEffects.value=enabled?1:0;
   if(!enabled){map.effectTarget?.dispose();map.effectTarget=null;map.effects.value=null;disposeArtworkSpill(map);return false;}
   // Only allocate when needed. A quarter-resolution linear mask preserves the
@@ -2620,7 +2641,7 @@ function flushArtwork(){
       const changed=layoutArtworkMap(map,geometry,panels,layers),ids=new Set(layers.map(layer=>layer.id));
       for(const [id,quad] of map.quads)if(!ids.has(id)){quad.removeFromParent();quad.material.dispose();map.quads.delete(id);}
       for(const [id,scene] of map.scenes)if(!map.tiles.has(id)){scene.clear();map.scenes.delete(id);}
-      map.has.value=layers.some(layer=>layer.visible)?1:0;
+      map.has.value=layers.some(layer=>effectiveVisibility(layer,state.lockupGroups))?1:0;
       if(!map.target){map.effectTarget?.dispose();map.effectTarget=null;map.effects.value=null;map.hasEffects.value=0;disposeArtworkSpill(map);return;}
       const effectsChanged=prepareEffectMap(map,layers);
       const dirty=panels.filter(id=>all||changed||effectsChanged||artworkDirtyPanels.has(`${meshId}:${id}`));
@@ -2822,6 +2843,7 @@ function syncArtworkUi(){
   for(const layer of artLayers){
     let wrap=layerRows.get(layer.id);
     if(!wrap){wrap=createLayerRow(layer);layerRows.set(layer.id,wrap);}
+    while(cursor&&!cursor.classList.contains('art-layer'))cursor=cursor.nextElementSibling;
     // Do not detach/reinsert the active form on slider or color-picker updates.
     if(wrap!==cursor)list.insertBefore(wrap,cursor);else cursor=cursor.nextElementSibling;
     const row=wrap.firstElementChild,selected=layer.id===activeArtId;row.dataset.slot=layer.slot;
@@ -2870,7 +2892,7 @@ function syncArtworkUi(){
   document.getElementById('artDuplicate').disabled=artLoading||!entry;
   document.querySelectorAll('[data-art-range],[data-art-num],[data-reset-art-one]').forEach(el=>el.disabled=artLoading||!entry);
   document.getElementById('artEmpty').hidden=artLayers.length>0;
-  syncInkUi();syncArtControls();
+  syncInkUi();syncArtControls();designTools?.sync();
   // Restore only inside this synchronous update, never in a scroll listener.
   // Native clamping still handles deliberate collapses and shorter content.
   if(pane.scrollTop!==scrollTop)pane.scrollTop=scrollTop;
@@ -2956,7 +2978,7 @@ function addArtworkEntries(slot,entries,action='add',targetId=null){
   });
   if(action==='replace'&&target){
     added[0].id=target.id;added[0].placement={...target.placement};added[0].visible=target.visible;
-    for(const prop of ['placementSpace','fit','mode','defaultMode','inkCustom','tintCustom','solidCutoff','solidSoftness','solidMaskSource','solidSpread','solidEdgeSoftness','solidInvert','defaultSolidInvert','printPattern','printSize','printAngle','printStrength','printVersion','printMarkSize','printTone','printErosion','printPixelScale','printDensity','printSeed','printBranchMode','printRounding','glow','uvReactive','emission'])added[0][prop]=target[prop];
+    for(const prop of ['groupId','paletteSlot','placementSpace','fit','mode','defaultMode','inkCustom','tintCustom','solidCutoff','solidSoftness','solidMaskSource','solidSpread','solidEdgeSoftness','solidInvert','defaultSolidInvert','printPattern','printSize','printAngle','printStrength','printVersion','printMarkSize','printTone','printErosion','printPixelScale','printDensity','printSeed','printBranchMode','printRounding','glow','uvReactive','emission'])added[0][prop]=target[prop];
     if(target.nameEdited){added[0].name=target.name;added[0].nameEdited=true;}
     artLayers.splice(index,1,...added);
   }else artLayers.splice(index<0?0:index,0,...added);
@@ -3073,7 +3095,7 @@ document.getElementById('artUndo').onclick=()=>undoArtwork();
 document.getElementById('artRedo').onclick=()=>undoArtwork(true);
 document.getElementById('artDuplicate').onclick=()=>{
   const entry=artEntry();if(!entry||artLoading)return;if(artLayers.length>=200){artStatus('This design has reached its 200-layer limit.');return;}recordArtUndo();
-  const layer={...entry,id:'art-'+nextArtId++,name:uniqueArtworkName(entry.name,new Set(artLayers.map(l=>l.name.toLowerCase()))),placement:{...entry.placement},anchor:entry.anchor?structuredClone(entry.anchor):null};
+  const layer={...entry,groupId:null,id:'art-'+nextArtId++,name:uniqueArtworkName(entry.name,new Set(artLayers.map(l=>l.name.toLowerCase()))),placement:{...entry.placement},anchor:entry.anchor?structuredClone(entry.anchor):null};
   artLayers.splice(artLayers.indexOf(entry),0,layer);activeArtId=layer.id;requestArtworkRender();syncArtworkUi();workspace?.notify();
 };
 document.getElementById('artView').onclick=()=>viewArtwork(activeArtSlot);
@@ -3663,7 +3685,7 @@ function resetStudioColor(id,keepOpen=false){
   if(!id)return;
   if(!keepOpen)colorPicker?.close();
   if(id==='inkCustom'||id==='tintCustom'){
-    if(artLoading||!entry)return;recordArtUndo();entry[id]=null;requestArtworkRender(entry);syncInkUi();
+    if(artLoading||!entry)return;recordArtUndo();delete entry.paletteSlot;entry[id]=null;requestArtworkRender(entry);syncInkUi();
   }else if(id==='presentBg'||id==='presentGraphicColor'){
     setStudioInput(id,id==='presentBg'?'#181818':'#ffffff','change');
   }else if(id==='garmentCustom'){
@@ -3684,7 +3706,7 @@ function installGroupResets(){
       switch(button.dataset.resetGroup){
         case 'lighting':
           Object.assign(state,CREATIVE_DEFAULTS,{runwayPaused:REDUCED,afterglowPaused:REDUCED,projectorPaused:REDUCED});state.blackLightPower=100;state.regularLightPower=100;state.nightLightPower=100;state.nightTraffic='subtle';state.nightPaused=REDUCED;
-          document.querySelector('#segLight [data-v="studio"]').click();setStudioInput('lightPower',100);
+          document.querySelector('#segLight [data-v="softbox"]').click();setStudioInput('lightPower',100);
           setStudioInput('lightLock',false,'change');setStudioInput('selfShadows',true,'change');
           break;
         case 'grid':
@@ -3692,7 +3714,7 @@ function installGroupResets(){
           applyGridScale(35);applyGridCharSize(45);applyGridStroke(.5);break;
         case 'artwork':{
           const entry=artEntry();if(!entry||artLoading)return;recordArtUndo();
-          Object.assign(entry,{mode:entry.defaultMode||'original',inkCustom:null,tintCustom:null,solidCutoff:12,solidSoftness:65,solidMaskSource:'auto',solidSpread:0,solidEdgeSoftness:0,solidInvert:!!entry.defaultSolidInvert,printPattern:'none',printSize:40,printAngle:45,printStrength:100,printVersion:2,printMarkSize:50,printTone:100,printErosion:0,printPixelScale:35,printDensity:50,printSeed:1,printBranchMode:'repeat',printRounding:0,glow:false,uvReactive:false,emission:100,fit:hasFullSleeve(entry)&&entry.sleevePreset==='full'});
+          delete entry.paletteSlot;Object.assign(entry,{mode:entry.defaultMode||'original',inkCustom:null,tintCustom:null,solidCutoff:12,solidSoftness:65,solidMaskSource:'auto',solidSpread:0,solidEdgeSoftness:0,solidInvert:!!entry.defaultSolidInvert,printPattern:'none',printSize:40,printAngle:45,printStrength:100,printVersion:2,printMarkSize:50,printTone:100,printErosion:0,printPixelScale:35,printDensity:50,printSeed:1,printBranchMode:'repeat',printRounding:0,glow:false,uvReactive:false,emission:100,fit:hasFullSleeve(entry)&&entry.sleevePreset==='full'});
           requestArtworkRender(entry);syncArtworkUi();break;
         }
       }
@@ -3737,6 +3759,7 @@ function legacySolidInvert(source){
   return corners/Math.max(1,count)>127;
 }
 async function restoreDesignState(snapshot,restoreCamera=true){
+  const interfacePreferences={themeMode:state.themeMode,matchFabricToTheme:state.matchFabricToTheme};
   colorPicker?.close();colorActions?.cancel();cancelAnchorPick();finishArtworkRename(false);
   artLayers=snapshot.layers.map(e=>({...e,placement:{...e.placement},anchor:e.anchor?structuredClone(e.anchor):null}));
   for(const layer of artLayers)if(layer.solidInvert===undefined){
@@ -3747,7 +3770,8 @@ async function restoreDesignState(snapshot,restoreCamera=true){
   activeArtId=artLayers.some(e=>e.id===snapshot.active)?snapshot.active:null;
   if(artEntry())activeArtSlot=artEntry().slot;
   nextArtId=Math.max(nextArtId,...artLayers.map(e=>(Number(e.id.replace(/^art-/,''))||0)+1));
-  Object.assign(state,{camoId:null,camoLastId:'army',camoScale:100,camoScales:{},camoScaleVersion:0,presentation:defaultPresentation(),...CREATIVE_DEFAULTS,runwayPaused:REDUCED,afterglowPaused:REDUCED,projectorPaused:REDUCED,nightLightPower:100,nightTraffic:'subtle',nightPaused:REDUCED},structuredClone(pick(snapshot.settings,SETTING_FIELDS)));
+  Object.assign(state,{paletteBook:defaultPaletteBook(),lockupGroups:[],camoId:null,camoLastId:'army',camoScale:100,camoScales:{},camoScaleVersion:0,presentation:defaultPresentation(),...CREATIVE_DEFAULTS,runwayPaused:REDUCED,afterglowPaused:REDUCED,projectorPaused:REDUCED,nightLightPower:100,nightTraffic:'subtle',nightPaused:REDUCED},structuredClone(pick(snapshot.settings,SETTING_FIELDS)),interfacePreferences);
+  applyPalette(state.paletteBook,artLayers);
   normalizeCamoScales(state);
   ++camoRequest;
   if(state.camoId)state.camoScales[state.camoId]=state.camoScale;
@@ -3758,12 +3782,6 @@ async function restoreDesignState(snapshot,restoreCamera=true){
   applyTheme(false);
   // Theme application can choose a default grid; the saved preview takes precedence.
   state.bg=snapshot.settings.bg;state.gridColor=snapshot.settings.gridColor;
-  // Refresh earlier light-theme defaults restored by browser autosave.
-  const oldLightDefaults=['#f4f4f4','#dbd9d3'];
-  if(state.theme==='light'){
-    if(state.light!=='uv'&&oldLightDefaults.includes(state.bg.toLowerCase()))state.bg=THEMES.light.bg;
-    if(regularBackdrop&&oldLightDefaults.includes(regularBackdrop.bg.toLowerCase()))regularBackdrop.bg=THEMES.light.bg;
-  }
   if(snapshot.lighting){lightReference.fromArray(snapshot.lighting.reference);lightRig.quaternion.fromArray(snapshot.lighting.quaternion);lightReferenceReady=true;}
   applyLightingPreset();
   renderer.shadowMap.enabled=state.selfShadows;shadowDirty=true;
@@ -3824,7 +3842,11 @@ workspace=installWorkspace({
   snapshot:designSnapshot,modelFile:()=>customModelFile,decode:decodeArtworkFile,
   finish:()=>{finishArtworkRename(true);colorPicker?.close();},lock:setWorkspaceLock,
   clearHistory:()=>{artHistory.length=0;artFuture.length=0;syncArtworkUi();},
-  async restore(snapshot,model){
+  async restore(snapshot,model,{preserveEnvironment=false}={}){
+    if(preserveEnvironment){
+      const current=designSnapshot(),designKeys=new Set(['paletteBook','lockupGroups','camoId','camoLastId','camoScale','camoScales','camoScaleVersion','blank','garmentCustom','artGlossiness']);
+      snapshot={...snapshot,settings:{...snapshot.settings,...Object.fromEntries(Object.entries(current.settings).filter(([k])=>!designKeys.has(k)))},camera:current.camera,lighting:current.lighting,regularBackdrop:current.regularBackdrop};
+    }
     historyRestoring=true;
     try{await restoreSnapshotGarment(snapshot,model);await restoreDesignState(snapshot);await settleArtworkTreatment();}finally{historyRestoring=false;}
   },
@@ -3860,8 +3882,8 @@ document.getElementById('resetView').onclick=()=>setView('angle');
 const cameraLabels={front:'Front',angle:'Front ¾',side:'Left',backangle:'Back ¾',back:'Back',detail:'Detail'};
 for(const button of document.querySelectorAll('#segView button[data-v]'))button.textContent=cameraLabels[button.dataset.v];
 for(const button of document.querySelectorAll('#segWind button'))button.textContent=['Still','Gentle','Breezy'][Number(button.dataset.v)];
-const lightShortLabels={studio:'Studio',softbox:'Softbox',day:'Day',night:'Night',uv:'UV',runway:'Runway',afterglow:'Afterglow',projector:'Projector'};
-const lightShortcutViews=['studio','softbox','day','night','uv','runway','afterglow','projector'];
+const lightShortLabels={studio:'Studio',softbox:'Neutral',day:'Day',night:'Night',uv:'UV',runway:'Runway',afterglow:'Afterglow',projector:'Projector'};
+const lightShortcutViews=['softbox','studio','day','night','uv','runway','afterglow','projector'];
 const cameraShortcutViews=['front','angle','side','backangle','back'];
 for(const button of document.querySelectorAll('#segLight button')){
   const id=button.dataset.v,n=lightShortcutViews.indexOf(id)+1;
@@ -3901,6 +3923,8 @@ function handlePresetShortcut(event){
 }
 document.addEventListener('keydown',handlePresetShortcut);
 const exportsUI=installExports({THREE,renderer,scene,camera,garment,presentGarment,shirtShadow,presentShadow,uni,state,current:()=>current,
+  exportIdentity:()=>({garment:GARMENT_CATALOG.find(g=>g.id===activeGarmentId)?.label||'Custom Garment',fabric:camoActive()?currentGarment().name:currentGarment().name+'-'+currentGarment().hex.slice(1).toUpperCase(),fabricHex:camoActive()?null:currentGarment().hex,palette:structuredClone(state.paletteBook),savedLighting:{preset:state.light,intensity:state.lightPower},artwork:artLayers.map(l=>({name:l.name,mode:l.mode,visible:effectiveVisibility(l,state.lockupGroups),paletteSlot:l.paletteSlot||null,color:l.mode==='original'?null:inkHex(l)}))}),
+  neutralLighting:()=>{const saved={light:state.light,power:state.lightPower,locked:state.lightLocked,reference:lightReference.clone(),quaternion:lightRig.quaternion.clone(),ready:lightReferenceReady};state.light='softbox';state.lightPower=100;reviewLighting=true;renderLightingPreset();return ()=>{reviewLighting=false;state.light=saved.light;state.lightPower=saved.power;state.lightLocked=saved.locked;lightReference.copy(saved.reference);lightRig.quaternion.copy(saved.quaternion);lightReferenceReady=saved.ready;renderLightingPreset();};},
   artworkColor:inkHex,printLayouts,snapshot:designSnapshot,workspace,busy:()=>artLoading||modelLoading||designLocked||workspace.busy,
   lock:setWorkspaceLock,pause:value=>renderSuspended=value,flush:flushArtwork,prepare:settleArtworkTreatment,draw,resize,
   updateLights:updateLightLock,updateShadows:()=>{shadowDirty=true;updateShadowMap();},
@@ -3916,8 +3940,25 @@ const exportsUI=installExports({THREE,renderer,scene,camera,garment,presentGarme
 
 
 
-colorPicker=installColorPicker({onReset:input=>resetStudioColor(input.id,true)});
+colorPicker=installColorPicker({onReset:input=>{if(input.dataset.paletteColor){input.value='#FFFFFF';input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));colorPicker.refresh();}else resetStudioColor(input.id,true);}});
 colorActions=installColorActions({picker:colorPicker,artworkTarget:()=>{const entry=artEntry();return entry&&entry.mode!=='original'?document.getElementById(entry.mode==='tint'?'tintCustom':'inkCustom'):null;},resetColor:resetStudioColor,samplePreview:samplePreviewColor});
+
+function lockupItems(layers){
+ const profiles=layers.map(layerProfile),first=profiles[0];
+ if(!first||profiles.some(q=>!q||(q.mesh||1)!==(first.mesh||1)||q.island!==first.island))throw new Error('Link layers on the same available print surface.');
+ return layers.map((layer,i)=>{const q=profiles[i],[a,b,d,e]=q.basis,det=a*e-b*d,n=Math.hypot(a,d),m=Math.hypot(b,e);
+  if(Math.abs(det)<1e-8||Math.abs(a*b+d*e)>n*m*.01||Math.abs(n-m)>n*.01)throw new Error('This placement needs a uniform print basis before it can be linked.');
+  const [x,y]=placementOffsets(layer,q);return {id:layer.id,q,center:[q.origin[0]+a*x-b*y,q.origin[1]+d*x-e*y],scale:layer.placement.scale,rotation:Math.atan2(d,a)*180/Math.PI+Math.sign(det)*layer.placement.rot};});
+}
+function lockupPlacement(item){const {q}=item,[a,b,d,e]=q.basis,det=a*e-b*d,u=item.center[0]-q.origin[0],v=item.center[1]-q.origin[1],layer=artEntry(item.id),[sx,sy]=layer.anchor?[1,1]:(q.offsetScale||[1,1]);return {x:(e*u-b*v)/det/sx,y:-(-d*u+a*v)/det/sy,scale:item.scale,rot:(((Math.sign(det)*(item.rotation-Math.atan2(d,a)*180/Math.PI)+180)%360+360)%360)-180};}
+function validateLockup(items){for(const item of items){const p=lockupPlacement(item);if(!Object.values(p).every(Number.isFinite)||Math.abs(p.x)>100||Math.abs(p.y)>100||p.scale<.000001||p.scale>1000)throw new Error('The group transform exceeds the placement range.');}}
+designTools=installDesignTools({book:()=>state.paletteBook,groups:()=>state.lockupGroups,layers:()=>artLayers,active:artEntry,busy:()=>designLocked||artLoading||modelLoading,
+ colorTarget:()=>colorPicker.target,refreshColor:()=>colorPicker.refresh(),select:selectArtwork,openColor:(input,anchor)=>colorPicker.open(input,anchor),closeColor:()=>colorPicker.close(),undo:recordArtUndo,message:artStatus,changed:()=>{requestArtworkRender();syncArtworkUi();workspace?.notify();},customColor:(mode,anchor)=>colorPicker.open(document.getElementById(mode==='tint'?'tintCustom':'inkCustom'),anchor),
+ groupItems:lockupItems,validateGroup:validateLockup,setGroupItems:items=>{for(const item of items)artEntry(item.id).placement=lockupPlacement(item);},
+ link:layers=>{lockupItems(layers);const indices=layers.map(l=>artLayers.indexOf(l));if(Math.max(...indices)-Math.min(...indices)+1!==layers.length)throw new Error('Select adjacent layers so linking preserves the artwork stacking order.');if(layers.some(l=>l.groupId))throw new Error('Unlink existing groups before creating a new lockup.');recordArtUndo();const g={id:crypto.randomUUID(),name:'Lockup '+(state.lockupGroups.length+1),collapsed:false};state.lockupGroups.push(g);for(const l of layers)l.groupId=g.id;},
+ duplicateGroup:g=>{const members=artLayers.filter(l=>l.groupId===g.id);if(artLayers.length+members.length>200)throw new Error('This design has reached its 200-layer limit.');recordArtUndo();const next={...g,id:crypto.randomUUID(),name:g.name+' Copy'};state.lockupGroups.push(next);const names=new Set(artLayers.map(l=>l.name.toLowerCase()));const copies=members.map(l=>({...l,id:'art-'+nextArtId++,groupId:next.id,name:uniqueArtworkName(l.name,names),placement:{...l.placement},anchor:l.anchor?structuredClone(l.anchor):null}));artLayers.splice(artLayers.indexOf(members[0]),0,...copies);}
+});
+
 installGroupResets();
 installSliderControls(prop=>artDefault(artEntry()?.slot||activeArtSlot,prop));
 installSnapshots({workspace,resetIcon:RESET_ICON,previews:()=>exportsUI.snapshotPreviews(),
@@ -3928,6 +3969,7 @@ installSnapshots({workspace,resetIcon:RESET_ICON,previews:()=>exportsUI.snapshot
 await Promise.all([loadSvg(BRAND.wordmark,4096),loadSvg(BRAND.emblem,2048)]).then(async ([back,logo])=>{
   artLayers=initializeBrandArtwork(logo,back);
   requestArtworkRender();syncArtworkUi();
+  try{state.matchFabricToTheme=localStorage.getItem('orb-match-fabric-theme')==='true';const mode=localStorage.getItem('orb-ui-theme');if(['light','dark','system'].includes(mode))state.themeMode=mode;}catch{}
   setColorMode(state.themeMode);
   if(REDUCED||anchorPickId){ uni.uWind.value=0; uni.uTwist.value=0; }
   resize(); setView('angle');

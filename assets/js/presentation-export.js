@@ -1,9 +1,11 @@
-import {installExportSummary} from './export-summary.js?v=91';
-import {createExportProgress} from './export-progress.js?v=87';
-import {installPrintLayoutUI} from './print-layout-ui.js?v=91-history13';
-import {addPrintLayouts} from './print-package.js?v=91-history13';
-import {addArtworkPackage} from './artwork-export.js?v=91-history13';
-import {canvasBlob,downloadBlob,cleanFilename} from './design-format.js?v=91-history13';
+import {printDesignKey} from './print-design-key.js?v=0.9.51';
+import {installExportSources,exportLabel,srgbPng} from './export-variants.js?v=0.9.51';
+import {installExportSummary} from './export-summary.js?v=0.9.51';
+import {createExportProgress} from './export-progress.js?v=0.9.51';
+import {installPrintLayoutUI} from './print-layout-ui.js?v=0.9.51';
+import {addPrintLayouts} from './print-package.js?v=0.9.51';
+import {addArtworkPackage} from './artwork-export.js?v=0.9.51';
+import {canvasBlob,downloadBlob,cleanFilename} from './design-format.js?v=0.9.51';
 const $=id=>document.getElementById(id);
 const VIEW_NAMES={front:'Front',angle:'Front three-quarter',side:'Left side',right:'Right side',backangle:'Back three-quarter',back:'Back',detail:'Detail'};
 const turn=()=>new Promise(resolve=>requestAnimationFrame(resolve));
@@ -22,10 +24,13 @@ export function installExports(api){
   const detailOptions=api.detailViews||[],detailLabels=new Map(detailOptions.map(v=>[v.id,v.label]));
   const viewLabel=view=>detailLabels.get(view)||VIEW_NAMES[view];
   for(const view of detailOptions){const label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.name='exportView';input.value=view.id;input.dataset.detailExport='true';label.append(input,document.createTextNode(view.label));$('exportPlacementViews').append(label);}
-  function syncDetailExports(){const inputs=Array.from(document.querySelectorAll('[data-detail-export]'));for(const input of inputs){input.disabled=!api.detailView(input.value);input.closest('label').hidden=input.disabled;if(input.disabled)input.checked=false;}$('exportCloseups').hidden=!inputs.some(input=>!input.disabled);syncCloseupCount();}
+  for(const input of document.querySelectorAll('[name=exportView]')){const label=input.parentElement,span=document.createElement('span');span.textContent=label.textContent;for(const node of [...label.childNodes])if(node!==input)node.remove();label.append(span);label.parentElement.classList.add('export-choice-buttons');}
+  function syncDetailExports(){const inputs=Array.from(document.querySelectorAll('[data-detail-export]'));for(const input of inputs){input.disabled=!sources.selected()&&!api.detailView(input.value);input.closest('label').hidden=input.disabled;if(input.disabled)input.checked=false;}$('exportCloseups').hidden=!inputs.some(input=>!input.disabled);syncCloseupCount();}
   function syncCloseupCount(){$('exportCloseupCount').textContent=$('exportPlacementViews').querySelectorAll('input:checked').length+' selected';}
   $('exportPlacementViews').addEventListener('change',syncCloseupCount);
   let working=false,cancelled=false,preparing=false;
+  const sources=installExportSources();
+  document.querySelectorAll('[name=exportSource]').forEach(input=>input.addEventListener('change',syncDetailExports));
   const printUI=installPrintLayoutUI({toggle:$('exportPsd'),container:$('exportPrintLayouts'),status:$('exportPrintNote')});
   const progress=createExportProgress($('exportProgress'));
   const summary=installExportSummary({dialog:$('exportDialog'),working:()=>working});
@@ -53,9 +58,12 @@ export function installExports(api){
       return {saved,finish};
     }catch(error){finish();throw error;}
   }
-  function frame(width,height,{background,grid}){
+  function frame(width,height,{background,grid,shadow=true}){
     api.flush();camera.updateProjectionMatrix();camera.updateMatrixWorld();api.updateLights();api.updateShadows();
-    renderer.setViewport(0,0,width,height);renderer.setScissorTest(false);renderer.clear(true,true,true);renderer.render(scene,camera);
+    renderer.setViewport(0,0,width,height);renderer.setScissorTest(false);renderer.clear(true,true,true);
+    const shadowVisible=shirtShadow.visible;
+    try{if(!shadow)shirtShadow.visible=false;renderer.render(scene,camera);}
+    finally{shirtShadow.visible=shadowVisible;}
     const output=document.createElement('canvas');output.width=width;output.height=height;const ctx=output.getContext('2d');
     if(background==='current'){
       if(grid)api.backdrop(output);else{ctx.fillStyle=state.bg;ctx.fillRect(0,0,width,height);}
@@ -67,67 +75,79 @@ export function installExports(api){
     for(const x of [box.min.x,box.max.x])for(const y of [box.min.y,box.max.y])for(const z of [box.min.z,box.max.z])points.push(new THREE.Vector3(x,y,z));
     return {center,points,box};
   }
-  async function presentationSheet(images,options){
-    const cols=Math.min(3,images.length),rows=Math.ceil(images.length/cols),width=2400,margin=80,gap=28,cellWidth=(width-2*margin-gap*(cols-1))/cols;
-    const cellHeight=cellWidth*options.height/options.width,header=180,label=48;
-    const cv=document.createElement('canvas');cv.width=width;cv.height=Math.ceil(header+rows*(cellHeight+label+gap)+margin);
-    const ctx=cv.getContext('2d');ctx.fillStyle='#f4f4f2';ctx.fillRect(0,0,cv.width,cv.height);ctx.fillStyle='#181818';ctx.font='500 48px Rubik, sans-serif';ctx.fillText(api.name()||'Untitled design',margin,88,width-2*margin);
-    ctx.font='24px Rubik, sans-serif';ctx.fillStyle='#555';ctx.fillText(api.label(),margin,132);
-    for(let i=0;i<images.length;i++){
-      const image=images[i],bitmap=await createImageBitmap(image.blob),x=margin+(i%cols)*(cellWidth+gap),y=header+Math.floor(i/cols)*(cellHeight+label+gap);
-      ctx.fillStyle=options.background==='current'?state.bg:'#fff';ctx.fillRect(x,y,cellWidth,cellHeight);ctx.drawImage(bitmap,x,y,cellWidth,cellHeight);bitmap.close();
-      ctx.fillStyle='#444';ctx.font='22px Rubik, sans-serif';ctx.fillText(viewLabel(image.view),x,y+cellHeight+32,cellWidth);
-    }
-    ctx.font='18px Rubik, sans-serif';ctx.fillStyle='#777';ctx.fillText(window.BRAND.title,margin,cv.height-28);
-    return canvasBlob(cv);
-  }
   async function exportAll(){
     if(working||preparing||api.busy()||!api.current())return;
-    let plans;try{plans=printUI.plans();}catch(e){message(e.message);return;}
+    let plans,variants;const snapshotPrints=sources.selected()&&$('exportPsd').checked;try{plans=snapshotPrints?[]:printUI.plans();variants=(document.querySelector('[name=exportView]:checked')||snapshotPrints)?sources.choices():[null];}catch(e){message(e.message);return;}
     const views=Array.from(document.querySelectorAll('[name="exportView"]:checked')).map(el=>el.value);
-    if(!views.length&&!plans.length&&!$('exportArtwork').checked&&!$('exportDesign').checked){message('Select a view, a print layout, graphics or an ORB project to export.');return;}
+    if(!views.length&&!plans.length&&!snapshotPrints&&!$('exportArtwork').checked&&!$('exportDesign').checked){message('Select a view, a print layout, graphics or an ORB project to export.');return;}
     const edge=Number(choice('exportSize')),shape=choice('exportShape'),width=shape==='portrait'?Math.round(edge*.8):edge,height=shape==='wide'?Math.round(edge*9/16):edge;
-    const options={width,height,background:choice('exportBackground'),grid:$('exportGrid').checked},name=cleanFilename(api.name());
+    const exportLighting=choice('exportLighting');
+    const options={width,height,background:choice('exportBackground'),grid:$('exportGrid').checked,shadow:false},name=cleanFilename(api.name());
     working=true;cancelled=false;api.lock(true,'Preparing print package…');$('exportConfirm').disabled=true;$('exportCancel').hidden=false;
     for(const el of $('exportDialog').querySelectorAll('input,select,.print-layout button'))el.disabled=true;
     const artworkUnits=$('exportArtwork').checked?(api.snapshot?.().layers.length||0):0;
-    progress.start(2+views.length+(views.length&&$('exportSheet').checked?1:0)+artworkUnits+plans.reduce((n,p)=>n+p.layers.length+1,0)+2);
-    let session,success=false;
+    progress.start(2+(snapshotPrints?variants.length:0)+views.length*variants.length+artworkUnits+plans.reduce((n,p)=>n+p.layers.length+1,0)+2);
+    let session,variantSession,releaseLighting,success=false,psdCount=0;
     try{
       message('Preparing print package…');await turn();
       const design=$('exportDesign').checked?await api.workspace.makeArchive(false):null;check();progress.advance();
       await api.prepare?.();check();progress.advance();
-      if(views.length){session=captureSession(width,height);camera.aspect=width/height;}
-      const bounds=pointsAndCenter(),{center,points}=api.framing?.()||bounds,{box}=bounds;
-      // A common distance for all full views prevents garments jumping in scale.
-      const fullViews=['front','angle','side','right','backangle','back'];
-      const distance=fitDistance(THREE,points,center,fullViews.map(api.viewAngles),camera.aspect,camera.fov);
-      const images=[],zip=new window.JSZip();
-      for(const [i,view] of views.entries()){
-        check();message(`Rendering ${viewLabel(view)} · ${i+1} of ${views.length}`);await turn();
-        const [az,el]=api.viewAngles(view),focus=center.clone(),shot=api.detailView?.(view);
-        const d=shot?shot.distance/Math.min(1,camera.aspect):view==='detail'?distance*.66:distance;
-        if(shot)focus.fromArray(shot.point);
-        if(view==='detail')focus.y+=box.getSize(new THREE.Vector3()).y*.17;
-        camera.position.set(focus.x+d*Math.sin(el)*Math.sin(az),focus.y+d*Math.cos(el),focus.z+d*Math.sin(el)*Math.cos(az));camera.lookAt(focus);
-        const canvas=frame(width,height,options),blob=await canvasBlob(canvas);canvas.width=canvas.height=1;check();
-        images.push({view,blob});zip.file(name+'_'+viewLabel(view).replaceAll(' ','-')+'.png',await blob.arrayBuffer());progress.advance();
-      }
-      session?.finish();session=null;
-      if(images.length&&$('exportSheet').checked){message('Building presentation sheet…');await document.fonts.ready;const sheet=await presentationSheet(images,options);check();zip.file(name+'_Presentation.png',await sheet.arrayBuffer());progress.advance();}
-      if(design)zip.file(name+'.orb',await design.arrayBuffer());
+      const images=[],zip=new window.JSZip(),exportInfo=[],printInfo=[],printSets=new Map();
+      // Resolve current-design print files before temporarily visiting snapshots.
       const data=($('exportArtwork').checked||plans.length)?await api.workspace.artworkData():null;check();
+      if((views.length||snapshotPrints)&&sources.selected())variantSession=await api.workspace.beginExportSession();
+      for(const [variantIndex,entry] of ((views.length||snapshotPrints)?variants:[]).entries()){
+        check();if(entry){message('Opening '+entry.name+'…');await variantSession.load(await sources.load(entry));check();}
+        await api.prepare?.();check();
+        const identity=api.exportIdentity(),labels=exportLabel(entry?.name||api.name(),identity.garment,identity.fabric,variantIndex),folder=zip.folder(labels.folder),shots=[];
+        if(snapshotPrints){
+          const result=await api.printLayouts(),snapshotPlans=printUI.plansFor(result.surfaces,result.garment),snapshotData=await api.workspace.artworkData();check();
+          if(snapshotPlans.length){
+            const key=await printDesignKey(snapshotData,snapshotPlans,api.artworkColor);check();
+            let set=printSets.get(key);
+            if(!set){
+              const path='Print Designs/'+String(printSets.size+1).padStart(2,'0')+' — '+cleanFilename(entry.name);
+              set={folder:path,layouts:snapshotPlans.map(p=>p.name)};
+              progress.reserve(snapshotPlans.reduce((n,p)=>n+p.layers.length+1,0));
+              psdCount+=await addPrintLayouts(zip.folder(path),snapshotData,snapshotPlans,api.artworkColor,{check,message,advance:()=>progress.advance()});printSets.set(key,set);
+            }
+            printInfo.push({snapshot:entry.name,snapshotId:entry.id,...set});
+          }else printInfo.push({snapshot:entry.name,snapshotId:entry.id,layouts:[],reason:'No visible artwork on selected print surfaces'});
+        }
+        if(snapshotPrints)progress.advance();
+        if(!views.length)continue;
+        if(exportLighting==='neutral')releaseLighting=api.neutralLighting();
+        session=captureSession(width,height);camera.aspect=width/height;
+        const {center,points,box}=pointsAndCenter(),fullViews=['front','angle','side','right','backangle','back'];
+        const distance=fitDistance(THREE,points,center,fullViews.map(api.viewAngles),camera.aspect,camera.fov,1.08);
+        for(const [i,view] of views.entries()){
+          check();message(`${entry?.name||api.name()} · ${viewLabel(view)} · ${i+1} of ${views.length}`);await turn();
+          const shot=api.detailView?.(view);
+          if(!fullViews.includes(view)&&view!=='detail'&&!shot){exportInfo.push({snapshot:entry?.name,skippedView:view,reason:'Placement unavailable on this garment'});progress.advance();continue;}
+          const [az,el]=api.viewAngles(view),focus=center.clone(),d=shot?shot.distance/Math.min(1,camera.aspect):view==='detail'?distance*.66:distance;
+          if(shot)focus.fromArray(shot.point);if(view==='detail')focus.y+=box.getSize(new THREE.Vector3()).y*.17;
+          camera.position.set(focus.x+d*Math.sin(el)*Math.sin(az),focus.y+d*Math.cos(el),focus.z+d*Math.sin(el)*Math.cos(az));camera.lookAt(focus);
+          const canvas=frame(width,height,options),blob=await srgbPng(canvas);canvas.width=canvas.height=1;check();
+          shots.push({view,blob});folder.file(labels.prefix+'_'+viewLabel(view).replaceAll(' ','-')+'.png',await blob.arrayBuffer());progress.advance();
+        }
+        session.finish();session=null;releaseLighting?.();releaseLighting=null;
+        images.push(...shots);exportInfo.push({snapshot:entry?.name||api.name(),...identity,folder:labels.folder,views:shots.map(s=>viewLabel(s.view)),lighting:exportLighting,background:options.background,width,height});
+      }
+      if(variantSession){const restore=variantSession;variantSession=null;await restore.restore();}
+      if(images.length||snapshotPrints)zip.file('Export Summary.json',JSON.stringify({design:name,mockups:exportInfo,printDesigns:printInfo},null,2));
+      if(snapshotPrints)zip.file('Print Designs/README.txt','SNAPSHOT PRINT DESIGNS\n\nIdentical print designs share a PSD set. Garment colors and scene lighting are not printed. Automatic ink colors can differ between garments and therefore require separate sets.\n\n'+printInfo.map(item=>item.snapshot+'\n'+(item.folder||item.reason)+'\n').join('\n'));
+      if(design)zip.file(name+'.orb',await design.arrayBuffer());
       if($('exportArtwork').checked)await addArtworkPackage(zip,data,api.artworkColor,{check,message,advance:()=>progress.advance()});
-      if(plans.length)await addPrintLayouts(zip,data,plans,api.artworkColor,{check,message,advance:()=>progress.advance()});
+      if(plans.length)psdCount+=await addPrintLayouts(zip,data,plans,api.artworkColor,{check,message,advance:()=>progress.advance()});
 
-      message('Packaging print files…');const blob=await zip.generateAsync({type:'blob',compression:'STORE'},meta=>{check();progress.packaging(meta.percent/100);});check();downloadBlob(blob,name+'_Print-Package.zip');success=true;progress.finish(true);message(`Print package downloaded · ${views.length} views${plans.length?` · ${plans.length} layered PSDs`:''}.`);
+      message('Packaging print files…');const blob=await zip.generateAsync({type:'blob',compression:'STORE'},meta=>{check();progress.packaging(meta.percent/100);});check();downloadBlob(blob,name+'_Print-Package.zip');success=true;progress.finish(true);message(`Print package downloaded · ${images.length} mockups${psdCount?` · ${psdCount} layered PSDs`:''}.`);
     }catch(error){message(error.message||'The export could not finish. Try a smaller image size.');}
-    finally{session?.finish();progress.finish(success);working=false;api.lock(false);$('exportConfirm').disabled=false;$('exportCancel').hidden=true;for(const el of $('exportDialog').querySelectorAll('input,select,.print-layout button'))el.disabled=false;printUI.restoreAvailability();syncDetailExports();summary.sync();}
+    finally{try{session?.finish();releaseLighting?.();if(variantSession)await variantSession.restore();}catch(e){message('Export stopped; restoring the working design failed: '+e.message);}progress.finish(success);working=false;api.lock(false);$('exportConfirm').disabled=false;$('exportCancel').hidden=true;for(const el of $('exportDialog').querySelectorAll('input,select,.print-layout button'))el.disabled=false;printUI.restoreAvailability();syncDetailExports();summary.sync();}
   }
   $('btnExportAll').onclick=async()=>{
     if(api.busy()||working||preparing)return;message('');progress.reset();syncDetailExports();$('exportDialog').showModal();
     preparing=true;$('exportConfirm').disabled=true;printUI.loading();summary.sync();
-    try{const result=await api.printLayouts();printUI.set(result.surfaces,result.garment);}
+    try{await sources.refresh();const result=await api.printLayouts();printUI.set(result.surfaces,result.garment);}
     catch(e){printUI.set([],null);message(e.message||'Print layouts could not be prepared. You can still export mockups and separate artwork.');}
     finally{preparing=false;$('exportConfirm').disabled=false;summary.sync();}
   };

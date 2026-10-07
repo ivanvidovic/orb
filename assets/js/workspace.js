@@ -1,7 +1,7 @@
 import {installArtworkPaste} from './clipboard-artwork.js?v=91-paste';
 import {loadHostedLibrary,fetchHostedArtwork} from './hosted-library.js?v=77';
 import {collectDrop} from './folder-import.js?v=58';
-import {FORMAT_VERSION,LAYER_FIELDS,SETTING_FIELDS,pick,cleanFilename,canvasBlob,downloadBlob,validateProject} from './design-format.js?v=0.9.40';
+import {FORMAT_VERSION,LAYER_FIELDS,SETTING_FIELDS,pick,cleanFilename,canvasBlob,downloadBlob,validateProject} from './design-format.js?v=0.9.51';
 const $=id=>document.getElementById(id);
 const imageFile=f=>f.type.startsWith('image/')||/\.(png|jpe?g|webp|gif|avif|svg)$/i.test(f.name);
 const pause=()=>new Promise(resolve=>setTimeout(resolve,0));
@@ -192,12 +192,12 @@ export function installWorkspace(api){
     const layers=data.doc.layers.map(l=>({...staged.get(l.assetId).entry,...pick(l,LAYER_FIELDS),solidInvert:l.solidInvert}));
     return {staged,layers};
   }
-  async function applyPackage(data,{mergeLibrary=true}={}){
+  async function applyPackage(data,{mergeLibrary=true,preserveEnvironment=false}={}){
     api.checkProject?.(data.doc);
     const {staged,layers}=await decodePackage(data);
     const snapshot={...data.doc,layers};
     // Decode and validate everything before replacing the active design.
-    await api.restore(snapshot,data.model);
+    await api.restore(snapshot,data.model,{preserveEnvironment});
     for(const [id,a] of staged)assets.set(id,a);api.presentationRestored?.();
     const incoming=(data.doc.shelf||Array.from(staged.keys())).filter(id=>staged.has(id));
     shelfIds=mergeLibrary?new Set([...shelfIds,...incoming]):new Set(incoming);
@@ -216,7 +216,7 @@ export function installWorkspace(api){
   }
   async function openFile(file){
     if(busy||api.busy())return;busy=true;restoring=true;clearTimeout(saveTimer);api.lock(true,'Opening design…');status('Opening design…');let opened=false;
-    try{const data=await readArchive(file);await applyPackage(data);opened=true;status('Design opened');}
+    try{const data=await readArchive(file);await applyPackage(data,{preserveEnvironment:true});opened=true;status('Design opened');}
     catch(e){status(e.message||'This design could not open.');}
     finally{restoring=false;busy=false;api.lock(false);if(opened)notify();}
   }
@@ -238,10 +238,10 @@ export function installWorkspace(api){
   document.addEventListener('click',e=>{if(e.target.closest('#snapshotsSection,#snapshotReview'))return;if(e.target.closest('summary,#btnPresent,#presentSettingsButton,.toolbarMenuToggle,#btnHelp,#btnArtist,#presentChooseGraphic,#btnSave,#btnExportAll,#designSave,#designOpen'))return;if(e.target.closest('#panel,header,#colorPopover'))queueMicrotask(notify);});
   window.addEventListener('beforeunload',e=>{if(ready&&revision!==savedRevision){e.preventDefault();e.returnValue='';}});
   document.addEventListener('visibilitychange',()=>{if(document.hidden)autosave();});
-  async function captureSnapshot(previews,alreadySaved){
+  async function captureSnapshot(previews){
     if(!ready||busy||restoring||api.busy())throw new Error('Wait for the current operation to finish.');
     busy=true;clearTimeout(saveTimer);api.lock(true,'Capturing snapshot…');
-    try{const data=await packageData(false);data.doc=structuredClone(data.doc);const existing=await alreadySaved?.(data);if(existing)return {existing};return {data,previews:await previews()};}
+    try{const data=await packageData(false);data.doc=structuredClone(data.doc);return {data,previews:await previews()};}
     finally{busy=false;api.lock(false);if(revision!==savedRevision)saveTimer=setTimeout(autosave,900);}
   }
   async function restoreSavedSnapshot(data){
@@ -251,7 +251,13 @@ export function installWorkspace(api){
     try{await applyPackage(data);opened=true;}
     finally{restoring=false;busy=false;api.lock(false);if(opened)notify();}
   }
-  return {captureSnapshot,restoreSavedSnapshot,archiveData,checkSnapshot:data=>{validateProject(data.doc,api.schema);api.checkProject?.(data.doc);},getAsset:async id=>{const a=assets.get(id);if(!a)throw new Error('Background artwork is missing.');if(!a.entry.source)a.entry={...await api.decode(new File([a.blob],a.name,{type:a.blob.type})),assetId:id};return a.entry;},register,openAssets,notify,loadLibrary,makeArchive,dropFolder,artworkData:()=>packageData(false),dropProject:file=>confirmAction({file}),get busy(){return busy;},
+  async function beginExportSession(){
+    if(busy||restoring)throw new Error('Wait for the current operation to finish.');
+    const saved=api.snapshot(),model=api.modelFile(),savedAssets=new Map(assets),savedShelf=new Set(shelfIds),savedName=$('designName').value,savedAutomatic=automaticName;
+    busy=true;restoring=true;clearTimeout(saveTimer);
+    return {async load(data){api.checkProject?.(data.doc);const {staged,layers}=await decodePackage(data);for(const [id,a] of staged)assets.set(id,a);await api.restore({...data.doc,layers},data.model);},async restore(){try{await api.restore(saved,model);}finally{assets.clear();for(const [id,a] of savedAssets)assets.set(id,a);shelfIds=savedShelf;$('designName').value=savedName;automaticName=savedAutomatic;restoring=false;busy=false;renderShelf();if(revision!==savedRevision)saveTimer=setTimeout(autosave,900);}}};
+  }
+  return {beginExportSession,captureSnapshot,restoreSavedSnapshot,archiveData,checkSnapshot:data=>{validateProject(data.doc,api.schema);api.checkProject?.(data.doc);},getAsset:async id=>{const a=assets.get(id);if(!a)throw new Error('Background artwork is missing.');if(!a.entry.source)a.entry={...await api.decode(new File([a.blob],a.name,{type:a.blob.type})),assetId:id};return a.entry;},register,openAssets,notify,loadLibrary,makeArchive,dropFolder,artworkData:()=>packageData(false),dropProject:file=>confirmAction({file}),get busy(){return busy;},
     async ready(){
       restoring=true;
       let data=null,restored=false,sampleLoaded=false,failure=null;
@@ -270,7 +276,7 @@ export function installWorkspace(api){
             const response=await fetch(new URL('../samples/ORB-Mockup-01.orb',import.meta.url),{signal:controller.signal});
             if(!response.ok)throw new Error('Sample download failed ('+response.status+')');
             const sample=await readArchive(await response.blob());
-            sample.doc.name=defaultName();await applyPackage(sample,{mergeLibrary:false});automaticName=true;restored=true;sampleLoaded=true;
+            sample.doc.name=defaultName();await applyPackage(sample,{mergeLibrary:false,preserveEnvironment:true});automaticName=true;restored=true;sampleLoaded=true;
           }catch(error){failure=['Sample unavailable',error];}
           finally{clearTimeout(timeout);}
         }

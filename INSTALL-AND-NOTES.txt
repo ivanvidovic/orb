@@ -1,0 +1,46 @@
+ORB Garment Studio v0.9.51 — Faster Neutral Lighting
+
+INSTALL OVER v0.9.50
+Replace index.html and merge assets, replacing matching files. Keep the other
+files. Refresh your local preview and confirm v0.9.51 in Help.
+Neutral remains the default, first in the toolbar, at a 100% baseline.
+
+WHAT CHANGED
+- Removed the nine-shadow-light rig responsible for the slowdown.
+- Neutral now uses one 1024 px shadow map, the existing soft shadow filter,
+  and the existing environment, fill and rim illumination.
+- Main-light strength compensates for replacing the distributed source with
+  one light, keeping brightness and color close to the approved C treatment.
+- No additional HDRI downloads, baked garment textures, controls or menus.
+- The viewer and Neutral mockup exports share this same cheaper setup.
+- Other presets retain their previous shadow-map budgets and soft filter.
+- Static shadow maps remain cached. Motion and camera changes update one map
+  for Neutral instead of nine. Replaced shadow targets are disposed when
+  switching resolutions.
+
+VISUAL TRADEOFF
+This is a close approximation of C, not a pixel-identical area-light render.
+Fine shadow edges can differ. Compared white, gray, tan and black during the
+lighting experiments, and inspected the tee and hoodie in final front/back
+exports. The existing soft filter gave cleaner results than a much wider
+filter kernel and avoids additional shader variants.
+Fabric textures, normal maps, artwork and garment geometry remain unchanged.
+
+PERFORMANCE CHECK
+Controlled men's tee test at 360 x 440 px, with a shadow update forced on every
+frame and four measured frames after warm-up:
+- Shadow maps: 9 -> 1.
+- Total draw calls, including shadows: 40 -> 8 (80% fewer).
+- Rendered triangles per frame: 3,651,180 -> 730,236.
+- Median software-WebGL render time: 2,583 ms -> 806 ms (about 3.2x faster).
+These software-renderer timings establish a relative improvement in this test;
+they do not predict FPS on your workstation. The map count, draw count and
+shader simplification also remove the extra work from the interactive viewer.
+
+VERIFICATION
+- Compared against the approved lighting and rejected uneven wide-filter results.
+- Tested actual front/back exports across men's tee and men's hoodie snapshots.
+- Confirmed working design restoration and no UI theme switching after export.
+- Checked changed JavaScript syntax and ZIP integrity.
+
+Nothing has been pushed or deployed.

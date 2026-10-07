@@ -1,0 +1,15 @@
+ORB Garment Studio v0.9.51 — FULL PACKAGE
+
+This is the saved complete v0.9.51 app, before the Hanes sizing experiment and CLO sample tee work. It contains the original six garments, camo patterns, artwork libraries, vendor dependencies, scripts and Windows local-preview launcher. It is not an incremental update.
+
+BACK UP / PREVIEW
+Extract into a NEW empty folder. index.html and Start-Local-Preview.bat are at the ZIP root. Double-click Start-Local-Preview.bat (requires Python 3) and confirm Help shows v0.9.51. Browser-saved snapshots/designs are not part of this ZIP; export any personal designs as .orb files separately.
+
+RESTORE YOUR PUBLIC REPOSITORY
+Back up your existing repository first. Replace the app's index.html, assets folder, scripts folder and preview files with the corresponding contents of this full package. Replace assets rather than merging it into the newer assets folder, so experimental files do not remain. Keep the repository's .git directory, .github deployment workflows, custom-domain CNAME, and any other hosting configuration you manage separately. Review the changes in GitHub Desktop and preview locally before committing and pushing.
+
+This archive is the complete saved application folder; it does not include your Git history or repository-specific hosting configuration. It contains the bundled artwork libraries exactly as saved in the baseline.
+
+The original INSTALL-AND-NOTES.txt describes the historical incremental v0.9.51 release; use THIS file for installing this full package.
+
+No app code or assets were changed for this backup. No push or deployment was performed.

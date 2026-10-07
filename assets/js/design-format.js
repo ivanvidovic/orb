@@ -1,17 +1,17 @@
-import {CAMO_LIBRARY} from './camo.js?v=0.9.40';
-import {validPresentation} from './present-options.js?v=91-present23';
+import {CAMO_LIBRARY} from './camo.js?v=0.9.51';
+import {validPresentation} from './present-options.js?v=0.9.51';
 import {CREATIVE_DEFAULTS,PROJECTOR_PATTERNS} from './creative-lighting.js?v=91-history13';
 // Portable ORB files contain a versioned manifest and deduplicated image bytes.
-export const FORMAT_VERSION=3;
-export const LAYER_FIELDS=['id','assetId','sourceName','name','autoName','nameEdited','slot','defaultSlot','defaultMode','defaultScale','mode','inkCustom','tintCustom','solidCutoff','solidSoftness','solidMaskSource','solidSpread','solidEdgeSoftness','solidInvert','defaultSolidInvert','printPattern','printSize','printAngle','printStrength','printVersion','printMarkSize','printTone','printErosion','printPixelScale','printDensity','printSeed','printBranchMode','printRounding','fit','sleevePreset','visible','glow','uvReactive','emission','anchor','placementSpace','placement'];
-export const SETTING_FIELDS=['presentation',...Object.keys(CREATIVE_DEFAULTS),'camoId','camoLastId','camoScale','camoScales','camoScaleVersion','themeMode','blank','garmentCustom','artGlossiness','matchFabricToTheme','bg','dotGrid','gridType','gridColor','gridColorCustom','gridStroke','gridScale','gridCharSize','light','lightPower','blackLightPower','regularLightPower','nightLightPower','nightTraffic','nightPaused','lightLocked','nightGreen','nightMagenta','selfShadows','wind','inertia'];
+export const FORMAT_VERSION=4;
+export const LAYER_FIELDS=['paletteSlot','groupId','id','assetId','sourceName','name','autoName','nameEdited','slot','defaultSlot','defaultMode','defaultScale','mode','inkCustom','tintCustom','solidCutoff','solidSoftness','solidMaskSource','solidSpread','solidEdgeSoftness','solidInvert','defaultSolidInvert','printPattern','printSize','printAngle','printStrength','printVersion','printMarkSize','printTone','printErosion','printPixelScale','printDensity','printSeed','printBranchMode','printRounding','fit','sleevePreset','visible','glow','uvReactive','emission','anchor','placementSpace','placement'];
+export const SETTING_FIELDS=['paletteBook','lockupGroups','presentation',...Object.keys(CREATIVE_DEFAULTS),'camoId','camoLastId','camoScale','camoScales','camoScaleVersion','themeMode','blank','garmentCustom','artGlossiness','matchFabricToTheme','bg','dotGrid','gridType','gridColor','gridColorCustom','gridStroke','gridScale','gridCharSize','light','lightPower','blackLightPower','regularLightPower','nightLightPower','nightTraffic','nightPaused','lightLocked','nightGreen','nightMagenta','selfShadows','wind','inertia'];
 export function pick(object,keys){return Object.fromEntries(keys.filter(k=>object[k]!==undefined).map(k=>[k,object[k]]));}
 export function cleanFilename(value){return String(value||'Untitled design').replace(/[<>:"/\\|?*\x00-\x1f]/g,'').replace(/[. ]+$/,'').trim().slice(0,80)||'Untitled design';}
 const fail=message=>{throw new Error(message);};
 const finite=(v,min,max)=>typeof v==='number'&&Number.isFinite(v)&&v>=min&&v<=max;
 const color=v=>typeof v==='string'&&/^#[a-f\d]{6}$/i.test(v);
 export function validateProject(doc,{garments,slots}){
-  if(!doc||doc.format!=='orb-design'||![1,2,FORMAT_VERSION].includes(doc.version))fail('This is not a supported ORB design file.');
+  if(!doc||doc.format!=='orb-design'||![1,2,3,FORMAT_VERSION].includes(doc.version))fail('This is not a supported ORB design file.');
   if(!garments.includes(doc.garmentId)&&doc.garmentId!=='custom')fail('This design uses an unknown garment.');
   if(typeof doc.name!=='string'||doc.name.length>80)fail('The design name is invalid.');
   if(!Array.isArray(doc.layers)||doc.layers.length>200||!Array.isArray(doc.assets)||doc.assets.length>400)fail('The design has too many layers or assets.');
@@ -43,6 +43,16 @@ export function validateProject(doc,{garments,slots}){
     }
   }
   const s=doc.settings;
+  if(s?.paletteBook){const b=s.paletteBook,id=v=>typeof v==='string'&&v.length>0&&v.length<=80;
+   if(!Array.isArray(b.slots)||b.slots.length>8||!Array.isArray(b.palettes)||b.palettes.length<1||b.palettes.length>100)fail('Invalid artwork palettes.');
+   if(new Set(b.slots.map(x=>x.id)).size!==b.slots.length||new Set(b.palettes.map(x=>x.id)).size!==b.palettes.length)fail('Duplicate palette identifiers.');
+   for(const q of b.slots)if(!id(q.id)||!id(q.name))fail('Invalid palette slot.');
+   for(const q of b.palettes)if(!id(q.id)||!id(q.name)||!q.colors||b.slots.some(slot=>!color(q.colors[slot.id])))fail('Invalid palette colors.');
+   if(!b.palettes.some(p=>p.id===b.active))fail('Missing active palette.');
+   for(const l of doc.layers)if(l.paletteSlot!=null&&!b.slots.some(x=>x.id===l.paletteSlot))fail('Missing layer palette slot.');
+  }else if(doc.layers.some(l=>l.paletteSlot!=null))fail('Missing artwork palette.');
+  if(s?.lockupGroups!==undefined){if(!Array.isArray(s.lockupGroups)||s.lockupGroups.length>200)fail('Invalid lockup groups.');const ids=new Set();for(const g of s.lockupGroups){if(!g||typeof g.id!=='string'||g.id.length>80||ids.has(g.id)||typeof g.name!=='string'||g.name.length>80||typeof g.collapsed!=='boolean'||g.visible!==undefined&&typeof g.visible!=='boolean')fail('Invalid lockup group.');ids.add(g.id);}for(const l of doc.layers)if(l.groupId!=null&&!ids.has(l.groupId))fail('Missing lockup group.');}
+
   if(s?.camoId!=null&&!CAMO_LIBRARY.some(p=>p.id===s.camoId))fail('Unknown camo pattern.');
   if(s?.camoLastId!=null&&!CAMO_LIBRARY.some(p=>p.id===s.camoLastId))fail('Unknown last camo pattern.');
   if(s?.camoScaleVersion!==undefined&&s.camoScaleVersion!==1)fail('Unknown camo scale format.');
