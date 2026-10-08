@@ -9,14 +9,15 @@ export function installExportSummary({dialog,working=()=>false}){
   const psds=get('exportPsd').checked?get('exportPrintLayouts').querySelectorAll('.print-layout-heading input:checked').length:0;
   const issues=get('exportPsd').checked?get('exportPrintLayouts').querySelectorAll('[data-invalid="true"]').length:0;
   get('exportLayoutWarning').hidden=!issues;get('exportLayoutWarning').textContent=issues?plural(issues,'layout')+' need'+(issues===1?'s':'')+' attention. Open Print artwork to review.':'';
+  const setting=id=>get(id).querySelector('input:checked')?.nextElementSibling?.textContent||'';get('exportSettingsSummary').textContent=[setting('exportSize'),setting('exportShape'),setting('exportBackground'),setting('exportLighting')].join(' · ');
   const graphics=get('exportArtwork').checked,project=get('exportDesign').checked;
   const current=!!get('exportBackground').querySelector('input[value="current"]:checked');
   get('exportGridOption').hidden=!current;
   if(!working()){get('exportGrid').disabled=!current||!views;}
   get('exportMockupTitleCount').textContent=plural(views,'view');
   get('exportPrintTitleCount').textContent=[fromSnapshots&&get('exportPsd').checked?'Unique snapshot PSDs':psds?plural(psds,'PSD layout'):null,graphics?'Individual graphics':null,issues?plural(issues,'layout')+' to review':null].filter(Boolean).join(' · ')||'None selected';
-  get('exportProjectTitleCount').textContent=project?'Included':'Not included';
-  get('exportSummary').textContent=[views?plural(views*variants,'mockup'):null,fromSnapshots&&get('exportPsd').checked?'Unique snapshot PSDs':psds?plural(psds,'PSD layout'):null,graphics?'Individual graphics':null,project?'ORB project':null].filter(Boolean).join(' · ')||'No files selected';
+  get('exportProjectTitleCount').textContent=project?plural(variants,'project'):'Not included';
+  get('exportSummary').textContent=[views?plural(views*variants,'mockup'):null,fromSnapshots&&get('exportPsd').checked?'Unique snapshot PSDs':psds?plural(psds,'PSD layout'):null,graphics?'Individual graphics':null,project?plural(variants,'ORB project'):null].filter(Boolean).join(' · ')||'No files selected';
  }
  dialog.addEventListener('printlayoutchange',sync);dialog.addEventListener('input',sync);dialog.addEventListener('change',sync);sync();return {sync};
 }

@@ -1,4 +1,4 @@
-import {designFingerprint,modelIdentity} from './snapshot-identity.js?v=0.9.51';
+import {designFingerprint,modelIdentity} from './snapshot-identity.js?v=0.9.60';
 // Snapshot manifests reference shared source blobs; built-in GLBs are never stored.
 export function createSnapshotStore(name='orb-snapshots-1:'+location.pathname.replace(/\/index\.html$/,'/')){
   let pending;
@@ -19,7 +19,7 @@ export function createSnapshotStore(name='orb-snapshots-1:'+location.pathname.re
   return {
     fingerprint,fingerprintData:async data=>fingerprint(data.doc,await modelIdentity(data.model)),
     async list(){return (await read('snapshots')).sort((a,b)=>b.created-a.created);},
-    async save(data,previews,{name=data.doc.name}={}){
+    async save(data,previews,{name=data.doc.name,separator=' '}={}){
       const id=crypto.randomUUID(),doc=structuredClone(data.doc);let modelKey=null;
       modelKey=await modelIdentity(data.model);
       const entry={id,name,doc,modelKey,previews,created:Date.now(),fingerprint:fingerprint(doc,modelKey)};
@@ -31,8 +31,8 @@ export function createSnapshotStore(name='orb-snapshots-1:'+location.pathname.re
           const existing=snapshots.getAll();
           existing.onsuccess=()=>{
             let number=Number(counter.result)||0;
-            for(const old of existing.result){const label=old.name.normalize('NFKC').toLowerCase(),prefix=key+' ';if(label.startsWith(prefix)){const suffix=label.slice(prefix.length);if(/^\d+$/.test(suffix))number=Math.max(number,Number(suffix));}}
-            number++;entry.name=base+' '+String(number).padStart(3,'0');
+            for(const old of existing.result){const label=old.name.normalize('NFKC').toLowerCase(),prefix=key+separator;if(label.startsWith(prefix)){const suffix=label.slice(prefix.length);if(/^\d+$/.test(suffix))number=Math.max(number,Number(suffix));}}
+            number++;entry.name=base+separator+String(number).padStart(3,'0');
             counters.put(number,key);
             for(const record of data.records)assets.put(record,record.id);
             if(modelKey)assets.put({blob:data.model},modelKey);

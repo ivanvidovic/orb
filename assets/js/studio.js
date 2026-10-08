@@ -1,42 +1,43 @@
-import {defaultPaletteBook,applyPalette,installDesignTools,effectiveVisibility} from './design-tools.js?v=0.9.51';
+import {createPaletteLibrary} from './palette-library.js?v=0.9.60';
+import {defaultPaletteBook,applyPalette,installDesignTools,effectiveVisibility} from './design-tools.js?v=0.9.60';
 let designTools=null;
-import {colorName} from './color-name.js?v=0.9.51';
-import {CAMO_LIBRARY,createCamo,normalizeCamoScales} from './camo.js?v=0.9.51';
-import {prepareCordMetadata,adoptCordMetadata,updateCordMotion,cordMotionState} from './cord-motion.js?v=0.9.51';
-import {restoreGarmentTopology} from './embedded-garment.js?v=0.9.51';
-import {fetchGarmentAsset} from './garment-asset-cache.js?v=0.9.51';
-import {garmentPresentation,presentationPoint} from './garment-presentation.js?v=0.9.51';
+import {colorName} from './color-name.js?v=0.9.60';
+import {CAMO_LIBRARY,createCamo,normalizeCamoScales} from './camo.js?v=0.9.60';
+import {prepareCordMetadata,adoptCordMetadata,updateCordMotion,cordMotionState} from './cord-motion.js?v=0.9.60';
+import {restoreGarmentTopology} from './embedded-garment.js?v=0.9.60';
+import {fetchGarmentAsset} from './garment-asset-cache.js?v=0.9.60';
+import {garmentPresentation,presentationPoint} from './garment-presentation.js?v=0.9.60';
 // ORB Garment Studio v0.9.18 — desktop crewnecks and garment alignment.
-import {installSnapshots} from './snapshots.js?v=0.9.51';
+import {installSnapshots} from './snapshots.js?v=0.9.60';
 import {configureGarmentShadow} from './shadow-quality.js?v=91-shadow47';
 import {preloadCatalog} from './catalog-preload.js?v=91-shadow47';
 import {createPresentMotion} from './present-motion.js?v=91-present46';
 import {installMobileInteraction} from './mobile-interaction.js?v=91-art44';
 import {MOBILE_MEMORY,RENDER_BUDGET,artworkAtlasSize} from './render-budget.js?v=0.9.13';
 import {viewportSize,installViewport} from './mobile-viewport.js?v=91-opt43';
-import {defaultPresentation} from './present-options.js?v=0.9.51';
-import {installPresentation} from './present-settings.js?v=0.9.51';
+import {defaultPresentation} from './present-options.js?v=0.9.60';
+import {installPresentation} from './present-settings.js?v=0.9.60';
 let presentation=null,presentRenderLight=null;
 import {setupProjectorControls,syncProjectorButtons} from './projector-controls.js?v=91-controls65';
 import {installMappedRanges} from './mapped-ranges.js?v=91-history13';
 import {treatmentKey} from './artwork-treatment.js?v=91-history13';
-import {quadTransform,alphaBounds,flattenTransform,collectSurfaces} from './print-layout.js?v=0.9.51';
+import {quadTransform,alphaBounds,flattenTransform,collectSurfaces} from './print-layout.js?v=0.9.60';
 import {createTreatmentQueue,createTreatmentProcessor} from './artwork-processing.js?v=91-history13';
 import {hasPrintTexture} from './print-texture.js?v=91-history13';
 import {focusedPanelBounds,layerCustomColor} from './artwork-detail.js?v=91-history13';
-import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=0.9.51';
-import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE,fullSleeveCamera} from './sleeve-camera.js?v=0.9.51';
+import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=0.9.60';
+import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE,fullSleeveCamera} from './sleeve-camera.js?v=0.9.60';
 import {hasDirectory} from './folder-import.js?v=58';
 import {decodeArtworkImage,normalizeArtworkFile} from './artwork-decode.js?v=91-svg21';
-import {createCityTraffic} from './city-night.js?v=0.9.51';
+import {createCityTraffic} from './city-night.js?v=0.9.60';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=82';
 import {sharedSurfaceProfiles,fitSurfacePlacements} from './surface-layout.js?v=0.9.15';
-import {torsoFrame,torsoDistance,previousTorsoFrame,previewDistance,previousPreviewFrame} from './garment-framing.js?v=0.9.13';
-import {installWorkspace} from './workspace.js?v=0.9.51';
-import {installExports} from './presentation-export.js?v=0.9.51';
-import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=0.9.51';
+import {torsoFrame,torsoDistance,previousTorsoFrame,previewDistance,previousPreviewFrame} from './garment-framing.js?v=0.9.60';
+import {installWorkspace} from './workspace.js?v=0.9.60';
+import {installExports} from './presentation-export.js?v=0.9.60';
+import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=0.9.60';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=0.9.12';
-import {installColorPicker} from './color-picker.js?v=0.9.51';
+import {installColorPicker} from './color-picker.js?v=0.9.60';
 import {installSliderControls,rangeDisplayValue,RESET_ICON} from './controls.js?v=91-controls65';
 import {installColorActions} from './color-actions.js?v=34';
 let colorPicker=null,colorActions=null,workspace=null;
@@ -921,7 +922,7 @@ async function getCatalogBytes(item){
     const stem=item.file.replace(/\.glb$/,'');
     const urls=['../garments/'+item.file,'../calibration/'+stem+'.json','../calibration/'+stem+'.bin'];
     return Promise.all(urls.map(async (path,index)=>{
-      const url=new URL(path,import.meta.url);url.searchParams.set('v','0.9.51');
+      const url=new URL(path,import.meta.url);url.searchParams.set('v','0.9.60');
       const response=await fetchGarmentAsset(url,{persistent:!MOBILE_MEMORY});
       if(!response.ok)throw new Error('Garment asset failed ('+response.status+'): '+path);
       if(index===0&&!MOBILE_MEMORY&&window.ORBStartup?.active){
@@ -1671,7 +1672,7 @@ function leaveInspection(){
   inspectionFocus=null;state.focusTarget.copy(garmentCenter);
   state.tr=previewDistance(activeGarmentId,state.view);
 }
-const VIEWS={front:[0,1.45],angle:[.62,1.30],side:[Math.PI/2,1.45],backangle:[Math.PI-.62,1.30],back:[Math.PI,1.45],detail:[.45,1.35]};
+const VIEWS={front:[0,1.45],angle:[.62,1.45],side:[Math.PI/2,1.45],backangle:[Math.PI-.62,1.45],back:[Math.PI,1.45],detail:[.45,1.35]};
 function cameraPlacementPoint(slot){
   return SLEEVE_CAMERA_PIVOTS[activeGarmentId]?.[slot]||UV_PROFILES[slot]?.point;
 }
@@ -2747,7 +2748,7 @@ async function undoArtwork(redo=false){
   historyRestoring=true;setWorkspaceLock(true,redo?'Redoing…':'Undoing…');
   try{
     await restoreSnapshotGarment(next.snapshot,next.snapshot.modelFile);
-    await restoreDesignState(next.snapshot,false);from.pop();to.push({snapshot:currentSnapshot,key});
+    await restoreDesignState(next.snapshot,false);savePaletteLibrary();from.pop();to.push({snapshot:currentSnapshot,key});
     workspace?.notify();artStatus('');
   }catch(error){artStatus(error.message||'This edit could not be restored.');}
   finally{historyRestoring=false;setWorkspaceLock(false);syncArtworkUi();}
@@ -3835,6 +3836,10 @@ function installDesignHistory(){
     if(e.key.toLowerCase()==='z'||e.key.toLowerCase()==='y'){e.preventDefault();undoArtwork(e.shiftKey||e.key.toLowerCase()==='y');}
   });
 }
+const paletteLibrary=createPaletteLibrary();
+function savePaletteLibrary(){try{paletteLibrary.save(state.paletteBook);}catch(error){artStatus('Palettes could not be saved locally: '+error.message);}}
+state.paletteBook=paletteLibrary.merge(state.paletteBook,{includeIncoming:!paletteLibrary.size});
+savePaletteLibrary();
 const defaultDesignSettings=structuredClone(pick(state,SETTING_FIELDS));
 workspace=installWorkspace({
   checkProject:doc=>{if(MOBILE_MEMORY&&doc.garmentId!=='mens-tee'){const error=new Error('Mobile supports the men’s tee only. Open this design on desktop.');error.code='DESKTOP_GARMENT';throw error;}},
@@ -3842,16 +3847,17 @@ workspace=installWorkspace({
   snapshot:designSnapshot,modelFile:()=>customModelFile,decode:decodeArtworkFile,
   finish:()=>{finishArtworkRename(true);colorPicker?.close();},lock:setWorkspaceLock,
   clearHistory:()=>{artHistory.length=0;artFuture.length=0;syncArtworkUi();},
-  async restore(snapshot,model,{preserveEnvironment=false}={}){
+  async restore(snapshot,model,{preserveEnvironment=false,mergePalettes=false}={}){
+    if(mergePalettes){savePaletteLibrary();snapshot={...snapshot,settings:{...snapshot.settings,paletteBook:paletteLibrary.merge(snapshot.settings.paletteBook||defaultPaletteBook())}};}
     if(preserveEnvironment){
       const current=designSnapshot(),designKeys=new Set(['paletteBook','lockupGroups','camoId','camoLastId','camoScale','camoScales','camoScaleVersion','blank','garmentCustom','artGlossiness']);
       snapshot={...snapshot,settings:{...snapshot.settings,...Object.fromEntries(Object.entries(current.settings).filter(([k])=>!designKeys.has(k)))},camera:current.camera,lighting:current.lighting,regularBackdrop:current.regularBackdrop};
     }
     historyRestoring=true;
-    try{await restoreSnapshotGarment(snapshot,model);await restoreDesignState(snapshot);await settleArtworkTreatment();}finally{historyRestoring=false;}
+    try{await restoreSnapshotGarment(snapshot,model);await restoreDesignState(snapshot);await settleArtworkTreatment();if(mergePalettes)savePaletteLibrary();}finally{historyRestoring=false;}
   },
   newDesign:async()=>{
-    const snapshot=designSnapshot();snapshot.layers=[];snapshot.active=null;snapshot.name='Untitled design';snapshot.settings=structuredClone(defaultDesignSettings);snapshot.regularBackdrop=null;
+    const snapshot=designSnapshot();snapshot.layers=[];snapshot.active=null;snapshot.name='Untitled design';snapshot.settings={...structuredClone(defaultDesignSettings),paletteBook:structuredClone(state.paletteBook)};snapshot.regularBackdrop=null;
     recordArtUndo();await restoreDesignState(snapshot,false);setView('angle');
   },
   presentationAsset:entry=>presentation.setGraphic(entry),
@@ -3953,7 +3959,7 @@ function lockupItems(layers){
 function lockupPlacement(item){const {q}=item,[a,b,d,e]=q.basis,det=a*e-b*d,u=item.center[0]-q.origin[0],v=item.center[1]-q.origin[1],layer=artEntry(item.id),[sx,sy]=layer.anchor?[1,1]:(q.offsetScale||[1,1]);return {x:(e*u-b*v)/det/sx,y:-(-d*u+a*v)/det/sy,scale:item.scale,rot:(((Math.sign(det)*(item.rotation-Math.atan2(d,a)*180/Math.PI)+180)%360+360)%360)-180};}
 function validateLockup(items){for(const item of items){const p=lockupPlacement(item);if(!Object.values(p).every(Number.isFinite)||Math.abs(p.x)>100||Math.abs(p.y)>100||p.scale<.000001||p.scale>1000)throw new Error('The group transform exceeds the placement range.');}}
 designTools=installDesignTools({book:()=>state.paletteBook,groups:()=>state.lockupGroups,layers:()=>artLayers,active:artEntry,busy:()=>designLocked||artLoading||modelLoading,
- colorTarget:()=>colorPicker.target,refreshColor:()=>colorPicker.refresh(),select:selectArtwork,openColor:(input,anchor)=>colorPicker.open(input,anchor),closeColor:()=>colorPicker.close(),undo:recordArtUndo,message:artStatus,changed:()=>{requestArtworkRender();syncArtworkUi();workspace?.notify();},customColor:(mode,anchor)=>colorPicker.open(document.getElementById(mode==='tint'?'tintCustom':'inkCustom'),anchor),
+ colorTarget:()=>colorPicker.target,refreshColor:()=>colorPicker.refresh(),select:selectArtwork,openColor:(input,anchor)=>colorPicker.open(input,anchor),closeColor:()=>colorPicker.close(),undo:recordArtUndo,message:artStatus,changed:()=>{savePaletteLibrary();requestArtworkRender();syncArtworkUi();workspace?.notify();},customColor:(mode,anchor)=>colorPicker.open(document.getElementById(mode==='tint'?'tintCustom':'inkCustom'),anchor),
  groupItems:lockupItems,validateGroup:validateLockup,setGroupItems:items=>{for(const item of items)artEntry(item.id).placement=lockupPlacement(item);},
  link:layers=>{lockupItems(layers);const indices=layers.map(l=>artLayers.indexOf(l));if(Math.max(...indices)-Math.min(...indices)+1!==layers.length)throw new Error('Select adjacent layers so linking preserves the artwork stacking order.');if(layers.some(l=>l.groupId))throw new Error('Unlink existing groups before creating a new lockup.');recordArtUndo();const g={id:crypto.randomUUID(),name:'Lockup '+(state.lockupGroups.length+1),collapsed:false};state.lockupGroups.push(g);for(const l of layers)l.groupId=g.id;},
  duplicateGroup:g=>{const members=artLayers.filter(l=>l.groupId===g.id);if(artLayers.length+members.length>200)throw new Error('This design has reached its 200-layer limit.');recordArtUndo();const next={...g,id:crypto.randomUUID(),name:g.name+' Copy'};state.lockupGroups.push(next);const names=new Set(artLayers.map(l=>l.name.toLowerCase()));const copies=members.map(l=>({...l,id:'art-'+nextArtId++,groupId:next.id,name:uniqueArtworkName(l.name,names),placement:{...l.placement},anchor:l.anchor?structuredClone(l.anchor):null}));artLayers.splice(artLayers.indexOf(members[0]),0,...copies);}
@@ -3961,7 +3967,7 @@ designTools=installDesignTools({book:()=>state.paletteBook,groups:()=>state.lock
 
 installGroupResets();
 installSliderControls(prop=>artDefault(artEntry()?.slot||activeArtSlot,prop));
-installSnapshots({workspace,resetIcon:RESET_ICON,previews:()=>exportsUI.snapshotPreviews(),
+installSnapshots({workspace,suggestName:()=>{const label=GARMENT_CATALOG.find(g=>g.id===activeGarmentId)?.label||'Custom Garment';return label.replace('T-Shirt','Tee')+' · '+currentGarment().name;},resetIcon:RESET_ICON,previews:()=>exportsUI.snapshotPreviews(),
   reviewing:value=>{snapshotReviewActive=value;if(!value){resize();draw();}},
   canReview:()=>!state.present&&!artLoading&&!modelLoading&&!designLocked&&!workspace.busy,
 });

@@ -280,3 +280,6 @@ body.snapshot-reviewing #stage>.stage-reset,body.snapshot-reviewing #stage>.stag
 #snapshotReview{background:var(--paper)}
 #snapshotReview .snapshot-review-head{background:var(--paper)}
 #snapshotReviewGrid{background:var(--paper);color:var(--ink)}
+
+#snapshotsBody .snapshot-name-input{box-sizing:border-box;width:100%;min-width:0;min-height:32px;margin-top:6px;padding:4px 6px;border:1px solid var(--rule-mid);border-radius:0;background:var(--paper);color:var(--ink);font:inherit;font-size:12px}
+#snapshotsBody .snapshot-name-input:focus{outline:1px solid var(--ink);outline-offset:1px}

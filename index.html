@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<!-- ORB Garment Studio v0.9.51 Public Beta: mockups, per-layer artwork and layered PSD print packages. -->
+<!-- ORB Garment Studio v0.9.60 Public Beta: mockups, per-layer artwork and layered PSD print packages. -->
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -25,11 +25,11 @@
 @media(prefers-reduced-motion:reduce){#startup{transition:none}.startup-emblem .startup-glint{display:none}}
 </style>
 <script src="./assets/js/brand.js?v=49"></script>
-<link rel="stylesheet" href="./assets/css/studio.css?v=0.9.51">
-<link rel="stylesheet" href="./assets/css/toolbar.css?v=0.9.51-91-inline33">
+<link rel="stylesheet" href="./assets/css/studio.css?v=0.9.60">
+<link rel="stylesheet" href="./assets/css/toolbar.css?v=0.9.60-91-inline33">
 <link rel="stylesheet" href="./assets/css/present-settings.css?v=91-style26">
 <link rel="stylesheet" href="./assets/css/controls.css?v=91-unify53">
-<link rel="stylesheet" href="./assets/css/snapshots.css?v=0.9.11">
+<link rel="stylesheet" href="./assets/css/snapshots.css?v=0.9.60">
 <style>
 #panel .fabric-head{min-height:20px}
 #panel #swatches{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
@@ -387,7 +387,7 @@
 
 <dialog id="helpDialog" aria-labelledby="helpTitle">
   <div class="helpHead">
-    <div><span class="helpEyebrow">Quick guide</span><div class="helpTitleRow"><h2 id="helpTitle">ORB Garment Studio</h2><span class="helpVersion">v0.9.51 · Public Beta</span></div></div>
+    <div><span class="helpEyebrow">Quick guide</span><div class="helpTitleRow"><h2 id="helpTitle">ORB Garment Studio</h2><span class="helpVersion">v0.9.60 · Public Beta</span></div></div>
     <button class="helpClose" id="helpClose" type="button" aria-label="Close help">×</button>
   </div>
   <div class="helpBody">
@@ -410,26 +410,26 @@
  <fieldset id="exportSource" class="export-choice"><legend>Export From</legend><div class="export-choice-buttons"><label><input type="radio" name="exportSource" value="current" checked><span>Current Design</span></label><label><input type="radio" name="exportSource" value="snapshots"><span>Selected Snapshots</span></label></div></fieldset><div id="exportSnapshots" hidden></div>
  <details open class="export-section" aria-labelledby="exportMockupTitle">
  <summary><span id="exportMockupTitle">Mockup Images</span><span class="export-section-count" id="exportMockupTitleCount"></span></summary><div class="export-section-body"><p class="muted">Garment previews for sharing and presentation.</p>
-<div class="export-camera-heading"><span>Camera Views</span></div><fieldset class="export-views"><legend class="sr-only">Camera Views</legend><label><input type="checkbox" name="exportView" value="front" checked>Front</label><label><input type="checkbox" name="exportView" value="angle" checked>Front ¾</label><label><input type="checkbox" name="exportView" value="side" checked>Left side</label><label><input type="checkbox" name="exportView" value="right" checked>Right side</label><label><input type="checkbox" name="exportView" value="backangle" checked>Back ¾</label><label><input type="checkbox" name="exportView" value="back" checked>Back</label><label><input type="checkbox" name="exportView" value="detail">Detail</label></fieldset>
+<fieldset class="export-views"><legend>Camera Views</legend><label><input type="checkbox" name="exportView" value="front" checked>Front</label><label><input type="checkbox" name="exportView" value="angle" checked>Front ¾</label><label><input type="checkbox" name="exportView" value="side" checked>Left Side</label><label><input type="checkbox" name="exportView" value="right" checked>Right Side</label><label><input type="checkbox" name="exportView" value="backangle" checked>Back ¾</label><label><input type="checkbox" name="exportView" value="back" checked>Back</label><label><input type="checkbox" name="exportView" value="detail">Detail</label></fieldset>
  <details id="exportCloseups" class="export-closeups"><summary>Placement Close-Ups <span id="exportCloseupCount">0 selected</span></summary><fieldset id="exportPlacementViews" class="export-views" aria-label="Placement Close-Ups"></fieldset></details>
- <div class="export-image-settings">
+ <details class="export-closeups export-settings"><summary>Image Settings <span id="exportSettingsSummary"></span></summary><div class="export-image-settings">
  <fieldset id="exportShape" class="export-choice"><legend>Shape</legend><div class="export-choice-buttons"><label><input type="radio" name="exportShape" value="square" checked><span><i class="shape-icon shape-square" aria-hidden="true"></i>Square</span></label><label><input type="radio" name="exportShape" value="portrait"><span><i class="shape-icon shape-portrait" aria-hidden="true"></i>Portrait</span></label><label><input type="radio" name="exportShape" value="wide"><span><i class="shape-icon shape-wide" aria-hidden="true"></i>Wide</span></label></div></fieldset>
  <fieldset id="exportSize" class="export-choice"><legend>Image size <small>Longest edge · px</small></legend><div class="export-choice-buttons"><label><input type="radio" name="exportSize" value="2048" checked><span>2048 px</span></label><label><input type="radio" name="exportSize" value="3072"><span>3072 px</span></label><label><input type="radio" name="exportSize" value="4096"><span>4096 px</span></label></div></fieldset>
  <fieldset id="exportBackground" class="export-choice"><legend>Background</legend><div class="export-choice-buttons"><label><input type="radio" name="exportBackground" value="transparent" checked><span>Transparent</span></label><label><input type="radio" name="exportBackground" value="white"><span>White</span></label><label><input type="radio" name="exportBackground" value="current"><span>Scene</span></label></div></fieldset>
  <fieldset id="exportLighting" class="export-choice"><legend>Lighting</legend><div class="export-choice-buttons"><label><input type="radio" name="exportLighting" value="neutral" checked><span>Neutral</span></label><label><input type="radio" name="exportLighting" value="current"><span title="Uses the working lighting for Current Design, or each snapshot’s saved lighting">Current Lighting</span></label></div></fieldset><div id="exportGridOption" class="export-grid-option"><label class="check-option"><input id="exportGrid" type="checkbox" checked>Include grid</label></div>
- </div>
+ </div></details>
  </div></details>
 
  <details open class="export-section" aria-labelledby="exportPrintTitle">
  <summary><span id="exportPrintTitle">Print Artwork</span><span class="export-section-count" id="exportPrintTitleCount"></span></summary><div class="export-section-body"><p class="muted">Flat artwork for your printer, without garment lighting or folds.</p>
- <p id="exportCurrentNote" class="muted" hidden>Selected snapshots supply mockups and layered PSDs. Identical print designs share a PSD set. Print sizes below apply to matching surfaces; additional surfaces use their standard starting sizes. Individual graphics and the ORB project use your current design.</p><div class="export-file-options">
+ <p id="exportCurrentNote" class="muted" hidden>Selected snapshots supply every checked output. Each snapshot gets its own ORB project and individual graphics. Identical print designs share a PSD set. Print sizes below apply to matching surfaces; additional surfaces use their standard starting sizes.</p><div class="export-file-options">
  <div><label class="check-option"><input id="exportPsd" type="checkbox" checked aria-describedby="exportPsdHelp">Layered PSD layouts</label><p id="exportPsdHelp" class="muted">Arranged artwork with treated and original layers.</p></div>
  <div><label class="check-option"><input id="exportArtwork" type="checkbox" checked aria-describedby="exportArtworkHelp">Individual graphics</label><p id="exportArtworkHelp" class="muted">Treated PNGs and original source files.</p></div>
  </div>
  <p id="exportPrintNote" class="muted"></p>
  <div id="exportPrintLayouts" class="print-layouts"></div>
  </div></details>
- <details open class="export-section" aria-labelledby="exportProjectTitle">
+ <details class="export-section" aria-labelledby="exportProjectTitle">
  <summary><span id="exportProjectTitle">Studio Project</span><span class="export-section-count" id="exportProjectTitleCount"></span></summary><div class="export-section-body">
  <div class="export-project-option"><label class="check-option"><input id="exportDesign" type="checkbox" aria-describedby="exportProjectHelp">Include ORB project (.orb)</label><p id="exportProjectHelp" class="muted">Reopen this file in ORB Garment Studio to continue editing.</p></div>
  </div></details>
@@ -459,7 +459,7 @@
 </script>
 
 <script src="./assets/vendor/jszip/jszip.min.js"></script>
-<script type="module" src="./assets/js/studio.js?v=0.9.51"></script>
+<script type="module" src="./assets/js/studio.js?v=0.9.60"></script>
 <script type="module" src="./assets/js/artist-bio.js?v=91-spacing64"></script>
 <script type="module" src="./assets/js/help-guide.js?v=91-guide21"></script>
 </body>

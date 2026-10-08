@@ -1,7 +1,7 @@
 import {reviewLayout,fitReviewLayout,createCaptureDisclosure} from './snapshot-layout.js?v=0.9.7';
 import {snapshotIcons,snapshotTip as tip,snapshotIconButton as iconButton} from './snapshot-icons.js?v=91-layout58';
-import {createSnapshotStore} from './snapshot-store.js?v=0.9.51';
-import {downloadBlob,cleanFilename} from './design-format.js?v=0.9.51';
+import {createSnapshotStore} from './snapshot-store.js?v=0.9.60';
+import {downloadBlob,cleanFilename} from './design-format.js?v=0.9.60';
 const $=id=>document.getElementById(id);
 export function installSnapshots(api){
   const store=createSnapshotStore(),section=$('snapshotsSection'),review=$('snapshotReview');
@@ -45,7 +45,13 @@ export function installSnapshots(api){
   async function refresh(){entries=await store.list();collectUrls();if(selected!==null&&!entries.some(e=>e.id===selected))selected=null;render();}
   async function capture(){
     const result=await api.workspace.captureSnapshot(api.previews);
-    const entry=await store.save(result.data,result.previews);selected=entry.id;await refresh();return entry;
+    const entry=await store.save(result.data,result.previews,{name:api.suggestName?.()||result.data.doc.name,separator:' · '});selected=entry.id;await refresh();return entry;
+  }
+  function renameInline(entry){
+    const card=[...$('snapshotGrid').children].find(c=>c.dataset.snapshotId===entry.id),label=card?.querySelector('.snapshot-name');if(!label)return;
+    const input=document.createElement('input');input.className='art-name-input snapshot-name-input';input.type='text';input.maxLength=80;input.value=entry.name;input.setAttribute('aria-label','Snapshot name');$('snapshotGrid').after(input);input.scrollIntoView({block:'nearest'});let finished=false;
+    async function finish(save){if(finished)return;finished=true;const name=input.value.trim();input.remove();if(save&&name&&name!==entry.name){try{await store.rename(entry.id,name);entry.name=name;label.textContent=name;await refresh();}catch(error){message('Snapshot saved, but its name could not be updated: '+error.message);}}}
+    input.onkeydown=e=>{if(e.key==='Enter'||e.key==='Escape'){e.preventDefault();e.stopPropagation();finish(e.key==='Enter');}};input.onblur=()=>finish(true);input.onclick=e=>e.stopPropagation();input.focus();input.select();
   }
   async function open(entry){const data=await store.load(entry.id);api.workspace.checkSnapshot(data);await api.workspace.restoreSavedSnapshot(data);closeReview();selected=entry.id;render();message('Snapshot opened.',true);}
   async function download(entry){const data=await store.load(entry.id);data.doc={...data.doc,name:entry.name};downloadBlob(await api.workspace.archiveData(data),cleanFilename(entry.name)+'.orb');}
@@ -115,11 +121,8 @@ export function installSnapshots(api){
     }catch{return 7/6;}finally{canvas.width=canvas.height=1;}
   }
   function sizeCard(card,width,ratio){
-    // Align both silhouettes to a shared baseline without changing the tile.
-    for(const side of ['front','back']){
-      const bottom=trimCache.get(card.dataset.snapshotId+':'+side)||7/6;
-      card.style.setProperty('--'+side+'-top',(Math.ceil(width*ratio)-width*bottom)+'px');
-    }
+    // Preserve captured framing; trim only below the shared pair.
+    for(const side of ['front','back'])card.style.setProperty('--'+side+'-top','0px');
     card.style.setProperty('--image-height',(Math.ceil(width*ratio)+8)+'px');
     card.style.setProperty('--source-height',(width*7/6)+'px');
     card.style.setProperty('--art-scale',String(1-innerSpacing/100));
@@ -228,7 +231,7 @@ export function installSnapshots(api){
   function openReview(){if(working||!api.canReview())return;returnFocus=document.activeElement;reviewing=true;review.hidden=false;document.body.classList.add('snapshot-reviewing');api.reviewing(true);renderReview();mobileMode();$('snapshotReviewClose').focus();}
   function closeReview(){if(!reviewing)return;++revealGeneration;reviewing=false;review.hidden=true;$('snapshotReviewGrid').replaceChildren();for(const [key,value] of urls)if(key.includes(':gallery:')){URL.revokeObjectURL(value);urls.delete(key);}document.body.classList.remove('snapshot-reviewing');mobileMode();api.reviewing(false);returnFocus?.focus({preventScroll:true});}
   const configure=(id,icon,label,detail,action)=>{const el=$(id);el.innerHTML=snapshotIcons[icon];el.classList.add('snapshot-icon');tip(el,label,detail);el.onclick=action;};
-  configure('snapshotCapture','capture','Capture snapshot','Save this design with front and back previews in this browser.',()=>run(async()=>{const button=$('snapshotCapture');button.classList.add('capturing');button.setAttribute('aria-busy','true');try{await capture();if(disclosure.captured())setExpanded(true);}finally{button.classList.remove('capturing');button.removeAttribute('aria-busy');}}));
+  configure('snapshotCapture','capture','Capture snapshot','Save this design with front and back previews in this browser.',()=>run(async()=>{const button=$('snapshotCapture');button.classList.add('capturing');button.setAttribute('aria-busy','true');try{const entry=await capture();disclosure.captured();setExpanded(true);requestAnimationFrame(()=>renameInline(entry));}finally{button.classList.remove('capturing');button.removeAttribute('aria-busy');}}));
   configure('snapshotReviewOpen','review','Review snapshots','Review the saved designs side by side; click a shirt to flip it.',openReview);
   $('snapshotNewest').innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 20V4m-4 4 4-4 4 4M14 5h7M14 10h5M14 15h3M14 20h1"/></svg>';
   tip($('snapshotNewest'),'Newest first','Restore newest-to-oldest order.');$('snapshotNewest').onclick=()=>{if(working)return;reviewOrder=null;applyReviewOrder();};
@@ -240,7 +243,7 @@ export function installSnapshots(api){
   configure('snapshotReviewClose','close','Close snapshot review','Return to the live garment editor. Escape also closes review.',()=>{if(!working)closeReview();});
   $('snapshotsToggle').onclick=()=>{const expanded=$('snapshotsBody').hidden;disclosure.toggled(expanded);setExpanded(expanded);};tip($('snapshotsToggle'),'Snapshots','Expand or collapse snapshots saved in this browser.');setExpanded(false);
 
-  for(const el of review.querySelectorAll('[data-snapshot-side]')){const side=el.dataset.snapshotSide;tip(el,'Show all '+side+' views','Show the '+side+' of every design. Individual shirts can still be flipped.');el.onclick=()=>{const ordered=orderedEntries(),step=matchMedia('(prefers-reduced-motion: reduce)').matches?0:Math.min(25,250/Math.max(1,ordered.length-1));for(const [index,entry] of ordered.entries())if((sides.get(entry.id)||'front')!==side)flip(entry,index*step);manualSide=false;syncSides();};}
+  for(const el of review.querySelectorAll('[data-snapshot-side]')){const side=el.dataset.snapshotSide;tip(el,'Flip all Front / Back','Click either button to switch all designs. Mixed views switch to Back.');el.onclick=()=>{const ordered=orderedEntries(),side=ordered.every(entry=>(sides.get(entry.id)||'front')==='back')?'front':'back',step=matchMedia('(prefers-reduced-motion: reduce)').matches?0:Math.min(25,250/Math.max(1,ordered.length-1));for(const [index,entry] of ordered.entries())if((sides.get(entry.id)||'front')!==side)flip(entry,index*step);manualSide=false;syncSides();};}
   document.addEventListener('pointerdown',event=>{if(!event.target.closest('.snapshot-card')){closeActions();if(!working&&!event.target.closest('button,input,select,textarea,a,label,summary,[role=button],dialog')){selected=null;syncSelected();}}},true);
 
   document.addEventListener('keydown',event=>{

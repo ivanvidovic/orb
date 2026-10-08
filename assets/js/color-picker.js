@@ -52,6 +52,7 @@ export function installColorPicker({onReset=()=>{}}={}){
   }
   function position(){
     if(panel.hidden||!target)return;
+    if(panel.classList.contains('color-embedded')){panel.style.width='100%';panel.style.left=panel.style.top='';return;}
     const viewport=window.visualViewport,left=viewport?.offsetLeft||0,top=viewport?.offsetTop||0;
     const width=viewport?.width||innerWidth,height=viewport?.height||innerHeight;
     panel.style.width=Math.min(288,width-24)+'px';
@@ -64,7 +65,8 @@ export function installColorPicker({onReset=()=>{}}={}){
     if(!target)return;
     const previous=target;target=null;panel.hidden=true;previous.setAttribute('aria-expanded','false');
     if(changed)previous.dispatchEvent(new Event('change',{bubbles:true}));
-    if(restore&&previous.isConnected)previous.focus({preventScroll:true});
+    if(restore&&previous.isConnected)(anchor?.isConnected?anchor:previous).focus({preventScroll:true});
+    if(panel.classList.contains('color-embedded')){panel.classList.remove('color-embedded');document.body.append(panel);}
   }
   function open(input,source=input){
     if(input.disabled)return;
@@ -72,6 +74,7 @@ export function installColorPicker({onReset=()=>{}}={}){
     close();panel.querySelector('#colorSample').dataset.sampleTarget=input.id;target=input;anchor=source;changed=false;h=0;read(input.value);
     panel.querySelector('#colorPopoverTitle').textContent=({inkCustom:'Solid Color',tintCustom:'Tint Color'})[input.id]||input.getAttribute('aria-label')||'Color';
     input.setAttribute('aria-controls',panel.id);input.setAttribute('aria-expanded','true');
+    const editor=source.closest('.palette-editor');if(editor){editor.append(panel);panel.classList.add('color-embedded');}
     panel.hidden=false;panel.dispatchEvent(new Event('coloropen'));sync();position();field.focus({preventScroll:true});
   }
   document.addEventListener('click',event=>{

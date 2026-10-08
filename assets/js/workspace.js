@@ -1,7 +1,7 @@
 import {installArtworkPaste} from './clipboard-artwork.js?v=91-paste';
 import {loadHostedLibrary,fetchHostedArtwork} from './hosted-library.js?v=77';
 import {collectDrop} from './folder-import.js?v=58';
-import {FORMAT_VERSION,LAYER_FIELDS,SETTING_FIELDS,pick,cleanFilename,canvasBlob,downloadBlob,validateProject} from './design-format.js?v=0.9.51';
+import {FORMAT_VERSION,LAYER_FIELDS,SETTING_FIELDS,pick,cleanFilename,canvasBlob,downloadBlob,validateProject} from './design-format.js?v=0.9.60';
 const $=id=>document.getElementById(id);
 const imageFile=f=>f.type.startsWith('image/')||/\.(png|jpe?g|webp|gif|avif|svg)$/i.test(f.name);
 const pause=()=>new Promise(resolve=>setTimeout(resolve,0));
@@ -197,7 +197,7 @@ export function installWorkspace(api){
     const {staged,layers}=await decodePackage(data);
     const snapshot={...data.doc,layers};
     // Decode and validate everything before replacing the active design.
-    await api.restore(snapshot,data.model,{preserveEnvironment});
+    await api.restore(snapshot,data.model,{preserveEnvironment,mergePalettes:true});
     for(const [id,a] of staged)assets.set(id,a);api.presentationRestored?.();
     const incoming=(data.doc.shelf||Array.from(staged.keys())).filter(id=>staged.has(id));
     shelfIds=mergeLibrary?new Set([...shelfIds,...incoming]):new Set(incoming);

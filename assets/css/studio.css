@@ -1199,3 +1199,38 @@ body.present .stage-reset,body.present .stage-help{display:none}
 #exportDialog .export-views.export-choice-buttons label{display:block;white-space:normal}
 #exportDialog .export-views.export-choice-buttons label[hidden]{display:none}
 #exportDialog .export-views.export-choice-buttons span{border-radius:0;min-height:32px;box-sizing:border-box;display:flex;align-items:center;justify-content:center}
+
+/* v0.9.60: one palette editor and compact export controls. */
+.design-tools-dialog.palette-editor{width:min(370px,calc(100vw - 48px));box-sizing:border-box;max-height:calc(100dvh - 24px)}
+.palette-editor .design-tools-head button{padding:2px 7px;font-size:20px;line-height:1.2}
+.palette-identity{display:grid;gap:6px}.palette-identity select{width:100%;min-width:0;padding:6px;font:inherit;font-size:12px}
+.palette-editor-colors{display:grid;gap:6px}.palette-editor .palette-slot-edit{gap:6px}.palette-editor .palette-slot-edit input{box-sizing:border-box;height:32px;font-size:12px}
+.palette-editor .palette-slot-edit button{height:28px;padding:2px}.palette-editor-actions{justify-content:start;flex-wrap:wrap;gap:6px}.palette-editor-actions button{padding:6px 8px;font-size:11px}
+#colorPopover.color-embedded{position:static;box-sizing:border-box;width:100%;max-width:none;margin:8px 0 0;box-shadow:none;border:0;border-top:1px solid var(--rule);padding:12px 0 0;transform:none}
+#exportDialog{width:min(720px,calc(100vw - 24px))}
+#exportDialog .workspace-body{gap:12px}
+#exportDialog .export-section+.export-section{padding-top:12px}
+#exportDialog .export-section>summary{font-size:12px}
+#exportDialog .export-section-body{gap:9px;padding-top:9px}
+#exportDialog .export-views.export-choice-buttons{display:flex;flex-wrap:wrap;gap:5px;justify-content:flex-start}
+#exportDialog .export-views.export-choice-buttons label{flex:0 0 auto}
+#exportDialog .export-views.export-choice-buttons span{padding:6px 10px;min-height:30px;white-space:nowrap}
+#exportDialog .export-closeups{padding:7px 9px}
+#exportDialog .export-image-settings{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px;padding-top:10px}
+#exportDialog .export-image-settings .export-choice{padding:0;margin:0;min-height:0}
+#exportDialog .export-image-settings .export-choice legend{position:static;width:auto;margin-bottom:4px;font-size:10px}
+#exportDialog .export-image-settings legend small{display:inline;margin-left:5px}
+#exportDialog .export-image-settings .export-choice-buttons span{min-height:30px;padding:6px 4px}
+#exportDialog .export-actions{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;align-items:center;padding-top:9px}
+#exportDialog .export-actions #exportLayoutWarning,#exportDialog .export-actions #exportProgress,#exportDialog .export-actions #exportStatus{grid-column:1/-1}
+#exportDialog .export-actions #exportStatus:empty{display:none}
+#exportDialog .export-footer{margin:0;gap:6px}#exportDialog .export-footer button{padding:8px 10px;font-size:11px}
+#exportDialog .print-dimensions{gap:12px;margin-top:7px}#exportDialog .print-size-group+.print-size-group{padding-left:12px}
+#exportSettingsSummary{max-width:75%;white-space:normal;text-align:right;font-size:10px}
+@media(max-width:520px){#exportDialog .export-image-settings{grid-template-columns:1fr}#exportDialog .export-actions{grid-template-columns:1fr}#exportDialog .export-footer{justify-content:flex-start}#exportSettingsSummary{max-width:64%}}
+
+#exportDialog .print-layout>summary{cursor:pointer;display:flex;align-items:center;gap:8px;list-style:none;font-size:11px}
+#exportDialog .print-layout>summary:before{content:'›';font-size:14px}#exportDialog .print-layout[open]>summary:before{transform:rotate(90deg)}
+#exportDialog .print-layout>summary::-webkit-details-marker{display:none}#exportDialog .print-layout-size-summary{margin-left:auto;font-size:10px;color:var(--graphite);text-align:right}
+#exportDialog .print-layout{padding:8px 0}#exportDialog .print-layout .print-layout-heading{margin:0}
+@media(max-width:520px){#exportDialog .print-layout-size-summary{max-width:65%}}

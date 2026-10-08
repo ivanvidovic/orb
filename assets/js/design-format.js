@@ -1,5 +1,5 @@
-import {CAMO_LIBRARY} from './camo.js?v=0.9.51';
-import {validPresentation} from './present-options.js?v=0.9.51';
+import {CAMO_LIBRARY} from './camo.js?v=0.9.60';
+import {validPresentation} from './present-options.js?v=0.9.60';
 import {CREATIVE_DEFAULTS,PROJECTOR_PATTERNS} from './creative-lighting.js?v=91-history13';
 // Portable ORB files contain a versioned manifest and deduplicated image bytes.
 export const FORMAT_VERSION=4;
@@ -48,6 +48,7 @@ export function validateProject(doc,{garments,slots}){
    if(new Set(b.slots.map(x=>x.id)).size!==b.slots.length||new Set(b.palettes.map(x=>x.id)).size!==b.palettes.length)fail('Duplicate palette identifiers.');
    for(const q of b.slots)if(!id(q.id)||!id(q.name))fail('Invalid palette slot.');
    for(const q of b.palettes)if(!id(q.id)||!id(q.name)||!q.colors||b.slots.some(slot=>!color(q.colors[slot.id])))fail('Invalid palette colors.');
+   for(const q of b.palettes){if(q.libraryColorCount!==undefined&&(!Number.isInteger(q.libraryColorCount)||q.libraryColorCount<0||q.libraryColorCount>b.slots.length))fail('Invalid palette color count.');if(q.librarySourceName!==undefined&&!id(q.librarySourceName))fail('Invalid palette source name.');}
    if(!b.palettes.some(p=>p.id===b.active))fail('Missing active palette.');
    for(const l of doc.layers)if(l.paletteSlot!=null&&!b.slots.some(x=>x.id===l.paletteSlot))fail('Missing layer palette slot.');
   }else if(doc.layers.some(l=>l.paletteSlot!=null))fail('Missing artwork palette.');
