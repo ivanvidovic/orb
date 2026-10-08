@@ -1,11 +1,11 @@
-import {printDesignKey} from './print-design-key.js?v=0.9.60';
-import {installExportSources,exportLabel,srgbPng} from './export-variants.js?v=0.9.60';
-import {installExportSummary} from './export-summary.js?v=0.9.60';
-import {createExportProgress} from './export-progress.js?v=0.9.60';
-import {installPrintLayoutUI} from './print-layout-ui.js?v=0.9.60';
-import {addPrintLayouts} from './print-package.js?v=0.9.60';
-import {addArtworkPackage} from './artwork-export.js?v=0.9.60';
-import {canvasBlob,downloadBlob,cleanFilename} from './design-format.js?v=0.9.60';
+import {printDesignKey} from './print-design-key.js?v=0.9.61';
+import {installExportSources,exportLabel,srgbPng} from './export-variants.js?v=0.9.61';
+import {installExportSummary} from './export-summary.js?v=0.9.61';
+import {createExportProgress} from './export-progress.js?v=0.9.61';
+import {installPrintLayoutUI} from './print-layout-ui.js?v=0.9.61';
+import {addPrintLayouts} from './print-package.js?v=0.9.61';
+import {addArtworkPackage} from './artwork-export.js?v=0.9.61';
+import {canvasBlob,downloadBlob,cleanFilename} from './design-format.js?v=0.9.61';
 const $=id=>document.getElementById(id);
 const VIEW_NAMES={front:'Front',angle:'Front three-quarter',side:'Left side',right:'Right side',backangle:'Back three-quarter',back:'Back',detail:'Detail'};
 const turn=()=>new Promise(resolve=>requestAnimationFrame(resolve));
@@ -84,7 +84,7 @@ export function installExports(api){
     const edge=Number(choice('exportSize')),shape=choice('exportShape'),width=shape==='portrait'?Math.round(edge*.8):edge,height=shape==='wide'?Math.round(edge*9/16):edge;
     const exportLighting=choice('exportLighting');
     const options={width,height,background:choice('exportBackground'),grid:$('exportGrid').checked,shadow:false},name=cleanFilename(api.name());
-    working=true;cancelled=false;api.lock(true,'Preparing print package…');$('exportConfirm').disabled=true;$('exportCancel').hidden=false;
+    working=true;cancelled=false;api.lock(true,'Preparing selected files…');$('exportConfirm').disabled=true;$('exportCancel').hidden=false;
     for(const el of $('exportDialog').querySelectorAll('input,select,.print-layout button'))el.disabled=true;
     progress.start(2+(snapshotPrints?variants.length:0)+views.length*variants.length+plans.reduce((n,p)=>n+p.layers.length+1,0)+2);
     let session,variantSession,releaseLighting,success=false,psdCount=0,projectCount=0,graphicsCount=0;
@@ -96,7 +96,7 @@ export function installExports(api){
       if(errors.length)throw new Error('Could not fully restore the working view: '+errors.join('; '));
     }
     try{
-      message('Preparing print package…');await turn();
+      message('Preparing selected files…');await turn();
       check();progress.advance();
       await api.prepare?.();check();progress.advance();
       const images=[],zip=new window.JSZip(),exportInfo=[],printInfo=[],projectInfo=[],graphicsInfo=[],printSets=new Map();
@@ -158,7 +158,7 @@ export function installExports(api){
       await restoreExport();
       zip.file('Export Summary.json',JSON.stringify({design:name,mockups:exportInfo,printDesigns:printInfo,projects:projectInfo,graphics:graphicsInfo},null,2));
       if(snapshotPrints)zip.file('Print Designs/README.txt','SNAPSHOT PRINT DESIGNS\n\nIdentical print designs share a PSD set. Garment colors and scene lighting are not printed. Automatic ink colors can differ between garments and therefore require separate sets.\n\n'+printInfo.map(item=>item.snapshot+'\n'+(item.folder||item.reason)+'\n').join('\n'));
-      message('Packaging print files…');const blob=await zip.generateAsync({type:'blob',compression:'STORE'},meta=>{check();progress.packaging(meta.percent/100);});check();downloadBlob(blob,name+'_Print-Package.zip');success=true;progress.finish(true);message(`Print package downloaded · ${images.length} mockups${psdCount?` · ${psdCount} layered PSDs`:''}${projectCount?` · ${projectCount} ORB project${projectCount===1?'':'s'}`:''}${graphicsCount?` · ${graphicsCount} graphics layers`:''}.`);
+      message('Packaging selected files…');const blob=await zip.generateAsync({type:'blob',compression:'STORE'},meta=>{check();progress.packaging(meta.percent/100);});check();downloadBlob(blob,name+'_Export.zip');success=true;progress.finish(true);message(`Selected files downloaded · ${images.length} mockups${psdCount?` · ${psdCount} layered PSDs`:''}${projectCount?` · ${projectCount} ORB project${projectCount===1?'':'s'}`:''}${graphicsCount?` · ${graphicsCount} graphics layers`:''}.`);
     }catch(error){message(error.message||'The export could not finish. Try a smaller image size.');}
     finally{try{await restoreExport();}catch(e){message('Export stopped; restoring the working design failed: '+e.message);}progress.finish(success);working=false;api.lock(false);$('exportConfirm').disabled=false;$('exportCancel').hidden=true;for(const el of $('exportDialog').querySelectorAll('input,select,.print-layout button'))el.disabled=false;printUI.restoreAvailability();syncDetailExports();summary.sync();}
   }

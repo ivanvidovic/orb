@@ -1,5 +1,5 @@
-import {defaultPrintSize,printPlan} from './print-layout.js?v=0.9.60';
-import {psdSupported} from './print-package.js?v=0.9.60';
+import {defaultPrintSize,printPlan} from './print-layout.js?v=0.9.61';
+import {psdSupported} from './print-package.js?v=0.9.61';
 export function installPrintLayoutUI({toggle,container,status}){
   const remembered=new Map(),byName=new Map();let surfaces=[],key='',ready=false,preference=true;
   toggle.addEventListener('change',()=>{preference=toggle.checked;});

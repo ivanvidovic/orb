@@ -1,7 +1,7 @@
 import {reviewLayout,fitReviewLayout,createCaptureDisclosure} from './snapshot-layout.js?v=0.9.7';
 import {snapshotIcons,snapshotTip as tip,snapshotIconButton as iconButton} from './snapshot-icons.js?v=91-layout58';
-import {createSnapshotStore} from './snapshot-store.js?v=0.9.60';
-import {downloadBlob,cleanFilename} from './design-format.js?v=0.9.60';
+import {createSnapshotStore} from './snapshot-store.js?v=0.9.61';
+import {downloadBlob,cleanFilename} from './design-format.js?v=0.9.61';
 const $=id=>document.getElementById(id);
 export function installSnapshots(api){
   const store=createSnapshotStore(),section=$('snapshotsSection'),review=$('snapshotReview');
