@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
-<!-- ORB Garment Studio v0.9.66 Public Beta: mockups, per-layer artwork and layered PSD print packages. -->
+<!-- ORB Garment Studio v0.9.67 Public Beta: mockups, per-layer artwork and layered PSD print packages. -->
 <head>
-<meta name="orb-version" content="0.9.66">
+<meta name="orb-version" content="0.9.67">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>ORB Garment Studio</title>
@@ -30,11 +30,11 @@
 @media(prefers-reduced-motion:reduce){#startup{transition:none}.startup-spinner{animation:none;transition:none}}
 </style>
 <script src="./assets/js/brand.js?v=49"></script>
-<link rel="stylesheet" href="./assets/css/studio.css?v=0.9.66">
-<link rel="stylesheet" href="./assets/css/toolbar.css?v=0.9.66-91-inline33">
+<link rel="stylesheet" href="./assets/css/studio.css?v=0.9.67">
+<link rel="stylesheet" href="./assets/css/toolbar.css?v=0.9.67-91-inline33">
 <link rel="stylesheet" href="./assets/css/present-settings.css?v=91-style26">
 <link rel="stylesheet" href="./assets/css/controls.css?v=91-unify53">
-<link rel="stylesheet" href="./assets/css/snapshots.css?v=0.9.66">
+<link rel="stylesheet" href="./assets/css/snapshots.css?v=0.9.67">
 <style>
 #panel .fabric-head{min-height:20px}
 #panel #swatches{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
@@ -48,7 +48,7 @@
 </style></head>
 <body data-theme="light" class="startup-lock">
 <div id="startup" aria-label="Loading ORB Garment Studio"><div class="startup-content"><div id="startupProgress" class="startup-mark" role="progressbar" aria-label="Preparing garment preview"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" class="startup-emblem" aria-hidden="true"><defs><clipPath id="startupReveal"><circle cx="499.8461609" cy="500" r="0"/></clipPath></defs> <circle class="startup-track" fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="500" r="0"/> <g clip-path="url(#startupReveal)"> <path fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" d=" M674.6182861,925.295166V674.7720947C674.6182861,578.2481689,596.3701172,500,499.8461609,500 s-174.7721252,78.2481689-174.7721252,174.7720947V925.295166"/> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="325.2278748" r="174.7721252"/> </g> <g clip-path="url(#startupReveal)"> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="616.5148926" r="116.5148926"/> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="383.4851074" r="116.5148926"/> </g> <circle class="startup-progress" pathLength="100" transform="rotate(-90 499.8461609 500)" fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="500" r="0"/></svg></div><p id="startupStatus"><span id="startupPhase" role="status" aria-live="polite">Preparing studio</span><span class="startup-version"> · <span data-orb-version></span></span></p><button id="startupRetry" type="button" hidden>Try again</button></div></div>
-<script src="./assets/js/startup.js?v=0.9.66"></script>
+<script src="./assets/js/startup.js?v=0.9.67"></script>
 <noscript><style>#startup{display:none}.startup-lock{overflow:auto}</style><p>JavaScript is required to use ORB Garment Studio.</p></noscript>
 <script>(()=>{const theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.body.dataset.theme=theme;document.documentElement.dataset.theme=theme;document.documentElement.style.colorScheme=theme;})();</script>
 
@@ -412,7 +412,7 @@
 <dialog id="assetDialog" class="workspace-dialog" aria-labelledby="assetTitle"><div class="workspace-head"><h2 id="assetTitle">Add artwork</h2><button type="button" data-close-dialog aria-label="Close">×</button></div><div class="workspace-body"><button id="assetBrowse" type="button">Upload images</button><p class="muted">Or choose a graphic from your library.</p><p id="assetLibraryStatus" class="shelf-note" role="status" hidden></p><div id="assetGrid" class="shelf-grid"></div></div></dialog>
 <dialog id="saveDialog" class="workspace-dialog" aria-labelledby="saveTitle"><div class="workspace-head"><h2 id="saveTitle">Save design</h2><button type="button" data-close-dialog aria-label="Close">×</button></div><div class="workspace-body"><p>One editable file with this garment, all layers, artwork, and preview settings.</p><label class="check-option"><input id="saveIncludeLibrary" type="checkbox">Include unused library graphics</label><p class="muted">Used graphics are always included. Built-in 3D garments stay in the app.</p><button id="saveConfirm" class="primary-action" type="button">Download design</button><p id="saveStatus" role="status"></p></div></dialog>
 <dialog id="exportDialog" class="workspace-dialog" aria-labelledby="exportTitle"><div class="workspace-head"><h2 id="exportTitle">Export Files</h2><button type="button" data-close-dialog aria-label="Close">×</button></div><div class="workspace-body">
- <fieldset id="exportSource" class="export-choice"><legend>Export From</legend><div class="export-choice-buttons"><label><input type="radio" name="exportSource" value="current" checked><span>Current Design</span></label><label><input type="radio" name="exportSource" value="snapshots"><span>Selected Snapshots</span></label></div></fieldset><div id="exportSnapshots" hidden></div>
+ <fieldset id="exportSource" class="export-choice"><legend><span>Export From</span><button id="exportSelectAll" type="button" hidden>Select All</button></legend><div class="export-choice-buttons"><label><input type="radio" name="exportSource" value="current" checked><span>Current Design</span></label><label><input type="radio" name="exportSource" value="snapshots"><span>Selected Snapshots</span></label></div></fieldset><div id="exportSnapshots" hidden></div>
  <details open class="export-section" aria-labelledby="exportMockupTitle">
  <summary><span id="exportMockupTitle">Mockup Images</span><span class="export-section-count" id="exportMockupTitleCount"></span></summary><div class="export-section-body"><p class="muted">Garment previews for sharing and presentation.</p>
 <fieldset class="export-views"><legend>Camera Views</legend><label><input type="checkbox" name="exportView" value="front" checked>Front</label><label><input type="checkbox" name="exportView" value="angle" checked>Front ¾</label><label><input type="checkbox" name="exportView" value="side" checked>Left Side</label><label><input type="checkbox" name="exportView" value="right" checked>Right Side</label><label><input type="checkbox" name="exportView" value="backangle" checked>Back ¾</label><label><input type="checkbox" name="exportView" value="back" checked>Back</label><label><input type="checkbox" name="exportView" value="detail">Detail</label></fieldset>
@@ -464,7 +464,7 @@
 </script>
 
 <script src="./assets/vendor/jszip/jszip.min.js"></script>
-<script type="module" src="./assets/js/studio.js?v=0.9.66"></script>
+<script type="module" src="./assets/js/studio.js?v=0.9.67"></script>
 <script type="module" src="./assets/js/artist-bio.js?v=91-spacing64"></script>
 <script type="module" src="./assets/js/help-guide.js?v=91-guide21"></script>
 </body>

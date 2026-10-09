@@ -1,5 +1,5 @@
-// ORB Garment Studio v0.9.66 — versioned local copies of catalog assets.
-const CACHE_NAME='orb-garment-assets-v0.9.66';
+// ORB Garment Studio v0.9.67 — versioned local copies of catalog assets.
+const CACHE_NAME='orb-garment-assets-v0.9.67';
 let cachePromise;
 function assetCache(){
  if(!cachePromise)cachePromise=(async()=>{

@@ -1,5 +1,5 @@
-import {CAMO_LIBRARY} from './camo.js?v=0.9.66';
-import {validPresentation} from './present-options.js?v=0.9.66';
+import {CAMO_LIBRARY} from './camo.js?v=0.9.67';
+import {validPresentation} from './present-options.js?v=0.9.67';
 import {CREATIVE_DEFAULTS,PROJECTOR_PATTERNS} from './creative-lighting.js?v=91-history13';
 // Portable ORB files contain a versioned manifest and deduplicated image bytes.
 export const FORMAT_VERSION=4;
