@@ -1,7 +1,7 @@
 import {installArtworkPaste} from './clipboard-artwork.js?v=91-paste';
 import {loadHostedLibrary,fetchHostedArtwork} from './hosted-library.js?v=77';
 import {collectDrop} from './folder-import.js?v=58';
-import {FORMAT_VERSION,LAYER_FIELDS,SETTING_FIELDS,pick,cleanFilename,canvasBlob,downloadBlob,validateProject} from './design-format.js?v=0.9.61';
+import {FORMAT_VERSION,LAYER_FIELDS,SETTING_FIELDS,pick,cleanFilename,canvasBlob,downloadBlob,validateProject} from './design-format.js?v=0.9.64';
 const $=id=>document.getElementById(id);
 const imageFile=f=>f.type.startsWith('image/')||/\.(png|jpe?g|webp|gif|avif|svg)$/i.test(f.name);
 const pause=()=>new Promise(resolve=>setTimeout(resolve,0));
@@ -259,18 +259,21 @@ export function installWorkspace(api){
   }
   return {beginExportSession,captureSnapshot,restoreSavedSnapshot,archiveData,checkSnapshot:data=>{validateProject(data.doc,api.schema);api.checkProject?.(data.doc);},getAsset:async id=>{const a=assets.get(id);if(!a)throw new Error('Background artwork is missing.');if(!a.entry.source)a.entry={...await api.decode(new File([a.blob],a.name,{type:a.blob.type})),assetId:id};return a.entry;},register,openAssets,notify,loadLibrary,makeArchive,dropFolder,artworkData:()=>packageData(false),dropProject:file=>confirmAction({file}),get busy(){return busy;},
     async ready(){
+      window.ORBStartup?.stage('Checking saved design');
       restoring=true;
       let data=null,restored=false,sampleLoaded=false,failure=null;
       try{
         try{data=await dbGet();}
         catch(error){storageAvailable=false;preserveRecovery=true;failure=['Temporary session; use Save to download your design',error];}
         if(data!=null){
+          window.ORBStartup?.stage('Restoring design');
           try{await applyPackage(data,{mergeLibrary:false});restored=true;}
           catch(error){preserveRecovery=true;recoveryBlocked=error.code==='DESKTOP_GARMENT';failure=['Previous design preserved',error];}
         }
         // Only an absent saved project is a first visit. Never substitute the
         // sample for an empty design, unreadable recovery, or unavailable storage.
         if(storageAvailable&&data==null){
+          window.ORBStartup?.stage('Loading sample design');
           const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),8000);
           try{
             const response=await fetch(new URL('../samples/ORB-Mockup-01.orb',import.meta.url),{signal:controller.signal});

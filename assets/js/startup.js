@@ -1,15 +1,41 @@
 // Independent of WebGL: the original vector mark is visible during module loading.
 (()=>{
   const overlay=document.getElementById('startup'),ring=overlay.querySelector('.startup-progress');
-  const meter=document.getElementById('startupProgress'),status=document.getElementById('startupStatus'),retry=document.getElementById('startupRetry');
+  const meter=document.getElementById('startupProgress'),status=document.getElementById('startupPhase'),retry=document.getElementById('startupRetry');
+  const version=document.querySelector('meta[name=orb-version]').content;
+  const syncVersion=()=>document.querySelectorAll('[data-orb-version]').forEach(node=>node.textContent='v'+version);
+  syncVersion();document.addEventListener('DOMContentLoaded',syncVersion,{once:true});
+  const timings=[];let lastPhase='Preparing studio',phaseStart=performance.now();
   const ns='http://www.w3.org/2000/svg',svg=overlay.querySelector('svg');
-  const mask=document.createElementNS(ns,'mask');mask.id='startupProgressMask';mask.setAttribute('maskUnits','userSpaceOnUse');mask.setAttribute('x','0');mask.setAttribute('y','0');mask.setAttribute('width','1000');mask.setAttribute('height','1000');
-  const maskRing=ring.cloneNode(false);maskRing.removeAttribute('class');maskRing.setAttribute('stroke','#fff');maskRing.setAttribute('stroke-width','8');maskRing.setAttribute('stroke-dasharray','100');maskRing.style.strokeDashoffset='100';mask.append(maskRing);svg.querySelector('defs').append(mask);
-  const glintGroup=document.createElementNS(ns,'g');glintGroup.setAttribute('mask','url(#startupProgressMask)');
-  const glint=ring.cloneNode(false);glint.setAttribute('class','startup-glint');glintGroup.append(glint);svg.append(glintGroup);
-  let active=true,finished=false,value=0,displayed=0,progressToken=0,radius=0,revealToken=0;
+  // Rotate an independent HTML layer so the browser can composite the arc.
+  const spinner=document.createElement('div');spinner.className='startup-spinner';
+  const spinnerSvg=document.createElementNS(ns,'svg');spinnerSvg.setAttribute('viewBox','0 0 1000 1000');
+  spinnerSvg.setAttribute('aria-hidden','true');
+  spinnerSvg.innerHTML=`<defs>
+    <linearGradient id="prismWispColor" gradientUnits="userSpaceOnUse" x1="655" y1="68" x2="944" y2="578">
+      <stop offset="0" stop-color="#7ba9ee" stop-opacity="0"/>
+      <stop offset=".2" stop-color="#7ba9ee" stop-opacity=".8"/>
+      <stop offset=".47" stop-color="#b89bdd"/>
+      <stop offset=".7" stop-color="#e6b0c0"/>
+      <stop offset=".87" stop-color="#efc49c" stop-opacity=".85"/>
+      <stop offset="1" stop-color="#efc49c" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="prismWispBlur" x="-100%" y="-50%" width="300%" height="200%" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="9"/></filter>
+  </defs>
+  <g class="startup-wisp-shape" fill="none" stroke="url(#prismWispColor)" stroke-linecap="round">
+    <path d="M 657.2 67.7 A 460 460 0 0 1 952.9 579.9" stroke-width="14" opacity=".48" filter="url(#prismWispBlur)"/>
+    <path d="M 657.2 67.7 A 460 460 0 0 1 952.9 579.9" stroke-width="5" opacity=".95"/>
+  </g>`;
+  const wisp=spinnerSvg.querySelector('.startup-wisp-shape');
+  ring.remove();spinner.append(spinnerSvg);svg.parentNode.append(spinner);
+  let active=true,finished=false,failed=false,radius=0,revealToken=0;
   const track=overlay.querySelector('.startup-track'),aperture=overlay.querySelector('#startupReveal circle');
-  function setRadius(value){radius=value;for(const circle of [track,ring,aperture,maskRing,glint])circle.setAttribute('r',String(value));}
+  function setRadius(value){
+    radius=value;for(const circle of [track,aperture])circle.setAttribute('r',String(value));
+    wisp.setAttribute('transform',`translate(499.8461609 500) scale(${value/460}) translate(-499.8461609 -500)`);
+    // Start only when the actual reveal reaches 95%, about 1.3 seconds in.
+    if(value>=437&&active&&!finished&&!failed)spinner.classList.add('is-running');
+  }
   function revealTo(target,duration,exiting=false){
     const token=++revealToken,from=radius,start=performance.now();
     if(matchMedia('(prefers-reduced-motion: reduce)').matches){setRadius(target);return Promise.resolve();}
@@ -23,7 +49,7 @@
       requestAnimationFrame(frame);
     });
   }
-  const opening=revealTo(460,2400);
+  const opening=revealTo(460,1500);
   const locked=new Set();
   function lock(){
     if(!active)return;
@@ -36,47 +62,29 @@
   retry.onclick=()=>location.reload();
   // A slow connection stays recoverable, without pretending it failed.
   const slow=setTimeout(()=>{if(active&&!finished)retry.hidden=false;},30000);
-  const phase=text=>{if(status.textContent!==text)status.textContent=text;};
-  async function progress(next,text){
-    if(!active||finished||!Number.isFinite(next))return Promise.resolve();
-    const target=Math.max(value,Math.min(1,next));
-    if(text)phase(text);
-    if(target===value)return Promise.resolve();
-    value=target;
-    const token=++progressToken;
-    await opening;
-    if(token!==progressToken)return;
-    const from=displayed,start=performance.now();
-    const paint=amount=>{displayed=amount;ring.style.strokeDashoffset=maskRing.style.strokeDashoffset=String(100-amount*100);meter.setAttribute('aria-valuenow',String(Math.round(amount*100)));};
-    if(matchMedia('(prefers-reduced-motion: reduce)').matches){paint(target);return Promise.resolve();}
-    return new Promise(resolve=>{
-      function frame(now){
-        if(token!==progressToken){resolve();return;}
-        const t=Math.max(0,Math.min(1,(now-start)/850));
-        paint(from+(target-from)*(1-Math.pow(1-t,3)));
-        if(t<1)requestAnimationFrame(frame);else resolve();
-      }
-      requestAnimationFrame(frame);
-    });
+  const phase=text=>{if(status.textContent!==text){timings.push({stage:lastPhase,ms:Math.round(performance.now()-phaseStart)});lastPhase=text;phaseStart=performance.now();status.textContent=text;}};
+  function progress(next,text){
+    if(active&&!finished&&text)phase(text);
+    return Promise.resolve();
   }
   function fail(text){
     if(!active||finished)return;
-    progressToken++;overlay.classList.add('is-error');
+    failed=true;overlay.classList.add('is-error');
     phase(text);meter.removeAttribute('aria-valuenow');retry.hidden=false;clearTimeout(slow);lock();
   }
-  window.ORBStartup={get active(){return active&&!finished;},progress,
-    preparing(){if(!active||finished)return;progress(.84,'Preparing preview');},
+  window.ORBStartup={timings,stage:phase,get active(){return active&&!finished;},progress,
+    preparing(){if(!active||finished)return;progress(.84,'Preparing garment');},
     async complete(){
       if(!active||finished)return;
-      const fill=progress(1,'Ready');finished=true;clearTimeout(slow);retry.hidden=true;
-      await fill;
-      await new Promise(resolve=>requestAnimationFrame(resolve));
+      phase('Ready');finished=true;clearTimeout(slow);retry.hidden=true;
+      // Fade immediately; never wait for a lap or fill the circle.
+      revealToken++;
       overlay.classList.add('is-leaving');
-      await Promise.all([revealTo(0,360,true),new Promise(resolve=>{if(matchMedia('(prefers-reduced-motion: reduce)').matches)resolve();else setTimeout(resolve,390);})]);
+      await new Promise(resolve=>{if(matchMedia('(prefers-reduced-motion: reduce)').matches)resolve();else setTimeout(resolve,200);});
       active=false;overlay.hidden=true;document.body.classList.remove('startup-lock');
       for(const node of locked)node.inert=false;locked.clear();
     },fail};
-  // Small opening fill, then hold until measured loading advances.
+  // Existing callers supply stage labels; the indicator remains indeterminate.
   progress(.06,'Preparing studio');
   window.addEventListener('error',event=>{
     if(!active||finished||(!event.message&&event.target?.tagName!=='SCRIPT'))return;

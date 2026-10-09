@@ -1,35 +1,40 @@
 <!DOCTYPE html>
 <html lang="en">
-<!-- ORB Garment Studio v0.9.61 Public Beta: mockups, per-layer artwork and layered PSD print packages. -->
+<!-- ORB Garment Studio v0.9.64 Public Beta: mockups, per-layer artwork and layered PSD print packages. -->
 <head>
+<meta name="orb-version" content="0.9.64">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>ORB Garment Studio</title>
 <style>
 /* Critical startup styles paint before the 3D modules arrive. */
-#startup{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;background:#1c1c1c;color:#fff;opacity:1;transition:opacity .38s ease;isolation:isolate}
+#startup{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;background:#1c1c1c;color:#fff;opacity:1;transition:opacity .18s ease;isolation:isolate}
 #startup[hidden]{display:none}#startup.is-leaving{opacity:0}
 .startup-lock{overflow:hidden}
 .startup-content{display:flex;align-items:center;flex-direction:column;text-align:center;padding:12px;transform:translateY(-12px)}
 .startup-emblem{display:block;width:296px;height:296px;overflow:visible}
 .startup-emblem [stroke]{stroke:#fff;stroke-width:4.5;opacity:.48}
-.startup-emblem .startup-track{opacity:.16}
-.startup-emblem .startup-progress{stroke-width:5;opacity:.76;stroke-dasharray:100;stroke-dashoffset:100}
+.startup-emblem .startup-track{opacity:.48}
+
+.startup-mark{position:relative;width:296px;height:296px}
+.startup-spinner{position:absolute;inset:0;pointer-events:none;will-change:transform;opacity:0;transition:opacity .25s ease;animation:startup-spin 2s linear infinite;animation-play-state:paused}
+.startup-spinner.is-running{opacity:1;animation-play-state:running}
+.startup-spinner svg{display:block;width:100%;height:100%;overflow:visible}
+@keyframes startup-spin{to{transform:rotate(360deg)}}
 #startupStatus{margin:26px 0 0;font:10px/1.6 Rubik,Arial,sans-serif;letter-spacing:.1em;color:rgba(255,255,255,.6);min-height:16px}
+.startup-version{opacity:.65}
 #startupRetry{margin-top:18px;padding:8px 16px;border:1px solid #ffffff50;background:none;color:#fff;font:11px/1.4 Rubik,Arial,sans-serif;cursor:pointer}
 #startupRetry[hidden]{display:none}#startupRetry:focus-visible{outline:2px solid white;outline-offset:4px}
-#startup.is-error .startup-progress{opacity:.35}
- .startup-emblem .startup-glint{stroke-width:5;opacity:.24;stroke-dasharray:6 94;stroke-dashoffset:0;transform-origin:499.8461609px 500px;animation:startup-glint 6s linear infinite}
-#startup.is-error .startup-glint,#startup.is-leaving .startup-glint{display:none}
-@keyframes startup-glint{from{transform:rotate(-90deg)}to{transform:rotate(270deg)}}
-@media(prefers-reduced-motion:reduce){#startup{transition:none}.startup-emblem .startup-glint{display:none}}
+#startup.is-error .startup-spinner{opacity:.35}
+#startup.is-error .startup-spinner{animation-play-state:paused}
+@media(prefers-reduced-motion:reduce){#startup{transition:none}.startup-spinner{animation:none;transition:none}}
 </style>
 <script src="./assets/js/brand.js?v=49"></script>
-<link rel="stylesheet" href="./assets/css/studio.css?v=0.9.61">
-<link rel="stylesheet" href="./assets/css/toolbar.css?v=0.9.61-91-inline33">
+<link rel="stylesheet" href="./assets/css/studio.css?v=0.9.64">
+<link rel="stylesheet" href="./assets/css/toolbar.css?v=0.9.64-91-inline33">
 <link rel="stylesheet" href="./assets/css/present-settings.css?v=91-style26">
 <link rel="stylesheet" href="./assets/css/controls.css?v=91-unify53">
-<link rel="stylesheet" href="./assets/css/snapshots.css?v=0.9.61">
+<link rel="stylesheet" href="./assets/css/snapshots.css?v=0.9.64">
 <style>
 #panel .fabric-head{min-height:20px}
 #panel #swatches{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
@@ -42,8 +47,8 @@
 #camoStatus{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
 </style></head>
 <body data-theme="light" class="startup-lock">
-<div id="startup" aria-label="Loading ORB Garment Studio"><div class="startup-content"><div id="startupProgress" role="progressbar" aria-label="Preparing garment preview" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" class="startup-emblem" aria-hidden="true"><defs><clipPath id="startupReveal"><circle cx="499.8461609" cy="500" r="0"/></clipPath></defs> <circle class="startup-track" fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="500" r="0"/> <g clip-path="url(#startupReveal)"> <path fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" d=" M674.6182861,925.295166V674.7720947C674.6182861,578.2481689,596.3701172,500,499.8461609,500 s-174.7721252,78.2481689-174.7721252,174.7720947V925.295166"/> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="325.2278748" r="174.7721252"/> </g> <g clip-path="url(#startupReveal)"> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="616.5148926" r="116.5148926"/> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="383.4851074" r="116.5148926"/> </g> <circle class="startup-progress" pathLength="100" transform="rotate(-90 499.8461609 500)" fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="500" r="0"/></svg></div><p id="startupStatus" role="status" aria-live="polite">Preparing studio</p><button id="startupRetry" type="button" hidden>Try again</button></div></div>
-<script src="./assets/js/startup.js?v=91-opt43"></script>
+<div id="startup" aria-label="Loading ORB Garment Studio"><div class="startup-content"><div id="startupProgress" class="startup-mark" role="progressbar" aria-label="Preparing garment preview"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" class="startup-emblem" aria-hidden="true"><defs><clipPath id="startupReveal"><circle cx="499.8461609" cy="500" r="0"/></clipPath></defs> <circle class="startup-track" fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="500" r="0"/> <g clip-path="url(#startupReveal)"> <path fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" d=" M674.6182861,925.295166V674.7720947C674.6182861,578.2481689,596.3701172,500,499.8461609,500 s-174.7721252,78.2481689-174.7721252,174.7720947V925.295166"/> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="325.2278748" r="174.7721252"/> </g> <g clip-path="url(#startupReveal)"> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="616.5148926" r="116.5148926"/> <circle fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="383.4851074" r="116.5148926"/> </g> <circle class="startup-progress" pathLength="100" transform="rotate(-90 499.8461609 500)" fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" cx="499.8461609" cy="500" r="0"/></svg></div><p id="startupStatus"><span id="startupPhase" role="status" aria-live="polite">Preparing studio</span><span class="startup-version"> · <span data-orb-version></span></span></p><button id="startupRetry" type="button" hidden>Try again</button></div></div>
+<script src="./assets/js/startup.js?v=0.9.64"></script>
 <noscript><style>#startup{display:none}.startup-lock{overflow:auto}</style><p>JavaScript is required to use ORB Garment Studio.</p></noscript>
 <script>(()=>{const theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.body.dataset.theme=theme;document.documentElement.dataset.theme=theme;document.documentElement.style.colorScheme=theme;})();</script>
 
@@ -387,7 +392,7 @@
 
 <dialog id="helpDialog" aria-labelledby="helpTitle">
   <div class="helpHead">
-    <div><span class="helpEyebrow">Quick guide</span><div class="helpTitleRow"><h2 id="helpTitle">ORB Garment Studio</h2><span class="helpVersion">v0.9.61 · Public Beta</span></div></div>
+    <div><span class="helpEyebrow">Quick guide</span><div class="helpTitleRow"><h2 id="helpTitle">ORB Garment Studio</h2><span class="helpVersion"><span data-orb-version></span> · Public Beta</span></div></div>
     <button class="helpClose" id="helpClose" type="button" aria-label="Close help">×</button>
   </div>
   <div class="helpBody">
@@ -459,7 +464,7 @@
 </script>
 
 <script src="./assets/vendor/jszip/jszip.min.js"></script>
-<script type="module" src="./assets/js/studio.js?v=0.9.61"></script>
+<script type="module" src="./assets/js/studio.js?v=0.9.64"></script>
 <script type="module" src="./assets/js/artist-bio.js?v=91-spacing64"></script>
 <script type="module" src="./assets/js/help-guide.js?v=91-guide21"></script>
 </body>
