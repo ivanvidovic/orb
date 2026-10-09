@@ -564,7 +564,7 @@ select,select option,select optgroup{color:var(--ink);background-color:var(--pap
 #colorPopover[hidden]{display:none}
 .color-pop-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;font-size:12px}
 #colorDone{font:inherit;color:inherit;background:none;border:1px solid var(--rule-mid);padding:8px;min-height:36px;cursor:pointer}
-#colorSV{position:relative;height:150px;background-image:linear-gradient(to top,#000,transparent),linear-gradient(to right,#fff,transparent);touch-action:none;cursor:crosshair;outline-offset:3px}
+#colorSV{position:relative;overflow:hidden;height:150px;background-image:linear-gradient(to top,#000,transparent),linear-gradient(to right,#fff,transparent);touch-action:none;cursor:crosshair;outline-offset:3px}
 #colorCursor{position:absolute;width:12px;height:12px;border:2px solid white;border-radius:50%;box-shadow:0 0 0 1px #0009;transform:translate(-50%,-50%);pointer-events:none}
 .color-hue-label{display:block;margin-top:13px;font-size:11px}
 #colorHue{display:block;width:100%;height:30px;margin:0 0 10px;background:linear-gradient(to right,red,#ff0,#0f0,#0ff,#00f,#f0f,red);border-radius:0;appearance:none;-webkit-appearance:none;touch-action:pan-y;cursor:pointer}
@@ -1200,7 +1200,7 @@ body.present .stage-reset,body.present .stage-help{display:none}
 #exportDialog .export-views.export-choice-buttons label[hidden]{display:none}
 #exportDialog .export-views.export-choice-buttons span{border-radius:0;min-height:32px;box-sizing:border-box;display:flex;align-items:center;justify-content:center}
 
-/* v0.9.64: one palette editor and compact export controls. */
+/* v0.9.65: one palette editor and compact export controls. */
 .design-tools-dialog.palette-editor{width:min(370px,calc(100vw - 48px));box-sizing:border-box;max-height:calc(100dvh - 24px)}
 .palette-editor .design-tools-head button{padding:2px 7px;font-size:20px;line-height:1.2}
 .palette-identity{display:grid;gap:6px}.palette-identity select{width:100%;min-width:0;padding:6px;font:inherit;font-size:12px}

@@ -1,4 +1,4 @@
-import {designFingerprint,modelIdentity} from './snapshot-identity.js?v=0.9.64';
+import {designFingerprint,modelIdentity} from './snapshot-identity.js?v=0.9.65';
 // Snapshot manifests reference shared source blobs; built-in GLBs are never stored.
 export function createSnapshotStore(name='orb-snapshots-1:'+location.pathname.replace(/\/index\.html$/,'/')){
   let pending;

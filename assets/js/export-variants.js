@@ -1,5 +1,5 @@
-import {createSnapshotStore} from './snapshot-store.js?v=0.9.64';
-import {cleanFilename} from './design-format.js?v=0.9.64';
+import {createSnapshotStore} from './snapshot-store.js?v=0.9.65';
+import {cleanFilename} from './design-format.js?v=0.9.65';
 export function exportLabel(name,garment,fabric,index=0){const safe=v=>cleanFilename(v).slice(0,55).replace(/^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i,'_$1');const prefix=[safe(name),safe(garment),safe(fabric)].join('_');return {folder:String(index+1).padStart(2,'0')+' — '+safe(name),prefix};}
 export function installExportSources(){
  const store=createSnapshotStore(),host=document.getElementById('exportSnapshots');let entries=[],urls=[];
