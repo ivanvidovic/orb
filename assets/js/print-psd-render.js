@@ -1,7 +1,7 @@
 import {createArtworkTreatment} from './artwork-treatment.js?v=91-history13';
-import {treatPixels} from './artwork-export.js?v=0.9.65';
+import {treatPixels} from './artwork-export.js?v=0.9.66';
 import {pixelateArtwork} from './print-texture.js?v=91-history13';
-import {transformedBounds,alphaBounds} from './print-layout.js?v=0.9.65';
+import {transformedBounds,alphaBounds} from './print-layout.js?v=0.9.66';
 // This module runs in an export-only worker. Slider rendering is unchanged.
 export function createPrintRenderer(canvasFactory){
   const canvas=(w,h)=>{const c=canvasFactory();c.width=w;c.height=h;return c;};
