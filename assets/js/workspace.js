@@ -1,7 +1,7 @@
 import {installArtworkPaste} from './clipboard-artwork.js?v=91-paste';
 import {loadHostedLibrary,fetchHostedArtwork} from './hosted-library.js?v=77';
 import {collectDrop} from './folder-import.js?v=58';
-import {FORMAT_VERSION,LAYER_FIELDS,SETTING_FIELDS,pick,cleanFilename,canvasBlob,downloadBlob,validateProject} from './design-format.js?v=0.9.67';
+import {FORMAT_VERSION,LAYER_FIELDS,SETTING_FIELDS,pick,cleanFilename,canvasBlob,downloadBlob,validateProject} from './design-format.js?v=0.9.81';
 const $=id=>document.getElementById(id);
 const imageFile=f=>f.type.startsWith('image/')||/\.(png|jpe?g|webp|gif|avif|svg)$/i.test(f.name);
 const pause=()=>new Promise(resolve=>setTimeout(resolve,0));
@@ -109,13 +109,14 @@ export function installWorkspace(api){
       if(asset.hosted){libraryMessage('Loading '+asset.entry.name+'…');asset=await materializeHosted(asset);}
       if(!asset.entry.source)asset.entry={...await api.decode(new File([asset.blob],asset.name,{type:asset.blob.type})),name:asset.entry.name,assetId:asset.id};
       $('assetDialog').close();
-      if(ctx.action==='presentation')api.presentationAsset(asset.entry);
+      if(ctx.action==='deckLogo')await ctx.onSelect(asset.blob,asset.name);
+      else if(ctx.action==='presentation')api.presentationAsset(asset.entry);
       else if(ctx.action==='choose')api.chooseEntries([asset.entry]);
       else api.addEntries(ctx.slot,[asset.entry],ctx.action,ctx.target);
       if(libraryName)libraryMessage(libraryName+' · '+hostedAssets.size+' graphics');
     }catch(error){libraryMessage(error.message||'This graphic could not be opened. Click it to retry.');}finally{busy=false;}
   }
-  function openAssets(ctx={action:'choose'}){if(busy||api.busy())return;context=ctx;$('assetBrowse').hidden=ctx.action==='presentation';renderShelf();$('assetTitle').textContent=ctx.action==='presentation'?'Presentation background':ctx.action==='replace'?'Replace artwork':ctx.action==='add'?'Add artwork here':'Add artwork';$('assetDialog').showModal();}
+  function openAssets(ctx={action:'choose'}){if(busy||api.busy())return;context=ctx;$('assetBrowse').hidden=['presentation','deckLogo'].includes(ctx.action);renderShelf();$('assetTitle').textContent=ctx.action==='deckLogo'?'PDF Logo':ctx.action==='presentation'?'Presentation background':ctx.action==='replace'?'Replace artwork':ctx.action==='add'?'Add artwork here':'Add artwork';$('assetDialog').showModal();}
   async function importImages(files,{place=false}={}){
     if(busy||api.busy())return;busy=true;$('shelfDropLabel').textContent='Adding artwork…';$('shelfBrowse').disabled=$('folderBrowse').disabled=true;const failed=[],entries=[];
     try{for(const file of files){if(!imageFile(file)){failed.push(file.name);continue;}try{if(shelfIds.size>=400)throw new Error('Library full');const entry=await register(await api.decode(file));if(place)entries.push(entry);if(!api.snapshot().layers.some(l=>l.assetId===entry.assetId))assets.get(entry.assetId).entry={...entry,source:null};}catch{failed.push(file.name);}await pause();}}
@@ -255,7 +256,7 @@ export function installWorkspace(api){
     if(busy||restoring)throw new Error('Wait for the current operation to finish.');
     const saved=api.snapshot(),model=api.modelFile(),savedAssets=new Map(assets),savedShelf=new Set(shelfIds),savedName=$('designName').value,savedAutomatic=automaticName;
     busy=true;restoring=true;clearTimeout(saveTimer);
-    return {async load(data){api.checkProject?.(data.doc);const {staged,layers}=await decodePackage(data);for(const [id,a] of staged)assets.set(id,a);await api.restore({...data.doc,layers},data.model);},async restore(){try{await api.restore(saved,model);}finally{assets.clear();for(const [id,a] of savedAssets)assets.set(id,a);shelfIds=savedShelf;$('designName').value=savedName;automaticName=savedAutomatic;restoring=false;busy=false;renderShelf();if(revision!==savedRevision)saveTimer=setTimeout(autosave,900);}}};
+    return {async load(data,{preserveEnvironment=false}={}){api.checkProject?.(data.doc);const {staged,layers}=await decodePackage(data);for(const [id,a] of staged)assets.set(id,a);await api.restore({...data.doc,layers},data.model,{preserveEnvironment});},async restore(){try{await api.restore(saved,model);}finally{assets.clear();for(const [id,a] of savedAssets)assets.set(id,a);shelfIds=savedShelf;$('designName').value=savedName;automaticName=savedAutomatic;restoring=false;busy=false;renderShelf();if(revision!==savedRevision)saveTimer=setTimeout(autosave,900);}}};
   }
   return {beginExportSession,captureSnapshot,restoreSavedSnapshot,archiveData,checkSnapshot:data=>{validateProject(data.doc,api.schema);api.checkProject?.(data.doc);},getAsset:async id=>{const a=assets.get(id);if(!a)throw new Error('Background artwork is missing.');if(!a.entry.source)a.entry={...await api.decode(new File([a.blob],a.name,{type:a.blob.type})),assetId:id};return a.entry;},register,openAssets,notify,loadLibrary,makeArchive,dropFolder,artworkData:()=>packageData(false),dropProject:file=>confirmAction({file}),get busy(){return busy;},
     async ready(){

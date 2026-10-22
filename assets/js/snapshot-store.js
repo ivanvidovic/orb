@@ -1,4 +1,5 @@
-import {designFingerprint,modelIdentity} from './snapshot-identity.js?v=0.9.67';
+import {validIdentity,snapshotName} from './deck-metadata.js?v=0.9.81';
+import {designFingerprint,modelIdentity} from './snapshot-identity.js?v=0.9.81';
 // Snapshot manifests reference shared source blobs; built-in GLBs are never stored.
 export function createSnapshotStore(name='orb-snapshots-1:'+location.pathname.replace(/\/index\.html$/,'/')){
   let pending;
@@ -49,6 +50,11 @@ export function createSnapshotStore(name='orb-snapshots-1:'+location.pathname.re
       const model=entry.modelKey?(await read('assets',entry.modelKey))?.blob:null;
       if(entry.modelKey&&!model)throw new Error('Snapshot garment is missing.');
       return {doc:entry.doc,records,model};
+    },
+    async updateIdentities(items){
+      if(items.some(i=>!validIdentity(i.metadata)))throw Error('Check the design names and ID codes.');
+      await write(snapshots=>{for(const item of items){const req=snapshots.get(item.id);req.onsuccess=()=>{const entry=req.result;if(!entry){req.source.transaction.abort();return;}const name=snapshotName(item.metadata);entry.name=name;entry.doc={...entry.doc,name,settings:{...entry.doc.settings,deckIdentity:item.metadata}};snapshots.put(entry,item.id);};}});
+      window.dispatchEvent(new Event('orb-snapshots-updated'));
     },
     async rename(id,name){await write(snapshots=>{const req=snapshots.get(id);req.onsuccess=()=>{if(req.result)snapshots.put({...req.result,name},id);};});},
     async clear(){await write((snapshots,assets)=>{snapshots.clear();assets.clear();});},

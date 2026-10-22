@@ -1,22 +1,21 @@
-.present-settings p{font-size:11px;line-height:1.5;margin:0}
-.present-field{display:grid;grid-template-columns:minmax(0,1fr) 112px;gap:10px;align-items:center;font-size:11px;min-width:0}
-.present-field input,.present-field select{box-sizing:border-box;width:100%;min-width:0;height:34px;border:1px solid var(--rule);background:var(--paper);color:var(--ink);font:inherit;padding:4px 6px}
-.present-check,.present-light-row label{display:flex;gap:8px;align-items:center;font-size:11px}
-.present-check input,.present-light-row input{accent-color:var(--ink)}
-.present-light-row{display:grid;grid-template-columns:minmax(0,1fr) 32px 32px;gap:5px;align-items:center;border-bottom:1px solid var(--rule);padding:4px 0}
-.present-light-row button,.present-graphic-actions button{min-height:32px;background:transparent;border:1px solid var(--rule);color:var(--ink);font:inherit;cursor:pointer}
-.present-light-row button:disabled{opacity:.3;cursor:default}
-.present-graphic-actions{display:flex;gap:6px}.present-graphic-actions button:first-child{flex:1}
-#presentGraphicName{overflow-wrap:anywhere}
-#presentationBackground{position:fixed;inset:0;width:100%;height:100%;pointer-events:none}
-#presentationBackground{z-index:1}
-#mainToolbar .presentSplit{display:grid;grid-template-columns:minmax(0,1fr) 28px;min-width:0}
-#mainToolbar #presentSettingsButton{border-left:0;padding:0;display:grid;place-items:center}
-#presentSettingsButton svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linejoin:round}
-#mainToolbar .presentSplit+.topAction{border-left:0}
-@media(max-width:600px){#mainToolbar .presentSplit{grid-template-columns:minmax(0,1fr) 36px}.present-light-row button{min-height:40px}}
-
-/* Keep Present and settings visually joined; only a short, quiet divider. */
-#mainToolbar .presentSplit #btnPresent{border-right-color:transparent}
-#mainToolbar #presentSettingsButton{position:relative}
-#mainToolbar #presentSettingsButton::before{content:"";position:absolute;left:-1px;top:30%;height:40%;width:1px;background:var(--rule);opacity:.35;pointer-events:none}
+/* ORB v0.9.81 — present-settings components. */
+.present-settings p { font-size: 11px; line-height: 1.5; margin: 0; }
+.present-field { display: grid; grid-template-columns: minmax(0,1fr) 112px; gap: 6px; align-items: center; font-size: 11px; min-width: 0; min-height: 30px; }
+.present-field input { box-sizing: border-box; width: 100%; min-width: 0; height: var(--ui-field-height); border: 1px solid var(--rule); background: var(--paper); color: var(--ink); font: inherit; padding: 3px 6px; border-radius: 0; }
+.present-field select { box-sizing: border-box; width: 100%; min-width: 0; }
+.present-check,
+.present-light-row label { display: flex; gap: 8px; align-items: center; font-size: 11px; }
+.present-check input,
+.present-light-row input { accent-color: var(--ink); }
+.present-light-row { display: grid; grid-template-columns: minmax(0,1fr) 32px 32px; gap: 5px; align-items: center; border-bottom: 1px solid var(--rule); padding: 4px 0; }
+.present-light-row button,
+.present-graphic-actions button { min-height: 32px; background: transparent; border: 1px solid var(--rule); color: var(--ink); font: inherit; cursor: pointer; }
+.present-light-row button:disabled { opacity: .3; cursor: default; }
+.present-graphic-actions { display: flex; gap: 6px; }
+.present-graphic-actions button:first-child { flex: 1; }
+#presentGraphicName { overflow-wrap: anywhere; }
+#presentationBackground { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+#presentSettingsButton svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; }
+@media (max-width:600px) {
+.present-light-row button { min-height: 40px; }
+}

@@ -5,7 +5,7 @@ export function installExportSummary({dialog,working=()=>false}){
  const get=id=>document.getElementById(id),plural=(n,one,many=one+'s')=>`${n} ${n===1?one:many}`;
  function sync(){
   const views=dialog.querySelectorAll('[name="exportView"]:checked:not(:disabled)').length;
-  const fromSnapshots=!!dialog.querySelector('[name=exportSource][value=snapshots]:checked'),variants=fromSnapshots?dialog.querySelectorAll('#exportSnapshots input:checked').length:1;
+  const fromSnapshots=!!dialog.querySelector('[name=exportSource][value=snapshots]:checked'),variants=fromSnapshots?dialog.querySelectorAll('#exportSnapshots [data-snapshot][aria-pressed=true]').length:1;
   const psds=get('exportPsd').checked?get('exportPrintLayouts').querySelectorAll('.print-layout-heading input:checked').length:0;
   const issues=get('exportPsd').checked?get('exportPrintLayouts').querySelectorAll('[data-invalid="true"]').length:0;
   get('exportLayoutWarning').hidden=!issues;get('exportLayoutWarning').textContent=issues?plural(issues,'layout')+' need'+(issues===1?'s':'')+' attention. Open Print artwork to review.':'';

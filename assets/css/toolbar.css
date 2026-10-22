@@ -1,127 +1,46 @@
-/* One grid owns toolbar sizing at every width; controls never wrap individually. */
-#mainToolbar{
-  --orb-logo-height:34px;
-  display:grid;grid-template-columns:auto minmax(0,1fr) 268px 146px;
-  grid-template-rows:auto;gap:12px;align-items:center;
-  height:auto;min-height:72px;padding:10px 14px;flex:0 0 auto;
+/* ORB v0.9.81 — toolbar components. */
+#mainToolbar { --orb-logo-height: 34px; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 10px var(--toolbar-section-gap); height: auto; min-height: 0; padding: 8px 14px; flex: 0 0 auto; }
+#mainToolbar>.brand-mark { margin: 0 auto 0 0; flex: 0 0 auto; }
+#mainToolbar>.topTools { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: flex-start; gap: var(--toolbar-section-gap); min-width: 0; width: auto; margin: 0; padding: 0; order: 0; flex: 0 1 auto; }
+#mainToolbar .quickGroup { display: grid; grid-template-columns: auto; grid-template-rows: 12px 26px; gap: 4px; min-width: 0; width: auto; margin: 0; padding: 0; align-items: stretch; justify-content: start; flex: 0 0 auto; }
+#mainToolbar .toolbarPanel { display: grid; grid-template-columns: auto; grid-template-rows: 12px 26px; gap: 4px; min-width: 0; width: auto; margin: 0; padding: 0; align-items: stretch; justify-content: start; }
+#mainToolbar .quickLabel { display: block; margin: 0; padding: 0; font-size: 9px; line-height: 12px; letter-spacing: .1em; text-transform: uppercase; font-weight: 500; color: var(--graphite); white-space: nowrap; opacity: .8; }
+#mainToolbar .toolbarLabel { display: block; margin: 0; padding: 0; font-size: 9px; line-height: 12px; letter-spacing: .1em; text-transform: uppercase; font-weight: 500; color: var(--graphite); white-space: nowrap; opacity: .8; }
+#mainToolbar .quickSeg { display: flex; flex-wrap: nowrap; align-items: stretch; gap: 0; width: max-content; min-width: 0; height: 26px; border: 1px solid var(--rule); background: transparent; flex: none; }
+#mainToolbar #toolbarLighting { display: flex; flex-wrap: nowrap; align-items: stretch; gap: 0; width: max-content; min-width: 0; height: 26px; border: 1px solid var(--rule); background: transparent; flex: none; }
+#mainToolbar .quickSeg button { flex: 0 0 auto; width: auto; min-width: 0; height: 24px; min-height: 0; padding: 0 7px; font-size: 10px; letter-spacing: 0; white-space: nowrap; }
+#mainToolbar #toolbarLighting button { flex: 0 0 auto; width: auto; min-width: 0; height: 24px; min-height: 0; padding: 0 7px; font-size: 10px; letter-spacing: 0; white-space: nowrap; }
+#mainToolbar>.toolbarOutput { flex: 0 0 auto; min-width: 0; }
+#mainToolbar>.toolbarUtility { flex: 0 0 auto; min-width: 0; }
+#mainToolbar .topActions { display: contents; align-items: stretch; width: max-content; min-width: 0; margin: 0; gap: 0; }
+#mainToolbar .topAction { flex: 0 0 auto; width: auto; min-width: 0; height: 26px; min-height: 0; padding: 0 7px; margin: 0; font-size: 10px; letter-spacing: 0; white-space: nowrap; border: 1px solid var(--rule); background: transparent; color: var(--graphite); font-family: inherit; font-weight: 500; text-transform: uppercase; cursor: pointer; border-radius: var(--button-radius,var(--choice-radius)); }
+#mainToolbar .topAction+.topAction { border-left: 0; }
+#mainToolbar #toolbarOutputPanel .presentSplit { display: flex; grid-template-columns: none; margin: 0; flex: 0 0 auto; grid-column: 1; grid-row: 2; }
+#mainToolbar #toolbarOutputPanel .presentSplit #btnPresent { border-right: 1px solid var(--rule); }
+#mainToolbar #toolbarOutputPanel #presentSettingsButton { width: auto; padding: 0 6px; border-left: 0; }
+#mainToolbar #toolbarOutputPanel #btnSave { display: flex; align-items: center; justify-content: center; border-left: 1px solid var(--rule); }
+#mainToolbar .toolbarUtilityControls { display: flex; align-items: stretch; gap: 6px; min-width: 0; }
+#mainToolbar .helpBtn { margin: 0; width: 26px; height: 26px; min-height: 0; }
+#mainToolbar .themeToggle { display: flex; grid-template-columns: none; margin: 0; width: auto; height: 26px; min-width: 0; }
+#mainToolbar .themeToggle button { flex: 0 0 auto; width: auto; padding: 0 7px; }
+#mainToolbar button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; z-index: 1; }
+#mainToolbar .interface-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; opacity: 1; }
+#mainToolbar .interface-heading .check-option { display: inline-flex; align-items: center; gap: 3px; margin: 0; font-size: 9px; line-height: 12px; letter-spacing: 0; text-transform: none; white-space: nowrap; cursor: pointer; }
+#mainToolbar .interface-heading input { appearance: auto; width: 11px; height: 11px; margin: 0; cursor: pointer; }
+@media (max-width:1100px) {
+#mainToolbar>.topTools { order: 1; flex-basis: 100%; }
 }
-#mainToolbar>.brand-mark{grid-area:1/1;margin:0;justify-self:start}
-#mainToolbar>.topTools{
-  grid-area:1/2;display:grid;grid-template-columns:minmax(0,6fr) minmax(0,8fr) minmax(0,3.3fr);
-  gap:10px;align-items:stretch;min-width:0;width:100%;margin:0;padding:0;order:0;
+@media (max-width:600px) {
+#mainToolbar { padding: 6px 10px 8px; gap: 8px var(--toolbar-section-gap); }
+#mainToolbar>.toolbarUtility { order: 0; }
+#mainToolbar>.toolbarOutput { order: 1; }
+#mainToolbar>.topTools { order: 2; }
+#mainToolbar .quickLabel { font-size: 8px; letter-spacing: .04em; }
+#mainToolbar .toolbarLabel { font-size: 8px; letter-spacing: .04em; }
+#mainToolbar .quickSeg button { padding: 0 5px; font-size: 9px; }
+#mainToolbar #toolbarLighting button { padding: 0 5px; font-size: 9px; }
 }
-#mainToolbar .quickGroup,#mainToolbar .toolbarPanel{
-  display:grid;grid-template-rows:12px 34px;gap:5px;min-width:0;width:100%;
-  margin:0;padding:0;align-items:stretch;justify-content:normal;
-}
-#mainToolbar .quickLabel,#mainToolbar .toolbarLabel{
-  display:block;margin:0;padding:0;font-size:9px;line-height:12px;
-  letter-spacing:.1em;text-transform:uppercase;font-weight:500;color:var(--graphite);white-space:nowrap;opacity:.8;
-}
-#mainToolbar .quickSeg{display:flex;align-items:stretch;min-width:0;width:100%;height:34px;flex:none}
-#mainToolbar .quickSeg button{
-  flex:1 1 0;min-width:0;width:0;height:32px;min-height:0;
-  padding:0 3px;font-size:10px;letter-spacing:0;white-space:nowrap;
-}
-#mainToolbar #lightingPresetToggle{width:100%;min-width:0;padding:0 4px;font-size:10px}
-#mainToolbar>.toolbarOutput{grid-area:1/3;min-width:0}
-#mainToolbar>.toolbarUtility{grid-area:1/4;min-width:0}
-#mainToolbar .topActions{
-  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch;
-  width:100%;min-width:0;margin:0;gap:0;grid-area:auto;justify-self:stretch;
-}
-#mainToolbar .topAction{
-  width:100%;min-width:0;height:34px;min-height:0;padding:0 3px;
-  margin:0;font-size:9px;letter-spacing:0;white-space:nowrap;
-}
-#mainToolbar .topAction+.topAction{border-left:0}
-#mainToolbar .toolbarUtilityControls{display:grid;grid-template-columns:34px minmax(0,1fr);gap:6px;min-width:0}
-#mainToolbar .helpBtn{grid-area:auto;margin:0;width:34px;height:34px;min-height:0}
-#mainToolbar .themeToggle{grid-area:auto;margin:0;width:100%;height:34px;min-width:0}
-#mainToolbar button:focus-visible{outline:2px solid var(--ink);outline-offset:2px;z-index:1}
-
-/* App actions occupy row one; preview modules fill row two edge to edge. */
-@media(max-width:1599px){
-  #mainToolbar{grid-template-columns:auto minmax(0,1fr) 146px;grid-template-rows:auto auto;gap:10px 14px}
-  #mainToolbar>.toolbarOutput{grid-area:1/2}
-  #mainToolbar>.toolbarUtility{grid-area:1/3}
-  #mainToolbar>.topTools{grid-area:2/1/3/-1;grid-template-columns:minmax(0,6fr) minmax(0,8fr) minmax(0,3.3fr);gap:10px}
-}
-
-/* Eight direct lighting choices remain a complete module. */
-#mainToolbar #toolbarLighting{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));height:34px}
-#mainToolbar #toolbarLighting button{width:100%;min-width:0;padding:0 2px;font-size:9px}
-#mainToolbar .topActions{grid-template-columns:minmax(0,1.3fr) repeat(2,minmax(0,1fr))}
-@media(min-width:601px) and (max-width:1099px){
- #mainToolbar>.topTools{grid-template-columns:minmax(0,6fr) minmax(0,5.4fr) minmax(0,3.3fr)}
- #mainToolbar .quickGroup{grid-template-rows:12px 68px}
- #mainToolbar .quickSeg{height:68px;align-items:stretch}
- #mainToolbar .quickSeg button{height:66px}
- #mainToolbar #toolbarLighting{height:68px;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(2,33px)}
- #mainToolbar #toolbarLighting button{height:33px}
- #mainToolbar #toolbarLighting button:nth-child(-n+4){border-bottom:1px solid var(--rule)}
- #mainToolbar #toolbarLighting button:nth-child(4){border-right:0}
-}
-@media(min-width:601px) and (max-width:799px){
- #mainToolbar>.topTools{grid-template-columns:minmax(0,6fr) minmax(0,5.4fr) minmax(0,3.3fr)}
- #mainToolbar #segView{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(2,33px)}
- #mainToolbar #segView button{width:100%;height:33px}
- #mainToolbar #segView button:nth-child(-n+3){border-bottom:1px solid var(--rule)}
- #mainToolbar #segView button:nth-child(3){border-right:0}
-
-}
-/* Compact pointer layout; each button stays at or below the wordmark height. */
-@media(min-width:601px){
- #mainToolbar{min-height:0;padding-top:8px;padding-bottom:8px}
- #mainToolbar .quickGroup,#mainToolbar .toolbarPanel{grid-template-rows:12px 26px;gap:4px}
- #mainToolbar .quickSeg,#mainToolbar #toolbarLighting{height:26px;align-self:center}
- #mainToolbar .quickSeg button{height:24px}
- #mainToolbar .topAction,#mainToolbar .helpBtn,#mainToolbar .themeToggle{height:26px}
- #mainToolbar .helpBtn{width:26px}
- #mainToolbar .toolbarUtilityControls{grid-template-columns:26px minmax(0,1fr)}
-}
-@media(min-width:601px) and (max-width:1099px){
- #mainToolbar .quickGroup{grid-template-rows:12px 50px}
- #mainToolbar #toolbarLighting{height:50px;grid-template-rows:repeat(2,24px)}
- #mainToolbar #toolbarLighting button{height:24px}
-}
-@media(min-width:601px) and (max-width:799px){
- #mainToolbar #segView{height:50px;grid-template-rows:repeat(2,24px)}
- #mainToolbar #segView button{height:24px}
-}
-
-/* Mobile: visible modules, compact controls, and intentional full-width rows. */
-@media(max-width:600px){
- #mainToolbar{grid-template-columns:var(--orb-logo-height) minmax(0,1fr);grid-template-rows:auto auto auto;padding:6px 10px 8px;gap:4px 12px;min-height:0}
- #mainToolbar>.brand-mark{grid-area:1/1;min-height:var(--orb-logo-height);align-self:center}
- #mainToolbar>.toolbarUtility{grid-area:1/2;width:146px;justify-self:end}
- #mainToolbar>.toolbarOutput{grid-area:2/1/3/-1}
- #mainToolbar>.topTools{grid-area:3/1/4/-1;grid-template-columns:minmax(0,1fr);gap:4px}
- #mainToolbar .quickGroup,#mainToolbar .toolbarPanel{display:grid;grid-template-columns:46px minmax(0,1fr);grid-template-rows:26px;gap:6px;align-items:center}
- #mainToolbar .quickSeg,#mainToolbar #toolbarLighting{height:26px}
- #mainToolbar .quickSeg button{height:24px;font-size:10px;padding:0 2px}
- #mainToolbar .quickLighting{grid-template-rows:50px}
- #mainToolbar #toolbarLighting{height:50px;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(2,24px)}
- #mainToolbar #toolbarLighting button{height:24px;font-size:10px}
- #mainToolbar #toolbarLighting button:nth-child(-n+4){border-bottom:1px solid var(--rule)}
- #mainToolbar #toolbarLighting button:nth-child(4){border-right:0}
- #mainToolbar .topAction,#mainToolbar .helpBtn,#mainToolbar .themeToggle{height:26px;font-size:10px}
- #mainToolbar .toolbarUtilityControls{grid-template-columns:26px minmax(0,1fr);gap:6px}
- #mainToolbar .helpBtn{width:26px}
- #mainToolbar .topActions .presentSplit{grid-template-columns:minmax(0,1fr) 26px}
- #mainToolbar .quickLabel,#mainToolbar .toolbarLabel{font-size:8px;letter-spacing:.04em;line-height:12px}
- #mainToolbar #toolbarUtilityPanel{grid-template-columns:minmax(0,1fr);grid-template-rows:26px}
- #mainToolbar #toolbarUtilityPanel>.toolbarLabel{display:none}
-}
-@media(max-width:360px){
- #mainToolbar #segView button,#mainToolbar .topAction{font-size:9px}
-}
-
-/* Keep fabric matching in the existing Interface heading, beside its theme controls. */
-#mainToolbar .interface-heading{display:flex;align-items:center;justify-content:space-between;gap:4px;opacity:1}
-#mainToolbar .interface-heading .check-option{display:inline-flex;align-items:center;gap:3px;margin:0;font-size:9px;line-height:12px;letter-spacing:0;text-transform:none;white-space:nowrap;cursor:pointer}
-#mainToolbar .interface-heading input{appearance:auto;width:11px;height:11px;margin:0;cursor:pointer}
-@media(max-width:600px){
- #mainToolbar #toolbarUtilityPanel{grid-template-rows:12px 26px;gap:3px}
- #mainToolbar #toolbarUtilityPanel>.interface-heading{display:flex}
-}
+#mainToolbar #toolbarOutputPanel { grid-template-columns: auto auto; column-gap: var(--toolbar-section-gap); }
+#toolbarOutputPanel>.toolbarLabel { grid-column: 2; grid-row: 1; }
+#toolbarOutputPanel .output-buttons { grid-column: 2; grid-row: 2; display: flex; }
+.topAction:hover { background: var(--wash); }

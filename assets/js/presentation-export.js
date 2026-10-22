@@ -1,11 +1,13 @@
-import {printDesignKey} from './print-design-key.js?v=0.9.67';
-import {installExportSources,exportLabel,srgbPng} from './export-variants.js?v=0.9.67';
-import {installExportSummary} from './export-summary.js?v=0.9.67';
-import {createExportProgress} from './export-progress.js?v=0.9.67';
-import {installPrintLayoutUI} from './print-layout-ui.js?v=0.9.67';
-import {addPrintLayouts} from './print-package.js?v=0.9.67';
-import {addArtworkPackage} from './artwork-export.js?v=0.9.67';
-import {canvasBlob,downloadBlob,cleanFilename} from './design-format.js?v=0.9.67';
+import {encodePdfImage} from './pdf-images.js?v=0.9.81';
+import {installPdfDeck} from './pdf-deck.js?v=0.9.81';
+import {printDesignKey} from './print-design-key.js?v=0.9.81';
+import {installExportSources,exportLabel,srgbPng} from './export-variants.js?v=0.9.81';
+import {installExportSummary} from './export-summary.js?v=0.9.81';
+import {createExportProgress} from './export-progress.js?v=0.9.81';
+import {installPrintLayoutUI} from './print-layout-ui.js?v=0.9.81';
+import {addPrintLayouts} from './print-package.js?v=0.9.81';
+import {addArtworkPackage} from './artwork-export.js?v=0.9.81';
+import {canvasBlob,downloadBlob,cleanFilename} from './design-format.js?v=0.9.81';
 const $=id=>document.getElementById(id);
 const VIEW_NAMES={front:'Front',angle:'Front three-quarter',side:'Left side',right:'Right side',backangle:'Back three-quarter',back:'Back',detail:'Detail'};
 const turn=()=>new Promise(resolve=>requestAnimationFrame(resolve));
@@ -84,7 +86,7 @@ export function installExports(api){
     const edge=Number(choice('exportSize')),shape=choice('exportShape'),width=shape==='portrait'?Math.round(edge*.8):edge,height=shape==='wide'?Math.round(edge*9/16):edge;
     const exportLighting=choice('exportLighting');
     const options={width,height,background:choice('exportBackground'),grid:$('exportGrid').checked,shadow:false},name=cleanFilename(api.name());
-    working=true;cancelled=false;api.lock(true,'Preparing selected files…');$('exportConfirm').disabled=true;$('exportCancel').hidden=false;
+    working=true;sources.lock(true);cancelled=false;api.lock(true,'Preparing selected files…');$('exportConfirm').disabled=true;$('exportCancel').hidden=false;
     for(const el of $('exportDialog').querySelectorAll('input,select,.print-layout button'))el.disabled=true;
     progress.start(2+(snapshotPrints?variants.length:0)+views.length*variants.length+plans.reduce((n,p)=>n+p.layers.length+1,0)+2);
     let session,variantSession,releaseLighting,success=false,psdCount=0,projectCount=0,graphicsCount=0;
@@ -160,7 +162,7 @@ export function installExports(api){
       if(snapshotPrints)zip.file('Print Designs/README.txt','SNAPSHOT PRINT DESIGNS\n\nIdentical print designs share a PSD set. Garment colors and scene lighting are not printed. Automatic ink colors can differ between garments and therefore require separate sets.\n\n'+printInfo.map(item=>item.snapshot+'\n'+(item.folder||item.reason)+'\n').join('\n'));
       message('Packaging selected files…');const blob=await zip.generateAsync({type:'blob',compression:'STORE'},meta=>{check();progress.packaging(meta.percent/100);});check();downloadBlob(blob,name+'_Export.zip');success=true;progress.finish(true);message(`Selected files downloaded · ${images.length} mockups${psdCount?` · ${psdCount} layered PSDs`:''}${projectCount?` · ${projectCount} ORB project${projectCount===1?'':'s'}`:''}${graphicsCount?` · ${graphicsCount} graphics layers`:''}.`);
     }catch(error){message(error.message||'The export could not finish. Try a smaller image size.');}
-    finally{try{await restoreExport();}catch(e){message('Export stopped; restoring the working design failed: '+e.message);}progress.finish(success);working=false;api.lock(false);$('exportConfirm').disabled=false;$('exportCancel').hidden=true;for(const el of $('exportDialog').querySelectorAll('input,select,.print-layout button'))el.disabled=false;printUI.restoreAvailability();syncDetailExports();summary.sync();}
+    finally{try{await restoreExport();}catch(e){message('Export stopped; restoring the working design failed: '+e.message);}progress.finish(success);working=false;sources.lock(false);api.lock(false);$('exportConfirm').disabled=false;$('exportCancel').hidden=true;for(const el of $('exportDialog').querySelectorAll('input,select,.print-layout button'))el.disabled=false;printUI.restoreAvailability();syncDetailExports();summary.sync();}
   }
   $('btnExportAll').onclick=async()=>{
     if(api.busy()||working||preparing)return;message('');progress.reset();syncDetailExports();$('exportDialog').showModal();
@@ -195,12 +197,23 @@ export function installExports(api){
     const context=held.getContext('2d');if(!context)throw new Error('Could not prepare snapshot preview.');
     const scaleX=source.width/sourceRect.width,scaleY=source.height/sourceRect.height;
     context.drawImage(source,(rect.left-sourceRect.left)*scaleX,(rect.top-sourceRect.top)*scaleY,rect.width*scaleX,rect.height*scaleY,0,0,held.width,held.height);
-    held.setAttribute('aria-hidden','true');held.style.cssText='position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2;';
+    held.setAttribute('aria-hidden','true');held.classList.add('export-held-frame');
     cue.className='snapshot-capture-corners';cue.setAttribute('aria-hidden','true');
     for(let i=0;i<4;i++)cue.append(document.createElement('i'));
     const visibility=source.style.visibility;stage.append(held,cue);source.style.visibility='hidden';
     return ()=>{source.style.visibility=visibility;held.remove();cue.remove();held.width=held.height=1;};
   }
+  installPdfDeck({...api,busy:()=>working||preparing||api.busy(),async capture(edge,background,quality=99){
+    if(working)throw Error('Another export is running.');working=true;let session,release;
+    try{
+      await api.prepare?.();release=api.neutralLighting();
+      const scale=edge/1920,width=Math.round(900*scale),height=Math.round(928*scale);
+      session=captureSession(width,height);camera.aspect=width/height;
+      const {center,points}=pointsAndCenter(),distance=fitDistance(THREE,points,center,['front','back'].map(api.viewAngles),camera.aspect,camera.fov,1.04),result={identity:api.exportIdentity()};
+      for(const view of ['front','back']){const [az,el]=api.viewAngles(view),d=distance;camera.position.set(center.x+d*Math.sin(el)*Math.sin(az),center.y+d*Math.cos(el),center.z+d*Math.sin(el)*Math.cos(az));camera.lookAt(center);const canvas=frame(width,height,{background:'transparent',grid:false,shadow:false});try{const ctx=canvas.getContext('2d');ctx.globalCompositeOperation='destination-over';ctx.fillStyle=background;ctx.fillRect(0,0,width,height);result[view]=await encodePdfImage(canvas,edge,quality);}finally{canvas.width=canvas.height=1;}await turn();}
+      return result;
+    }finally{try{session?.finish();}finally{try{release?.();}finally{working=false;}}}
+  }});
   return {async snapshotPreviews(){
     if(working||preparing||!api.current())throw new Error('The garment is not ready for a snapshot.');
     working=true;let session,releaseView;

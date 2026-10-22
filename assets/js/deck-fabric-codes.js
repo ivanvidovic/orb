@@ -1,0 +1,6 @@
+// Base colors have at most three letters. Modifiers are prepended separately.
+const bases={white:'WHT',black:'BLK',gray:'GRY',grey:'GRY',graphite:'GPH',greige:'GRG',chalk:'CHK',ecru:'ECR',charcoal:'CHR',brown:'BRN',beige:'BEI',red:'RED',orange:'ORG',yellow:'YLW',olive:'OLV',green:'GRN',teal:'TEL',blue:'BLU',purple:'PUR',pink:'PNK',navy:'NVY',burgundy:'BRG',cream:'CRM',tan:'TAN',cyan:'CYN',magenta:'MAG',silver:'SLV',gold:'GLD'};
+const modifiers={muted:'M',washed:'W',light:'L',dark:'D',faded:'F',pale:'P',off:'O',bright:'B',soft:'S',deep:'D',dusty:'D',warm:'W',cool:'C'};
+const patterns={'duck camo':'DC','desert duck camo':'DDC','forest camo':'FC','black camo':'BC','tiger camo':'TC','army camo':'AC','snow camo':'SC','realtree camo':'RC','deadwood camo':'DWC','darkwood camo':'DKC'};
+export function fabricCodeParts(name){const normalized=name.trim().toLowerCase().replace(/[-\s]+/g,' ');if(patterns[normalized])return {prefix:'',base:patterns[normalized]};const words=normalized.split(' ');let prefix='';while(words.length>1&&modifiers[words[0]])prefix+=modifiers[words.shift()];const color=words.join(' '),base=bases[color]||color.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,3)||'CLR';return {prefix,base};}
+export function preferredFabricCode(name){const {prefix,base}=fabricCodeParts(name);return prefix+base;}

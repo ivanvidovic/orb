@@ -1,44 +1,44 @@
-import {createPaletteLibrary} from './palette-library.js?v=0.9.67';
-import {defaultPaletteBook,applyPalette,installDesignTools,effectiveVisibility} from './design-tools.js?v=0.9.67';
+import {createPaletteLibrary} from './palette-library.js?v=0.9.81';
+import {defaultPaletteBook,applyPalette,installDesignTools,effectiveVisibility} from './design-tools.js?v=0.9.81';
 let designTools=null;
-import {colorName} from './color-name.js?v=0.9.67';
-import {CAMO_LIBRARY,createCamo,normalizeCamoScales} from './camo.js?v=0.9.67';
-import {prepareCordMetadata,adoptCordMetadata,updateCordMotion,cordMotionState} from './cord-motion.js?v=0.9.67';
-import {restoreGarmentTopology} from './embedded-garment.js?v=0.9.67';
-import {fetchGarmentAsset} from './garment-asset-cache.js?v=0.9.67';
-import {garmentPresentation,presentationPoint} from './garment-presentation.js?v=0.9.67';
+import {colorName} from './color-name.js?v=0.9.81';
+import {CAMO_LIBRARY,createCamo,normalizeCamoScales} from './camo.js?v=0.9.81';
+import {prepareCordMetadata,adoptCordMetadata,updateCordMotion,cordMotionState} from './cord-motion.js?v=0.9.81';
+import {restoreGarmentTopology} from './embedded-garment.js?v=0.9.81';
+import {fetchGarmentAsset} from './garment-asset-cache.js?v=0.9.81';
+import {garmentPresentation,presentationPoint} from './garment-presentation.js?v=0.9.81';
 // ORB Garment Studio v0.9.18 — desktop crewnecks and garment alignment.
-import {installSnapshots} from './snapshots.js?v=0.9.67';
+import {installSnapshots} from './snapshots.js?v=0.9.81';
 import {configureGarmentShadow} from './shadow-quality.js?v=91-shadow47';
 import {preloadCatalog} from './catalog-preload.js?v=91-shadow47';
 import {createPresentMotion} from './present-motion.js?v=91-present46';
 import {installMobileInteraction} from './mobile-interaction.js?v=91-art44';
 import {MOBILE_MEMORY,RENDER_BUDGET,artworkAtlasSize} from './render-budget.js?v=0.9.13';
 import {viewportSize,installViewport} from './mobile-viewport.js?v=91-opt43';
-import {defaultPresentation} from './present-options.js?v=0.9.67';
-import {installPresentation} from './present-settings.js?v=0.9.67';
+import {defaultPresentation} from './present-options.js?v=0.9.81';
+import {installPresentation} from './present-settings.js?v=0.9.81';
 let presentation=null,presentRenderLight=null;
-import {setupProjectorControls,syncProjectorButtons} from './projector-controls.js?v=91-controls65';
+import {setupProjectorControls,syncProjectorButtons} from './projector-controls.js?v=0.9.81';
 import {installMappedRanges} from './mapped-ranges.js?v=91-history13';
 import {treatmentKey} from './artwork-treatment.js?v=91-history13';
-import {quadTransform,alphaBounds,flattenTransform,collectSurfaces} from './print-layout.js?v=0.9.67';
+import {quadTransform,alphaBounds,flattenTransform,collectSurfaces} from './print-layout.js?v=0.9.81';
 import {createTreatmentQueue,createTreatmentProcessor} from './artwork-processing.js?v=91-history13';
 import {hasPrintTexture} from './print-texture.js?v=91-history13';
 import {focusedPanelBounds,layerCustomColor} from './artwork-detail.js?v=91-history13';
-import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=0.9.67';
-import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE,fullSleeveCamera} from './sleeve-camera.js?v=0.9.67';
+import {CREATIVE_DEFAULTS,isCreative,createCreativeLighting} from './creative-lighting.js?v=0.9.81';
+import {SLEEVE_CAMERA_PIVOTS,SLEEVE_CAMERA_CLEARANCE,fullSleeveCamera} from './sleeve-camera.js?v=0.9.81';
 import {hasDirectory} from './folder-import.js?v=58';
 import {decodeArtworkImage,normalizeArtworkFile} from './artwork-decode.js?v=91-svg21';
-import {createCityTraffic} from './city-night.js?v=0.9.67';
+import {createCityTraffic} from './city-night.js?v=0.9.81';
 import {PLACEMENT_SPACE,placementOffsets,migratePlacement} from './placement-space.js?v=82';
 import {sharedSurfaceProfiles,fitSurfacePlacements} from './surface-layout.js?v=0.9.15';
-import {torsoFrame,torsoDistance,previousTorsoFrame,previewDistance,previousPreviewFrame} from './garment-framing.js?v=0.9.67';
-import {installWorkspace} from './workspace.js?v=0.9.67';
-import {installExports} from './presentation-export.js?v=0.9.67';
-import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=0.9.67';
+import {torsoFrame,torsoDistance,previousTorsoFrame,previewDistance,previousPreviewFrame} from './garment-framing.js?v=0.9.81';
+import {installWorkspace} from './workspace.js?v=0.9.81';
+import {installExports} from './presentation-export.js?v=0.9.81';
+import {SETTING_FIELDS,LAYER_FIELDS,pick} from './design-format.js?v=0.9.81';
 import {renderPlacementDiagram} from './placement-diagrams.js?v=0.9.12';
-import {installColorPicker} from './color-picker.js?v=0.9.67';
-import {installSliderControls,rangeDisplayValue,RESET_ICON} from './controls.js?v=91-controls65';
+import {installColorPicker} from './color-picker.js?v=0.9.81';
+import {installSliderControls,rangeDisplayValue,RESET_ICON} from './controls.js?v=0.9.81';
 import {installColorActions} from './color-actions.js?v=34';
 let colorPicker=null,colorActions=null,workspace=null;
 let snapshotReviewActive=false;
@@ -922,7 +922,7 @@ async function getCatalogBytes(item){
     const stem=item.file.replace(/\.glb$/,'');
     const urls=['../garments/'+item.file,'../calibration/'+stem+'.json','../calibration/'+stem+'.bin'];
     return Promise.all(urls.map(async (path,index)=>{
-      const url=new URL(path,import.meta.url);url.searchParams.set('v','0.9.67');
+      const url=new URL(path,import.meta.url);url.searchParams.set('v','0.9.81');
       const response=await fetchGarmentAsset(url,{persistent:!MOBILE_MEMORY});
       if(!response.ok)throw new Error('Garment asset failed ('+response.status+'): '+path);
       if(index===0&&!MOBILE_MEMORY&&window.ORBStartup?.active){
@@ -1201,7 +1201,7 @@ const THEMES={
   dark:{bg:BRAND.dark.paper},
 };
 const systemColorScheme=matchMedia('(prefers-color-scheme: dark)');
-const state={paletteBook:defaultPaletteBook(),lockupGroups:[], presentation:defaultPresentation(), ...CREATIVE_DEFAULTS,runwayPaused:REDUCED,afterglowPaused:REDUCED,projectorPaused:REDUCED,themeMode:'system', theme:'light', blank:0, camoId:null, camoLastId:'army', camoScale:100,camoScales:{},camoScaleVersion:1, garmentCustom:'#FFFFFF', artGlossiness:50, matchFabricToTheme:false, bg:THEMES.light.bg, dotGrid:true, gridType:'square', gridColor:BRAND.light.grid, gridColorCustom:false, gridStroke:0.5, gridScale:35, gridCharSize:45, light:'softbox', lightPower:100, blackLightPower:100, regularLightPower:100, nightLightPower:100, nightTraffic:'subtle', nightPaused:REDUCED, lightLocked:true, nightGreen:NIGHT_DEFAULTS.green, nightMagenta:NIGHT_DEFAULTS.magenta, selfShadows:true, wind:1, view:'angle',
+const state={deckIdentity:null,paletteBook:defaultPaletteBook(),lockupGroups:[], presentation:defaultPresentation(), ...CREATIVE_DEFAULTS,runwayPaused:REDUCED,afterglowPaused:REDUCED,projectorPaused:REDUCED,themeMode:'system', theme:'light', blank:0, camoId:null, camoLastId:'army', camoScale:100,camoScales:{},camoScaleVersion:1, garmentCustom:'#FFFFFF', artGlossiness:50, matchFabricToTheme:false, bg:THEMES.light.bg, dotGrid:true, gridType:'square', gridColor:BRAND.light.grid, gridColorCustom:false, gridStroke:0.5, gridScale:35, gridCharSize:45, light:'softbox', lightPower:100, blackLightPower:100, regularLightPower:100, nightLightPower:100, nightTraffic:'subtle', nightPaused:REDUCED, lightLocked:true, nightGreen:NIGHT_DEFAULTS.green, nightMagenta:NIGHT_DEFAULTS.magenta, selfShadows:true, wind:1, view:'angle',
   inertia:{enabled:true,strength:15,ramp:100,settle:0.5,elasticity:60,overshoot:70,release:70,sensitivity:50,bias:25,sleeve:100,arc:100},
   focus:new THREE.Vector3(0,.02,0),focusTarget:new THREE.Vector3(0,.02,0),az:0.62, el:1.30, r:1.55, taz:0.62, tel:1.30, tr:1.55, present:false };
 const WIND_LEVELS=[0,0.011,0.024];
@@ -3681,6 +3681,7 @@ function setStudioInput(id,value,event='input'){
   input.dispatchEvent(new Event(event,{bubbles:true}));
 }
 function resetStudioColor(id,keepOpen=false){
+  const pdfInput=document.getElementById(id);if(pdfInput?.dataset.pdfDefault){setStudioInput(id,pdfInput.dataset.pdfDefault,'change');if(keepOpen)colorPicker?.refresh();return;}
   const entry=artEntry();
   if(id==='artwork')id=entry?.mode==='tint'?'tintCustom':entry?.mode==='ink'?'inkCustom':null;
   if(!id)return;
@@ -3771,7 +3772,7 @@ async function restoreDesignState(snapshot,restoreCamera=true){
   activeArtId=artLayers.some(e=>e.id===snapshot.active)?snapshot.active:null;
   if(artEntry())activeArtSlot=artEntry().slot;
   nextArtId=Math.max(nextArtId,...artLayers.map(e=>(Number(e.id.replace(/^art-/,''))||0)+1));
-  Object.assign(state,{paletteBook:defaultPaletteBook(),lockupGroups:[],camoId:null,camoLastId:'army',camoScale:100,camoScales:{},camoScaleVersion:0,presentation:defaultPresentation(),...CREATIVE_DEFAULTS,runwayPaused:REDUCED,afterglowPaused:REDUCED,projectorPaused:REDUCED,nightLightPower:100,nightTraffic:'subtle',nightPaused:REDUCED},structuredClone(pick(snapshot.settings,SETTING_FIELDS)),interfacePreferences);
+  Object.assign(state,{deckIdentity:null,paletteBook:defaultPaletteBook(),lockupGroups:[],camoId:null,camoLastId:'army',camoScale:100,camoScales:{},camoScaleVersion:0,presentation:defaultPresentation(),...CREATIVE_DEFAULTS,runwayPaused:REDUCED,afterglowPaused:REDUCED,projectorPaused:REDUCED,nightLightPower:100,nightTraffic:'subtle',nightPaused:REDUCED},structuredClone(pick(snapshot.settings,SETTING_FIELDS)),interfacePreferences);
   applyPalette(state.paletteBook,artLayers);
   normalizeCamoScales(state);
   ++camoRequest;
@@ -3850,14 +3851,14 @@ workspace=installWorkspace({
   async restore(snapshot,model,{preserveEnvironment=false,mergePalettes=false}={}){
     if(mergePalettes){savePaletteLibrary();snapshot={...snapshot,settings:{...snapshot.settings,paletteBook:paletteLibrary.merge(snapshot.settings.paletteBook||defaultPaletteBook())}};}
     if(preserveEnvironment){
-      const current=designSnapshot(),designKeys=new Set(['paletteBook','lockupGroups','camoId','camoLastId','camoScale','camoScales','camoScaleVersion','blank','garmentCustom','artGlossiness']);
+      const current=designSnapshot(),designKeys=new Set(['deckIdentity','paletteBook','lockupGroups','camoId','camoLastId','camoScale','camoScales','camoScaleVersion','blank','garmentCustom','artGlossiness']);
       snapshot={...snapshot,settings:{...snapshot.settings,...Object.fromEntries(Object.entries(current.settings).filter(([k])=>!designKeys.has(k)))},camera:current.camera,lighting:current.lighting,regularBackdrop:current.regularBackdrop};
     }
     historyRestoring=true;
     try{await restoreSnapshotGarment(snapshot,model);await restoreDesignState(snapshot);await settleArtworkTreatment();if(mergePalettes)savePaletteLibrary();}finally{historyRestoring=false;}
   },
   newDesign:async()=>{
-    const snapshot=designSnapshot();snapshot.layers=[];snapshot.active=null;snapshot.name='Untitled design';snapshot.settings={...structuredClone(defaultDesignSettings),paletteBook:structuredClone(state.paletteBook)};snapshot.regularBackdrop=null;
+    const snapshot=designSnapshot();snapshot.layers=[];snapshot.active=null;snapshot.name='Untitled design';snapshot.settings={...structuredClone(defaultDesignSettings),deckIdentity:null,paletteBook:structuredClone(state.paletteBook)};snapshot.regularBackdrop=null;
     recordArtUndo();await restoreDesignState(snapshot,false);setView('angle');
   },
   presentationAsset:entry=>presentation.setGraphic(entry),

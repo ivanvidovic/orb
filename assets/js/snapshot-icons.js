@@ -1,6 +1,6 @@
 const svg=path=>`<svg viewBox="0 0 24 24" aria-hidden="true">${path}</svg>`;
 export const snapshotIcons={
- capture:svg('<path d="M12 5v14M5 12h14"/>'),
+ capture:svg('<path d="M3 7h4l2-3h6l2 3h4v14H3z"/><circle cx="12" cy="13" r="4"/>'),
  review:svg('<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>'),
  mosaic:svg('<rect x="3" y="3" width="10" height="18"/><rect x="17" y="3" width="4" height="7"/><rect x="17" y="14" width="4" height="7"/>'),
  open:svg('<path d="M14 3h7v7M21 3 10 14M10 5H4v15h15v-6"/>'),

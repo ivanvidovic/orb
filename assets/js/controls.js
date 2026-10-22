@@ -7,7 +7,7 @@ export function installSliderControls(defaultArtworkValue){
     if(range.dataset.expandRange!=='true'||!Number.isFinite(value)||value<=Number(range.max))return;
     range.max=String(Math.min(Number.MAX_VALUE,Math.max(200,Math.ceil(value/100)*100+100)));
   };
-  const pairs=new Map();let wheelTimer;
+  const pairs=new Map(),wheelTimers=new WeakMap();
   const unitLabels={artEmission:'Artwork glow intensity',lightPower:'Light intensity',artGlossiness:'Artwork glossiness',colorHue:'Hue'};
   for(const range of document.querySelectorAll('input[type="range"]')){
     let row=range.parentElement;
@@ -46,12 +46,19 @@ export function installSliderControls(defaultArtworkValue){
   }
   // Capture prevents old per-field wheel handlers from applying a second step.
   document.addEventListener('wheel',event=>{
-    const pair=pairs.get(event.target);if(!pair||pair.range.disabled||pair.number.disabled||event.ctrlKey||!(event.deltaY||event.deltaX))return;
+    let pair=pairs.get(event.target);
+    if(!pair&&event.target.matches('input[type="range"],input[type="number"]')){
+      const target=event.target,row=target.closest('.slider-row')||target.parentElement;
+      const range=target.type==='range'?target:row.querySelector('input[type="range"]');
+      const number=row.querySelector('input[type="number"]');
+      if(range)pair={range,number};
+    }
+    if(!pair||pair.range.disabled||pair.number?.disabled||event.ctrlKey||!(event.deltaY||event.deltaX))return;
     event.preventDefault();event.stopImmediatePropagation();
-    const {range,number}=pair,step=Number(range.step)||1,direction=(event.deltaY||event.deltaX)<0?1:-1;
+    const {range,number}=pair,step=Number(range.dataset.wheelStep)||Number(range.step)||1,direction=(event.deltaY||event.deltaX)<0?1:-1;
     const mapped=range.dataset.logRange!==undefined;const amount=mapped?Math.max(.0001,Number(range.value)*.02):step;const next=Number((Number(range.value)+direction*amount*(event.shiftKey?10:1)).toFixed(8));expandFor(range,next);range.value=String(next);
-    range.dispatchEvent(new Event('input',{bubbles:true}));number.value=rangeDisplayValue(range);
-    clearTimeout(wheelTimer);wheelTimer=setTimeout(()=>range.dispatchEvent(new Event('change',{bubbles:true})),180);
+    range.dispatchEvent(new Event('input',{bubbles:true}));if(number)number.value=rangeDisplayValue(range);
+    clearTimeout(wheelTimers.get(range));wheelTimers.set(range,setTimeout(()=>range.dispatchEvent(new Event('change',{bubbles:true})),180));
   },{capture:true,passive:false});
   const hue=document.getElementById('colorHue'),popover=document.getElementById('colorPopover');
   new MutationObserver(()=>{

@@ -1,10 +1,11 @@
-import {CAMO_LIBRARY} from './camo.js?v=0.9.67';
-import {validPresentation} from './present-options.js?v=0.9.67';
+import {validIdentity} from './deck-metadata.js?v=0.9.81';
+import {CAMO_LIBRARY} from './camo.js?v=0.9.81';
+import {validPresentation} from './present-options.js?v=0.9.81';
 import {CREATIVE_DEFAULTS,PROJECTOR_PATTERNS} from './creative-lighting.js?v=91-history13';
 // Portable ORB files contain a versioned manifest and deduplicated image bytes.
 export const FORMAT_VERSION=4;
 export const LAYER_FIELDS=['paletteSlot','groupId','id','assetId','sourceName','name','autoName','nameEdited','slot','defaultSlot','defaultMode','defaultScale','mode','inkCustom','tintCustom','solidCutoff','solidSoftness','solidMaskSource','solidSpread','solidEdgeSoftness','solidInvert','defaultSolidInvert','printPattern','printSize','printAngle','printStrength','printVersion','printMarkSize','printTone','printErosion','printPixelScale','printDensity','printSeed','printBranchMode','printRounding','fit','sleevePreset','visible','glow','uvReactive','emission','anchor','placementSpace','placement'];
-export const SETTING_FIELDS=['paletteBook','lockupGroups','presentation',...Object.keys(CREATIVE_DEFAULTS),'camoId','camoLastId','camoScale','camoScales','camoScaleVersion','themeMode','blank','garmentCustom','artGlossiness','matchFabricToTheme','bg','dotGrid','gridType','gridColor','gridColorCustom','gridStroke','gridScale','gridCharSize','light','lightPower','blackLightPower','regularLightPower','nightLightPower','nightTraffic','nightPaused','lightLocked','nightGreen','nightMagenta','selfShadows','wind','inertia'];
+export const SETTING_FIELDS=['deckIdentity','paletteBook','lockupGroups','presentation',...Object.keys(CREATIVE_DEFAULTS),'camoId','camoLastId','camoScale','camoScales','camoScaleVersion','themeMode','blank','garmentCustom','artGlossiness','matchFabricToTheme','bg','dotGrid','gridType','gridColor','gridColorCustom','gridStroke','gridScale','gridCharSize','light','lightPower','blackLightPower','regularLightPower','nightLightPower','nightTraffic','nightPaused','lightLocked','nightGreen','nightMagenta','selfShadows','wind','inertia'];
 export function pick(object,keys){return Object.fromEntries(keys.filter(k=>object[k]!==undefined).map(k=>[k,object[k]]));}
 export function cleanFilename(value){return String(value||'Untitled design').replace(/[<>:"/\\|?*\x00-\x1f]/g,'').replace(/[. ]+$/,'').trim().slice(0,80)||'Untitled design';}
 const fail=message=>{throw new Error(message);};
@@ -43,6 +44,7 @@ export function validateProject(doc,{garments,slots}){
     }
   }
   const s=doc.settings;
+  if(s?.deckIdentity!=null&&!validIdentity(s.deckIdentity))fail('Invalid design identity.');
   if(s?.paletteBook){const b=s.paletteBook,id=v=>typeof v==='string'&&v.length>0&&v.length<=80;
    if(!Array.isArray(b.slots)||b.slots.length>8||!Array.isArray(b.palettes)||b.palettes.length<1||b.palettes.length>100)fail('Invalid artwork palettes.');
    if(new Set(b.slots.map(x=>x.id)).size!==b.slots.length||new Set(b.palettes.map(x=>x.id)).size!==b.palettes.length)fail('Duplicate palette identifiers.');

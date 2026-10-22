@@ -1,5 +1,5 @@
 // Persistent, nonmodal color editing shared by every Studio color control.
-import {RESET_ICON} from './controls.js?v=34';
+import {RESET_ICON} from './controls.js?v=0.9.81';
 export function installColorPicker({onReset=()=>{}}={}){
   const panel=document.createElement('section');
   panel.id='colorPopover';panel.hidden=true;panel.setAttribute('role','dialog');
@@ -13,7 +13,7 @@ export function installColorPicker({onReset=()=>{}}={}){
   const field=panel.querySelector('#colorSV'),cursor=panel.querySelector('#colorCursor');
   const hue=panel.querySelector('#colorHue'),hex=panel.querySelector('#colorHex'),preview=panel.querySelector('#colorPreview');
   const copy=panel.querySelector('#colorCopy');let copyTimer;
-  copy.onclick=async()=>{const color=value();try{if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(color);}else{const temp=document.createElement('textarea');temp.value=color;temp.style.position='fixed';temp.style.opacity='0';panel.append(temp);temp.select();const ok=document.execCommand('copy');temp.remove();if(!ok)throw Error('Copy unavailable');}copy.innerHTML=checkIcon;copy.title='Copied '+color;copy.setAttribute('aria-label','Copied '+color);}catch{copy.title='Could not copy; select the hex value to copy manually';copy.setAttribute('aria-label',copy.title);hex.focus();hex.select();}clearTimeout(copyTimer);copyTimer=setTimeout(()=>{copy.innerHTML=copyIcon;copy.title='Copy hex color';copy.setAttribute('aria-label','Copy hex color');},1400);};
+  copy.onclick=async()=>{const color=value();try{if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(color);}else{const temp=document.createElement('textarea');temp.value=color;temp.className='clipboard-fallback';panel.append(temp);temp.select();const ok=document.execCommand('copy');temp.remove();if(!ok)throw Error('Copy unavailable');}copy.innerHTML=checkIcon;copy.title='Copied '+color;copy.setAttribute('aria-label','Copied '+color);}catch{copy.title='Could not copy; select the hex value to copy manually';copy.setAttribute('aria-label',copy.title);hex.focus();hex.select();}clearTimeout(copyTimer);copyTimer=setTimeout(()=>{copy.innerHTML=copyIcon;copy.title='Copy hex color';copy.setAttribute('aria-label','Copy hex color');},1400);};
   let target=null,anchor=null,h=0,s=0,v=1,changed=false;
   const memoryKey='orb-colors:'+location.pathname;let recent=[];
   try{const saved=JSON.parse(sessionStorage.getItem(memoryKey)||'[]');if(Array.isArray(saved))recent=saved.filter(c=>/^#[0-9a-f]{6}$/i.test(c)).slice(0,12);}catch{}
@@ -74,7 +74,7 @@ export function installColorPicker({onReset=()=>{}}={}){
     close();panel.querySelector('#colorSample').dataset.sampleTarget=input.id;target=input;anchor=source;changed=false;h=0;read(input.value);
     panel.querySelector('#colorPopoverTitle').textContent=({inkCustom:'Solid Color',tintCustom:'Tint Color'})[input.id]||input.getAttribute('aria-label')||'Color';
     input.setAttribute('aria-controls',panel.id);input.setAttribute('aria-expanded','true');
-    const editor=source.closest('.palette-editor');if(editor){editor.append(panel);panel.classList.add('color-embedded');}
+    const editor=source.closest('.palette-editor, .pdf-appearance');if(editor){editor.append(panel);panel.classList.add('color-embedded');}
     panel.hidden=false;panel.dispatchEvent(new Event('coloropen'));sync();position();field.focus({preventScroll:true});
   }
   document.addEventListener('click',event=>{

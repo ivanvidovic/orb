@@ -1,0 +1,8 @@
+import {CAMO_LIBRARY} from './camo.js?v=0.9.81';
+const key='orb-snapshot-order:'+location.pathname.replace(/\/index\.html$/,'/');
+export function snapshotOrderSignature(){try{return localStorage.getItem(key)||'';}catch{return '';}}
+export function saveSnapshotOrder(ids){try{localStorage.setItem(key,JSON.stringify(ids));}catch{}}
+export function snapshotOrder(entries){let order=[];try{order=JSON.parse(localStorage.getItem(key)||'[]');}catch{}if(!Array.isArray(order))return entries;const rank=new Map(order.map((id,i)=>[id,i]));return [...entries].sort((a,b)=>(rank.get(a.id)??-1)-(rank.get(b.id)??-1));}
+const luma=rgb=>rgb.reduce((sum,c,i)=>{c/=255;return sum+(c<=.04045?c/12.92:((c+.055)/1.055)**2.4)*[.2126,.7152,.0722][i];},0);
+const cache=new Map(),solids=['#F3F1EC','#E1DCD2','#ADA79D','#60615E','#252628'];
+export async function fabricBrightness(doc){const s=doc.settings||{},pattern=CAMO_LIBRARY.find(p=>p.id===s.camoId);if(pattern){if(!cache.has(pattern.id))cache.set(pattern.id,(async()=>{const img=new Image();img.src=new URL('../camo/'+pattern.file,import.meta.url);await img.decode();const c=document.createElement('canvas');c.width=c.height=64;const ctx=c.getContext('2d',{willReadFrequently:true});ctx.drawImage(img,0,0,64,64);const pixels=ctx.getImageData(0,0,64,64).data;let sum=0;for(let i=0;i<pixels.length;i+=4)sum+=luma(pixels.subarray(i,i+3));return sum/4096;})().catch(e=>{cache.delete(pattern.id);throw e;}));return cache.get(pattern.id);}const hex=s.blank==='custom'?s.garmentCustom:solids[s.blank??0];return luma((/^#[a-f\d]{6}$/i.test(hex||'')?hex:'#FFFFFF').slice(1).match(/../g).map(c=>parseInt(c,16)));}
